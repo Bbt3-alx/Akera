@@ -19,6 +19,7 @@ const userSchema = new Schema(
       type: String,
       require: true,
       enum: ["admin", "manager", "user"],
+      default: "user",
     },
     lastLogin: {
       type: Date,
