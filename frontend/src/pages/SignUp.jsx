@@ -3,7 +3,7 @@ import Input from "../components/Input.jsx";
 import { User, Mail, Lock, Loader } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import PasswordStrength from "../components/PasswordStrengthMeter.jsx";
+import PasswordStrength from "../components/PasswordStrength.jsx";
 import { useAuthStore } from "../stores/auhtStore.js";
 
 //Sign up page

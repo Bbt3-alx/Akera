@@ -20,5 +20,5 @@ router.post("/logout", logout);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password/:token", resetPassword);
 
-router.get("/verifyAuth", validateToken, verifyAuth);
+router.get("/verify-auth", validateToken, verifyAuth);
 export default router;
