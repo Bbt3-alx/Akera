@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "../stores/auhtStore.js";
+import { useAuthStore } from "../stores/authStore.js";
 import toast from "react-hot-toast";
 
 // EmailVerificationPage Component: This handles verifying a 6-digit email verification code.

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useAuthStore } from "../stores/auhtStore.js";
+import { useAuthStore } from "../stores/authStore.js";
 import { useState } from "react";
 import Input from "../components/Input.jsx";
 import { ArrowLeft, Mail } from "lucide-react";

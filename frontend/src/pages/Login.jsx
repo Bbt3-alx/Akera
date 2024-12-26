@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Loader, Lock, Mail } from "lucide-react";
 import Input from "../components/Input";
 import { Link } from "react-router-dom";
-import { useAuthStore } from "../stores/auhtStore";
+import { useAuthStore } from "../stores/authStore";
 
 /**
  * LoginPage Component:

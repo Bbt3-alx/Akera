@@ -4,35 +4,35 @@ import FloatingShape from "./components/FloatingShape.jsx";
 import SignUp from "./pages/SignUp.jsx";
 import Login from "./pages/Login.jsx";
 import EmailVerification from "./pages/EmailVerification.jsx";
-import { useAuthStore } from "./stores/auhtStore.js";
+import { useAuthStore } from "./stores/authStore.js";
 import { useEffect } from "react";
 import Dashboard from "./pages/Dashboard.jsx";
 import Loading from "./components/Loading.jsx";
 import ResetPassword from "./pages/ResetPwd.jsx";
 import ForgotPassword from "./pages/ForgotPwd.jsx";
 
-// ProtectedRoute ensures the user is authenticated and email-verified before accessing certain routes
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/signup" replace />;
   }
 
-  if (!user.isVerified) {
-    return <Navigate to="/verify-email" replace />;
-  }
+  // if (isAuthenticated && !user._doc.isVerified) {
+  //   return <Navigate to="/verify-email" replace />;
+  // }
 
   return children;
 };
 
-// RedirectAuthenticatedUser redirects authenticated users who have already verified their email to the dashboard or homepage
 const RedirectAuthenticatedUser = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
 
-  if (isAuthenticated && user.isVerified) {
+  // Safeguard for null user
+  if (isAuthenticated && user && user._doc.isVerified) {
     return <Navigate to="/" replace />;
   }
+
   return children;
 };
 
@@ -46,9 +46,9 @@ function App() {
   if (isCheckingAuth) {
     return <Loading />;
   }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900 flex items-center justify-center relative overflow-hidden">
-      {/* Floating shapes are decorative elements to enhance the visual appeal of the UI */}
       <FloatingShape
         color="bg-indigo-500"
         size="w-64 h-64"
@@ -113,6 +113,7 @@ function App() {
             </RedirectAuthenticatedUser>
           }
         />
+        <Route path="*" element={<Navigate to={"/"} replace />} />
       </Routes>
       <Toaster />
     </div>
