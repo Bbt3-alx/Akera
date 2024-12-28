@@ -1,25 +1,33 @@
-import mongoose, { Schema } from "mongoose";
+import { Schema, model } from "mongoose";
 
+//User Shcema
 const userSchema = new Schema(
   {
-    username: {
+    name: {
       type: String,
-      require: true,
+      required: true,
     },
     email: {
       type: String,
-      require: true,
+      required: true,
       unique: true,
     },
     password: {
       type: String,
-      require: true,
+      required: true,
     },
-    role: {
-      type: String,
-      require: true,
-      enum: ["admin", "manager", "user"],
-      default: "user",
+    roles: [
+      {
+        type: String,
+        required: true,
+        enum: ["admin", "manager", "partner"],
+      },
+    ],
+    company: { type: Schema.Types.ObjectId, ref: "Company" },
+    balance: { type: Number, default: 0 }, //Used only for partners
+    restrictions: {
+      transactionLimit: { type: Number }, // Maximun transaction amount
+      isRestricted: { type: Boolean, default: false }, //Restriction flag
     },
     lastLogin: {
       type: Date,
@@ -29,6 +37,10 @@ const userSchema = new Schema(
       type: Boolean,
       default: false,
     },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    }, // Reference to the manager who created the account
     resetPasswordToken: String,
     resetPasswordExpiresAt: Date,
     verificationToken: String,
@@ -37,5 +49,6 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-const User = mongoose.model("User", userSchema);
+const User = model("User", userSchema);
+
 export default User;

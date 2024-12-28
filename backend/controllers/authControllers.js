@@ -13,16 +13,24 @@ import {
 
 configDotenv();
 export const signup = async (req, res) => {
-  const { email, password, username, role } = req.body;
+  const { email, password, name, roless, company, balance } = req.body;
   try {
-    if (!email || !password || !username) {
-      throw new Error("All fields are required");
+    // Input validation
+    if (!email || !password || !name || !roless) {
+      return res
+        .status(422)
+        .json({ status: false, message: "All fields are required" });
     }
 
+    if (!/^\S+@\S+\.\S+$/) {
+      return res
+        .status(422)
+        .json({ status: false, message: "Invalide email format" });
+    }
     const userAlreadyExist = await User.findOne({ email });
     if (userAlreadyExist) {
       return res
-        .status(400)
+        .status(409)
         .json({ success: false, message: "User already exists" });
     }
 
@@ -37,8 +45,9 @@ export const signup = async (req, res) => {
     const newUser = User({
       email,
       password: hashedPassword,
-      username,
-      role,
+      name,
+      roless,
+      balance: balance || 0,
       verificationToken,
       verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     });
@@ -51,14 +60,14 @@ export const signup = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "User created successfully",
+      message: "User created successfully, please verify your email",
       user: {
         ...newUser,
         password: undefined,
       },
     });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -85,7 +94,7 @@ export const verifyEmail = async (req, res) => {
 
     await user.save();
 
-    await sendWelcomeEmail(user.email, user.username);
+    await sendWelcomeEmail(user.email, user.name);
 
     res.status(200).json({
       success: true,
@@ -100,20 +109,26 @@ export const verifyEmail = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+// Login controller
 export const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, role } = req.body;
 
   try {
-    if (!email | !password) {
+    // Validate inputs
+    if (!email || !password || !role) {
       return res
-        .status(400)
+        .status(422)
         .json({ success: false, message: "Missing required field" });
     }
+
+    // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ success: false, message: "User not find" });
     }
 
+    // Compare password
     const isValidPwd = await bcrypt.compare(password, user.password);
     if (!isValidPwd) {
       return res
@@ -121,20 +136,35 @@ export const login = async (req, res) => {
         .json({ success: false, message: "Password incorrect" });
     }
 
-    generateTokenAndSetCookie(res, user._id);
-    user.lastLogin = new Date();
+    // Validate role
+    if (!user.roles.includes(role)) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Access denied, invalide role" });
+    }
 
+    // Generate and set token
+    const token = generateTokenAndSetCookie(res, user._id, role);
+
+    // Update last login time
+    user.lastLogin = new Date();
     user.save();
+
+    // Respond with user details
     res.status(200).json({
       success: true,
-      message: "Connected successfylly",
+      message: `Connected successfylly, as ${role}`,
       user: {
-        ...user._doc,
-        password: undefined,
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role,
+        lastLogin: user.lastLogin,
       },
+      token,
     });
   } catch (error) {
-    console.log("Error");
+    return res.status(500).json({ status: false, message: error.message });
   }
 };
 
@@ -214,7 +244,7 @@ export const resetPassword = async (req, res) => {
 export const verifyAuth = async (req, res) => {
   try {
     // utilizes req.userId to find the corresponding user in the database.
-    const user = await User.findById(req.userId);
+    const user = await User.findById(req.userId.id);
     if (!user) {
       return res.status(400).json({ status: false, message: "User not found" });
     }

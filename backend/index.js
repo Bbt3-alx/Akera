@@ -5,6 +5,7 @@ import { connectDB } from "./db/connectDB.js";
 import authRoutes from "./routes/authRoute.js";
 import cookieParser from "cookie-parser";
 import path from "path";
+import userRoute from "./routes/userRoute.js";
 
 dotenv.config();
 const app = express();
@@ -13,7 +14,10 @@ const __dirname = path.resolve();
 app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 app.use(express.json()); //Parse incoming reques
 app.use(cookieParser()); //Parse incoming cookies
+
+// Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoute);
 
 // Only in the production environment
 if (process.env.NODE_ENV === "production") {
