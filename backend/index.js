@@ -28,8 +28,12 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 // Run the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`server running on port ${PORT}`);
-  connectDB();
-});
+if (process.env.NODE_ENV !== "test") {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`server running on port ${PORT}`);
+    connectDB();
+  });
+}
+
+export default app;

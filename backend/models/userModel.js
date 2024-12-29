@@ -21,6 +21,7 @@ const userSchema = new Schema(
         type: String,
         required: true,
         enum: ["admin", "manager", "partner"],
+        default: "partner",
       },
     ],
     company: { type: Schema.Types.ObjectId, ref: "Company" },

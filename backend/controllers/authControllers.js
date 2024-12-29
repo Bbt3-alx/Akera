@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { configDotenv } from "dotenv";
 
+import validateSignupInput from "../utils/validateSignupInput.js";
 import User from "../models/userModel.js";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 import {
@@ -13,26 +14,29 @@ import {
 
 configDotenv();
 export const signup = async (req, res) => {
-  const { email, password, name, roless, company, balance } = req.body;
+  const { email, password, name, roles, company, balance } = req.body;
   try {
     // Input validation
-    if (!email || !password || !name || !roless) {
+    try {
+      validateSignupInput(email, password, name, roles);
+    } catch (validationError) {
       return res
         .status(422)
-        .json({ status: false, message: "All fields are required" });
+        .json({ success: false, message: validationError.message });
     }
 
-    if (!/^\S+@\S+\.\S+$/) {
-      return res
-        .status(422)
-        .json({ status: false, message: "Invalide email format" });
-    }
     const userAlreadyExist = await User.findOne({ email });
     if (userAlreadyExist) {
       return res
         .status(409)
         .json({ success: false, message: "User already exists" });
     }
+
+    // Default role
+    const defaultRole = "partner";
+    let userRoles = [defaultRole];
+
+    userRoles = [...new Set([...userRoles, ...roles])]; // Combine and remove duplicates roles
 
     // Hash the password before store it to the db
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -46,8 +50,8 @@ export const signup = async (req, res) => {
       email,
       password: hashedPassword,
       name,
-      roless,
-      balance: balance || 0,
+      roles: userRoles,
+      balance: balance,
       verificationToken,
       verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     });
@@ -62,8 +66,11 @@ export const signup = async (req, res) => {
       success: true,
       message: "User created successfully, please verify your email",
       user: {
-        ...newUser,
-        password: undefined,
+        id: newUser._id,
+        email: newUser.email,
+        name: newUser.name,
+        roles: newUser.roles,
+        balance: newUser.balance,
       },
     });
   } catch (error) {
@@ -125,22 +132,24 @@ export const login = async (req, res) => {
     // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not find" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     // Compare password
     const isValidPwd = await bcrypt.compare(password, user.password);
     if (!isValidPwd) {
       return res
-        .status(400)
+        .status(401)
         .json({ success: false, message: "Password incorrect" });
     }
 
     // Validate role
     if (!user.roles.includes(role)) {
       return res
-        .status(401)
-        .json({ success: false, message: "Access denied, invalide role" });
+        .status(403)
+        .json({ success: false, message: "Access denied. Invalid role." });
     }
 
     // Generate and set token
@@ -153,7 +162,7 @@ export const login = async (req, res) => {
     // Respond with user details
     res.status(200).json({
       success: true,
-      message: `Connected successfylly, as ${role}`,
+      message: `Connected successfully as ${role}`,
       user: {
         id: user._id,
         name: user.name,

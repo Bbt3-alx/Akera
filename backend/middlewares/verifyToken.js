@@ -30,7 +30,7 @@ const verifyToken = (req, res, next) => {
     // Proceed to the next middleware
     next();
   } catch (error) {
-    console.error("Error verifying token:", error.message); // For debugging
+    console.log("Error verifying token:", error.message); // For debugging
 
     return res.status(401).json({
       success: false,
