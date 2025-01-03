@@ -14,7 +14,7 @@
   },
   "scripts": {
     "test": "NODE_ENV=test jest --runInBand",
-    "dev": "NODE_ENV=development nodemon backend/index.js",
+    "dev": "nodemon backend/index.js",
     "start": "NODE_ENV=production node backend/index.js",
     "build": "npm install && npm install --prefix frontend && npm run build --prefix frontend"
   },
@@ -43,7 +43,8 @@
     "jsonwebtoken": "^9.0.2",
     "mailtrap": "^3.4.0",
     "mongodb": "^6.12.0",
-    "mongoose": "^8.9.0"
+    "mongoose": "^8.9.0",
+    "uuid": "^11.0.3"
   },
   "type": "module"
 }
