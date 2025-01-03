@@ -1,9 +1,9 @@
-import User from "../models/userModel.js";
-import Transaction from "../models/transactionModel.js";
-import Shipment from "../models/shipmentModel.js";
-import Operation from "../models/operationModel.js";
-import Company from "../models/companyModel.js";
-import Receipt from "../models/invoiceModel.js";
+import User from "../models/User.js";
+import Transaction from "../models/Transaction.js";
+import Shipment from "../models/Shipment.js";
+import Operation from "../models/Operation.js";
+import Company from "../models/Company.js";
+import Receipt from "../models/Incoice.js";
 
 const getDashboardStats = async () => {
   const totalCompanies = await Company.countDocuments();

@@ -11,18 +11,8 @@ const operationSchema = new Schema(
     carat: { type: Number, required: true },
     amount: { type: Number, required: true },
     partner: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    company: { type: Schema.Types.ObjectId, ref: "Company", required: true },
+    // company: { type: Schema.Types.ObjectId, ref: "Company", required: true },
     date: { type: Date, default: Date.now },
-    history: [
-      {
-        status: { type: String, enum: ["paid", "concelled"] },
-        manager: { type: Schema.Types.ObjectId, ref: "User" },
-        updatedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
   },
   { timestamps: true }
 );

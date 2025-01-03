@@ -1,7 +1,7 @@
 import { Router } from "express";
 import authorizeRoles from "../middlewares/roleAuthorization.js";
-import verifyToken from "../middlewares/protectedRoutes.js";
 import isValidRole from "../middlewares/isValideRole.js";
+import verifyToken from "../middlewares/verifyToken.js";
 import {
   signup,
   login,

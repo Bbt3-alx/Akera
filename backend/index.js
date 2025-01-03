@@ -5,7 +5,10 @@ import { connectDB } from "./db/connectDB.js";
 import authRoutes from "./routes/authRoute.js";
 import cookieParser from "cookie-parser";
 import path from "path";
-import userRoute from "./routes/userRoute.js";
+import userRoutes from "./routes/userRoute.js";
+import companyRoutes from "./routes/companyRoute.js";
+import partnerRoutes from "./routes/partnerRoute.js";
+import transactionRoutes from "./routes/transactionRoute.js";
 
 dotenv.config();
 const app = express();
@@ -17,7 +20,10 @@ app.use(cookieParser()); //Parse incoming cookies
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoute);
+app.use("/api/users", userRoutes);
+app.use("/api/companies", companyRoutes);
+app.use("/api/partners", partnerRoutes);
+app.use("/api/transactions", transactionRoutes);
 
 // Only in the production environment
 if (process.env.NODE_ENV === "production") {

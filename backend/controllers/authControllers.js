@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { configDotenv } from "dotenv";
 
 import validateSignupInput from "../utils/validateSignupInput.js";
-import User from "../models/userModel.js";
+import User from "../models/User.js";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 import {
   sendVerificationEmail,
@@ -253,7 +253,7 @@ export const resetPassword = async (req, res) => {
 export const verifyAuth = async (req, res) => {
   try {
     // utilizes req.userId to find the corresponding user in the database.
-    const user = await User.findById(req.userId.id);
+    const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(400).json({ status: false, message: "User not found" });
     }
@@ -263,7 +263,7 @@ export const verifyAuth = async (req, res) => {
     res.status(200).json({
       status: true,
       user: {
-        ...user,
+        ...user._doc,
         password: undefined,
       },
     });
