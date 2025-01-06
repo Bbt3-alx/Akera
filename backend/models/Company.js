@@ -6,6 +6,7 @@ const companySchema = new Schema(
     name: { type: String, required: true },
     address: { type: String, required: true },
     contact: { type: String, required: true },
+    balance: { type: Number, default: 0 },
     manager: { type: Schema.Types.ObjectId, ref: "User", required: true }, // Associated manager
     partners: [{ type: Schema.Types.ObjectId, ref: "Partner", required: true }], // Associated partners
   },

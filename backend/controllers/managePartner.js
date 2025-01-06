@@ -1,10 +1,11 @@
 import Company from "../models/Company.js";
 import Partner from "../models/Partner.js";
+import PartnerBalance from "../models/partnerBalance.js";
 import User from "../models/User.js";
 
 // CREATE A PARTNER
 export const addPartner = async (req, res) => {
-  const { name, phone, email, balance } = req.body;
+  const { name, phone, balance, email } = req.body;
   const contact = phone || email;
 
   if (!name || !contact) {
@@ -57,16 +58,28 @@ export const addPartner = async (req, res) => {
         name,
         phone,
         email,
-        balance,
         companies: [companyId],
       });
       const savedPartner = await newPartner.save();
 
+      // Create partner balance to company
+      const newBalance = new PartnerBalance({
+        companyId,
+        partnerId: savedPartner._id,
+        balance,
+      });
+
+      const savedBalance = await newBalance.save();
+      console.log(savedBalance);
       // Add the new partner to the company's partners list
       company.partners.push(savedPartner._id);
       await company.save();
 
-      return res.status(201).json({ success: true, partner: savedPartner });
+      return res.status(201).json({
+        success: true,
+        partner: savedPartner,
+        balance: savedBalance.balance,
+      });
     }
   } catch (error) {
     console.log("Error creating partner", error.message);
@@ -74,7 +87,7 @@ export const addPartner = async (req, res) => {
   }
 };
 
-// READ PARTNERS LIST
+// READ PARTNERS LIST (Manager route)
 export const myPartners = async (req, res) => {
   try {
     const manager = await User.findById(req.user.id).populate("company");

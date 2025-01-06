@@ -5,7 +5,7 @@ const partnerSchema = new Schema(
     name: { type: String, required: true },
     phone: { type: String, required: true },
     email: { type: String, required: true },
-    balance: { type: Number, default: 0 },
+    //balance: { type: Number, default: 0 },
     companies: [
       {
         type: Schema.Types.ObjectId,

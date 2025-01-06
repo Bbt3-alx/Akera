@@ -60,7 +60,9 @@ export const signup = async (req, res) => {
     // jwt
     generateTokenAndSetCookie(res, newUser._id);
 
-    await sendVerificationEmail(newUser.email, verificationToken);
+    if (process.env.NODE_ENV === "production") {
+      await sendVerificationEmail(newUser.email, verificationToken);
+    }
 
     res.status(201).json({
       success: true,
@@ -188,7 +190,7 @@ export const forgotPassword = async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       return res
-        .status(400)
+        .status(404)
         .json({ status: false, message: "There is no user with this email" });
     }
 

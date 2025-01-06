@@ -4,10 +4,11 @@ import Partner from "../models/Partner.js";
 import Company from "../models/Company.js";
 
 export const partnerMakeTransaction = async (req, res) => {
-  const { amount, description, company } = req.body;
+  const { amount, description, companyId } = req.body;
+  const partnerId = req.params.partnerId;
 
   try {
-    if (!amount || !description || !company) {
+    if (!amount || !description || !companyId) {
       console.log("All fields are required.");
       return res
         .status(400)
@@ -23,8 +24,8 @@ export const partnerMakeTransaction = async (req, res) => {
       });
     }
 
-    const partnerId = req.params.partnerId; //await Partner.findById(req.user.id);
-    const partner = await Partner.findById(partnerId);
+    // const partnerId = req.params.partnerId; //await Partner.findById(req.user.id);
+    // const partner = await Partner.findById(partnerId);
 
     if (!partner) {
       console.log("Partner not found.");
@@ -32,15 +33,15 @@ export const partnerMakeTransaction = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Partner not found." });
     }
-    const companyId = await Company.findOne({ name: company });
-    if (!companyId) {
+    const company = await Company.findById(companyId);
+    if (!company) {
       console.log("Company not found.");
       return res
         .status(404)
         .json({ success: false, message: "Company not found." });
     }
 
-    if (!partner.companies.includes(companyId._id)) {
+    if (!partner.companies.includes(company._id)) {
       console.log("This company is not in your list of company", company);
       return res.status(404).json({
         success: false,
