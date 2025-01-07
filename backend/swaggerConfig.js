@@ -6,9 +6,10 @@ const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "API Documentation",
+      title: "Akera API, documentation.",
       version: "1.0.0",
-      description: "Akera API, documentation.",
+      description:
+        "Akera is a finance management system designed to help bussiness in gold industry to manage their daily operation.",
     },
     // SERVER INFOS
     servers: [
@@ -26,6 +27,10 @@ const swaggerOptions = {
           type: "object",
           required: ["name", "email", "password"],
           properties: {
+            id: {
+              type: "string",
+              description: "The unique identifier for the user.",
+            },
             name: {
               type: "string",
               description: "The name of the user.",
@@ -57,8 +62,7 @@ const swaggerOptions = {
             },
             isVerified: {
               type: "integer",
-              description:
-                "A 6 digit number send to the user email to verify their account.",
+              description: "Check if user has verified his email.",
             },
           },
         },
@@ -67,6 +71,10 @@ const swaggerOptions = {
         Company: {
           required: ["name", "address", "contact"],
           properties: {
+            id: {
+              type: "string",
+              description: "The unique identifier for the company.",
+            },
             name: {
               type: "string",
               description: "",
@@ -96,27 +104,31 @@ const swaggerOptions = {
 
         // Partner schema
         Partner: {
+          type: "object",
           required: ["name", "phone", "email"],
           properties: {
+            id: {
+              type: "string",
+              description: "The unique identifier for the partner.",
+            },
             name: {
               type: "string",
               description: "The name of the partner",
             },
             phone: {
-              type: "integer",
+              type: "string",
               description: "The partner's phone number",
             },
             email: {
               type: "string",
-              description: "The address email of the partner",
+              description: "The email address of the partner",
             },
             companies: {
-              type: "object",
-              description: "List of associeted companies",
-            },
-            transaction: {
-              type: "object",
-              description: "List of partner's transaction",
+              type: "array",
+              items: {
+                type: "string",
+              },
+              description: "List of associated company IDs",
             },
           },
         },
@@ -125,6 +137,10 @@ const swaggerOptions = {
         Transaction: {
           required: ["amount", "description", "company"],
           properties: {
+            id: {
+              type: "string",
+              description: "The unique identifier for the transaction.",
+            },
             amount: {
               type: "integer",
               description: "The amount to be paied.",

@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import Partner from "../models/Partner.js";
 
 export const createCompany = async (req, res) => {
-  const { name, address, contact, partners } = req.body;
+  const { name, address, contact, balance, partners } = req.body;
 
   try {
     if (!name || !address || !contact) {
@@ -26,6 +26,7 @@ export const createCompany = async (req, res) => {
       name,
       address,
       contact,
+      balance,
       manager: req.user.id,
     });
     const savedCompany = await newCompany.save();
@@ -62,7 +63,7 @@ export const createCompany = async (req, res) => {
     }
 
     // Update the manager, by linking the new company to the manager's account
-    await User.findByIdAndUpdate(req.user.id, {
+    const user = await User.findByIdAndUpdate(req.user.id, {
       company: savedCompany._id,
     });
 
@@ -80,9 +81,10 @@ export const myCompanies = async (req, res) => {
       "name email"
     );
     if (!company) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No company found" });
+      return res.status(404).json({
+        success: false,
+        message: "No company found with the given ID",
+      });
     }
     res.status(200).json({ success: true, company: company });
   } catch (error) {

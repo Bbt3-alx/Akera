@@ -7,7 +7,6 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     company: { type: Schema.Types.ObjectId, ref: "Company" },
-    partnerId: { type: Schema.Types.ObjectId, ref: "Partner" },
     roles: [
       {
         type: String,

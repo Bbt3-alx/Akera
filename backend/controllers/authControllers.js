@@ -14,7 +14,7 @@ import {
 
 configDotenv();
 export const signup = async (req, res) => {
-  const { email, password, name, roles, company, balance } = req.body;
+  const { email, password, name, roles } = req.body;
   try {
     // Input validation
     try {
@@ -51,7 +51,6 @@ export const signup = async (req, res) => {
       password: hashedPassword,
       name,
       roles: userRoles,
-      balance: balance,
       verificationToken,
       verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
     });
@@ -72,7 +71,6 @@ export const signup = async (req, res) => {
         email: newUser.email,
         name: newUser.name,
         roles: newUser.roles,
-        balance: newUser.balance,
       },
     });
   } catch (error) {
