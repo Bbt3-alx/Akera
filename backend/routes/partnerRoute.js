@@ -115,12 +115,7 @@ const router = express.Router();
  *                   type: string
  *                   example: "Error creating partner: ..."
  */
-router.post(
-  "/new",
-  verifyToken,
-  authorizeRoles("admin", "manager"),
-  addPartner
-);
+router.post("/new", verifyToken, authorizeRoles("manager"), addPartner);
 
 // ROUTE TO RETRIEVES ALL THE PARTNER BELONG TO A COMPANY
 /**

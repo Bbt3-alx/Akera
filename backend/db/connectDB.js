@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import { configDotenv } from "dotenv";
 
 configDotenv();
-const uri = process.env.MONGODB_URI || "mongodb://localhost:12017/akera";
+const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/Akera";
 export const connectDB = async () => {
   try {
     const conn = await mongoose.connect(uri);

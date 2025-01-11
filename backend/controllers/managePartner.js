@@ -1,5 +1,6 @@
 import Company from "../models/Company.js";
 import Partner from "../models/Partner.js";
+import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 
 // CREATE A PARTNER
@@ -20,22 +21,29 @@ export const addPartner = async (req, res) => {
   }
 
   try {
-    const manager = await User.findById(req.user.id);
-    const companyId = manager.company;
-    const company = await Company.findById(companyId);
-
-    if (!company) {
+    const manager = await User.findById(req.user.id).populate("company");
+    if (!manager) {
+      return res.status(401).json({
+        success: false,
+        message: "Access denied. You are not authorized.",
+      });
+    }
+    if (!manager.company) {
       return res
-        .status(404)
-        .json({ success: false, message: "Company not found" });
+        .status(401)
+        .json({ success: true, message: "You don't have a company yet." });
     }
 
-    const partner = await Partner.findOne({ $or: [{ phone }, { email }] });
+    const query = {};
+    if (phone) query.phone = phone;
+    if (email) query.email = email;
+    const partner = await Partner.findOne(query);
+    const company = manager.company;
 
+    console.log("Ici", company.name);
     if (partner) {
       // Check for existing partner in the company's list
-
-      if (company.partners.includes(partner._id)) {
+      if (company.partners.some((id) => id.equals(partner._id))) {
         console.log(`Existing partner: ${partner.name}`);
         return res.status(409).json({
           success: false,
@@ -45,7 +53,7 @@ export const addPartner = async (req, res) => {
 
       company.partners.push(partner._id); // Link the existing partner to the company
 
-      if (!partner.companies.includes(company._id)) {
+      if (!partner.companies.some((id) => id.equals(company._id))) {
         partner.companies.push(company._id);
       }
       await company.save();
@@ -58,7 +66,7 @@ export const addPartner = async (req, res) => {
         phone,
         email,
         balance,
-        companies: [companyId],
+        companies: [company._id],
       });
       const savedPartner = await newPartner.save();
 
@@ -193,13 +201,36 @@ export const removePartner = async (req, res) => {
         message: "We can't find any partner with this id.",
       });
     }
-    manager.company.partners = manager.company.partners.filter(
-      (item) => item.toString() !== removedPartner._id.toString()
-    );
 
+    // Remove the partner from the company's partners list
+    manager.company.partners = manager.company.partners.filter(
+      (item) => item.toString() !== partnerId
+    );
     await manager.company.save();
 
-    await res.status(200).json({
+    // Remove all the transaction related to the partner
+    const transactions = await Transaction.find({
+      company: manager.company._id,
+      partner: partnerId,
+    });
+
+    if (transactions.length > 0) {
+      await Transaction.deleteMany({
+        company: manager.company._id,
+        partner: partnerId,
+      });
+    }
+
+    // Update company transaction list
+    manager.company.transactions = manager.company.transactions.filter(
+      (transaction) =>
+        !transactions.some(
+          (trans) => trans._id.toString() === transaction.toString()
+        )
+    );
+    await manager.company.save();
+
+    res.status(200).json({
       success: true,
       message: `Partner removed successfully!`,
       removedPartner: removedPartner,

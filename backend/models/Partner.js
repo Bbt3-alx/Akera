@@ -12,8 +12,8 @@ const partnerSchema = new Schema(
         ref: "Company",
         required: true,
       },
-    ], // référence à l'entreprise
-    transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }], // référence aux transactions
+    ], // Associeted companies
+    transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
   },
   { timestamps: true }
 );
