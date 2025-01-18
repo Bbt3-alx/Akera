@@ -123,7 +123,7 @@ export const login = async (req, res) => {
 
   try {
     // Validate inputs
-    if (!email || !password || !role) {
+    if (!email || !password) {
       return res
         .status(422)
         .json({ success: false, message: "Missing required field" });
