@@ -189,41 +189,6 @@ const swaggerOptions = {
             },
           },
         },
-        // Gold schema
-        Gold: {
-          required: ["base", "weight"],
-          properties: {
-            base: {
-              type: "number",
-              description: "Gold price per gram.",
-            },
-            weight: {
-              type: "number",
-              description: "Weight of the gold in grams (must be at least 1).",
-              minimum: 1,
-            },
-            w_weight: {
-              type: "number",
-              description: "Weight of the gold in another unit, optional.",
-            },
-            density: {
-              type: "number",
-              description: "Density of the gold, optional.",
-            },
-            karat: {
-              type: "number",
-              description: "The karat value of the gold, optional.",
-            },
-            value: {
-              type: "number",
-              description: "The monetary value of this gold.",
-            },
-            situation: {
-              type: "string",
-              description: "Current situation or status of the gold.",
-            },
-          },
-        },
 
         // BuyOperation schema
         BuyOperation: {
