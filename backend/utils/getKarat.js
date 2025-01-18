@@ -157,7 +157,7 @@ const getKarat = (density) => {
 
   for (const { range, karat } of densityKaratMap) {
     if (density >= range[0] && density <= range[1]) {
-      return karat;
+      return karat.toFixed(2);
     }
   }
   return 0; // if the dencity is not match

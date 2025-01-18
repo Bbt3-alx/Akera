@@ -99,6 +99,14 @@ const swaggerOptions = {
               type: "object",
               description: "A list of associated partners",
             },
+            transaction: {
+              type: "object",
+              description: "A list of company's transaction.",
+            },
+            operations: {
+              type: "object",
+              description: "A list of operation.",
+            },
           },
         },
 
@@ -129,6 +137,14 @@ const swaggerOptions = {
                 type: "string",
               },
               description: "List of associated company IDs",
+            },
+            transaction: {
+              type: "object",
+              description: "A list of partner's transaction.",
+            },
+            operations: {
+              type: "object",
+              description: "A list of partner's operation.",
             },
           },
         },
@@ -170,6 +186,253 @@ const swaggerOptions = {
             company: {
               type: "object",
               description: "The company which will process the transaction.",
+            },
+          },
+        },
+        // Gold schema
+        Gold: {
+          required: ["base", "weight"],
+          properties: {
+            base: {
+              type: "number",
+              description: "Gold price per gram.",
+            },
+            weight: {
+              type: "number",
+              description: "Weight of the gold in grams (must be at least 1).",
+              minimum: 1,
+            },
+            w_weight: {
+              type: "number",
+              description: "Weight of the gold in another unit, optional.",
+            },
+            density: {
+              type: "number",
+              description: "Density of the gold, optional.",
+            },
+            karat: {
+              type: "number",
+              description: "The karat value of the gold, optional.",
+            },
+            value: {
+              type: "number",
+              description: "The monetary value of this gold.",
+            },
+            situation: {
+              type: "string",
+              description: "Current situation or status of the gold.",
+            },
+          },
+        },
+
+        // BuyOperation schema
+        BuyOperation: {
+          required: ["currency", "gold", "partner", "company"],
+          properties: {
+            currency: {
+              type: "string",
+              enum: ["FCFA", "GNF", "USD"],
+              description: "Currency used for the transaction.",
+              default: "FCFA",
+            },
+            gold: {
+              type: "array",
+              items: {
+                $ref: "#/components/schemas/Gold",
+              },
+              description: "List of gold items involved in the transaction.",
+            },
+            amount: {
+              type: "number",
+              description: "Total amount of the transaction.",
+            },
+            paymentStatus: {
+              type: "string",
+              enum: ["pending", "paid", "partially paid"],
+              description: "Current payment status of the transaction.",
+              default: "pending",
+            },
+            amountPaid: {
+              type: "number",
+              description: "Total amount already paid.",
+              default: 0,
+            },
+            partner: {
+              type: "string",
+              description:
+                "ID of the partner (User) involved in the transaction.",
+            },
+            company: {
+              type: "string",
+              description: "ID of the company involved in the transaction.",
+            },
+            date: {
+              type: "string",
+              format: "date-time",
+              description: "Date of the transaction.",
+              default: "2025-01-16T00:00:00Z",
+            },
+            status: {
+              type: "string",
+              enum: ["pending", "shipped", "completed", "cancelled", "on hold"],
+              description: "Current status of the transaction.",
+              default: "pending",
+            },
+          },
+        },
+
+        // ShippingOperation schema
+        ShippingOperation: {
+          required: [
+            "weight",
+            "carat",
+            "amount",
+            "partner",
+            "company",
+            "buyId",
+          ],
+          properties: {
+            weight: {
+              type: "number",
+              description:
+                "Weight of the gold being shipped (must be at least 1).",
+              minimum: 1,
+            },
+            carat: {
+              type: "number",
+              description: "Carat value of the gold (must be at least 10).",
+              minimum: 10,
+            },
+            amount: {
+              type: "number",
+              description: "Total amount for the shipping operation.",
+            },
+            partner: {
+              type: "string",
+              description:
+                "ID of the partner (User) involved in the shipping operation.",
+            },
+            company: {
+              type: "string",
+              description: "ID of the company handling the shipping.",
+            },
+            shippedAt: {
+              type: "string",
+              format: "date-time",
+              description: "Date and time when the gold was shipped.",
+              default: Date.now(),
+            },
+            situation: {
+              type: "string",
+              description:
+                "Current situation or status of the shipping operation.",
+            },
+            fees: {
+              type: "number",
+              description: "Fees associated with the shipping operation.",
+            },
+            status: {
+              type: "string",
+              enum: ["pending", "shipped"],
+              description: "Current status of the shipping operation.",
+              default: "pending",
+            },
+            buyId: {
+              type: "string",
+              description: "ID of the associated buy operation.",
+            },
+          },
+        },
+
+        // SellOperation schema
+        SellOperation: {
+          required: ["rate", "weight", "amount"],
+          properties: {
+            rate: {
+              type: "number",
+              description: "Rate at which the gold is being sold.",
+            },
+            weight: {
+              type: "number",
+              description:
+                "Weight of the gold being sold (must be at least 1).",
+              minimum: 1,
+            },
+            amount: {
+              type: "number",
+              description: "Total amount for the sell operation.",
+            },
+            date: {
+              type: "string",
+              format: "date-time",
+              description: "Date and time of the sell operation.",
+              default: Date.now(),
+            },
+            company: {
+              type: "string",
+              description: "ID of the company involved in the sell operation.",
+            },
+            status: {
+              type: "string",
+              enum: ["pending", "completed", "cancelled"],
+              description: "Current status of the sell operation.",
+              default: "pending",
+            },
+          },
+        },
+
+        // Payment schema
+        Payment: {
+          required: ["amount", "totalAmount"],
+          properties: {
+            operation: {
+              type: "string",
+              description: "ID of the associated buy operation.",
+            },
+            description: {
+              type: "string",
+              description: "Description of the payment.",
+            },
+            amount: {
+              type: "number",
+              description: "Currently paying amount.",
+            },
+            totalAmount: {
+              type: "number",
+              description: "Total amount from the operation.",
+            },
+            remain: {
+              type: "number",
+              description:
+                "Remaining amount (totalAmount - paidAmount from operation).",
+            },
+            status: {
+              type: "string",
+              enum: ["canceled", "paid", "partially paid", "pending"],
+              description: "Current status of the payment.",
+            },
+            date: {
+              type: "string",
+              format: "date-time",
+              description: "Date and time of the payment.",
+              default: "2025-01-16T00:00:00Z",
+            },
+            partner: {
+              type: "string",
+              description: "ID of the partner involved in the payment.",
+            },
+            company: {
+              type: "string",
+              description: "ID of the company processing the payment.",
+            },
+            paiedBy: {
+              type: "string",
+              description: "ID of the user who made the payment.",
+            },
+            method: {
+              type: "string",
+              description: "Payment method (e.g., Mobile Money, Cash).",
+              default: "Cash",
             },
           },
         },

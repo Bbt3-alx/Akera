@@ -14,6 +14,7 @@ const partnerSchema = new Schema(
       },
     ], // Associeted companies
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
+    operations: [{ type: Schema.Types.ObjectId, ref: "BuyOperation" }],
   },
   { timestamps: true }
 );

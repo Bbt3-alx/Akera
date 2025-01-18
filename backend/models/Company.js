@@ -10,6 +10,7 @@ const companySchema = new Schema(
     manager: { type: Schema.Types.ObjectId, ref: "User", required: true }, // Associated manager
     partners: [{ type: Schema.Types.ObjectId, ref: "Partner", required: true }], // Associated partners
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
+    operations: [{ type: Schema.Types.ObjectId, ref: "BuyOperation" }],
   },
   { timestamps: true }
 );
