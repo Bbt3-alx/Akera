@@ -25,7 +25,7 @@ export const createBuyOperation = async (req, res) => {
     const manager = await User.findById(req.user.id).populate("company");
     if (!manager) {
       return res
-        .status(401)
+        .status(403)
         .json({ success: false, message: "Access denied, unauthorized" });
     }
 
