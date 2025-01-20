@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import Partner from "../models/Partner.js";
 import BuyOperation from "../models/BuyOperation.js";
-import getKarat from "../utils/getKarat.js";
+import getCarat from "../utils/getCarat.js";
 import { isValidObjectId } from "mongoose";
 
 // Create a new buy operation
@@ -60,24 +60,24 @@ export const createBuyOperation = async (req, res) => {
         });
       }
 
-      // Calculate the gold density and get the corresponding Karat
+      // Calculate the gold density and get the corresponding carat
       const density = (weight / w_weight).toFixed(2);
-      const karat = getKarat(density);
+      const carat = getcarat(density);
 
-      // Ensure karat is valid
-      if (karat < 10) {
+      // Ensure carat is valid
+      if (carat < 10) {
         return res.status(400).json({
           success: false,
-          message: "Error: invalid karat, check your weight and water weight.",
+          message: "Error: invalid carat, check your weight and water weight.",
         });
       }
 
       // Calculate the amount for this operation
       let amount;
       if (currency === "FCFA") {
-        amount = (base / 24) * karat * weight;
+        amount = (base / 24) * carat * weight;
       } else if (currency === "GNF" || currency === "USD") {
-        amount = (base / 22) * karat * weight;
+        amount = (base / 22) * carat * weight;
       }
 
       // Push data for this gold insertion
@@ -86,7 +86,7 @@ export const createBuyOperation = async (req, res) => {
         weight,
         w_weight,
         density,
-        karat,
+        carat,
         value: amount.toFixed(0),
         situation,
       });
@@ -238,18 +238,18 @@ export const updateOperation = async (req, res) => {
         const { weight, w_weight, base, situation } = gold;
 
         const density = weight / w_weight;
-        const karat = getKarat(density);
+        const carat = getCarat(density);
 
-        if (karat < 10) {
+        if (carat < 10) {
           return res.status(400).json({
             sucess: false,
-            message: "Got an invalid karat, check your water or water weight.",
+            message: "Got an invalid carat, check your water or water weight.",
           });
         }
 
         // Formulas to get gold value
-        const forFcfa = (base / 24) * karat * weight;
-        const forUsdAndGnf = (base / 22) * karat * weight;
+        const forFcfa = (base / 24) * carat * weight;
+        const forUsdAndGnf = (base / 22) * carat * weight;
 
         const amount =
           currency === "FCFA"

@@ -12,6 +12,7 @@ import transactionRoutes from "./routes/transactionRoute.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import buyOperationRoutes from "./routes/buyOperationRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import shipmentRoutes from "./routes/shippingOperationRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -29,6 +30,7 @@ app.use("/api/partners", partnerRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/operations", buyOperationRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/shipments", shipmentRoutes);
 
 // Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));

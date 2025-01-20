@@ -31,7 +31,11 @@ const payForOperation = async (req, res) => {
         .josn({ success: false, message: "Partner not found." });
     }
 
-    const operation = await BuyOperation.findById(operationId);
+    const operation = await BuyOperation.findOne({
+      _id: operationId,
+      partner: partnerId,
+      company: manager.company._id,
+    });
     if (!operation) {
       return res
         .status(404)

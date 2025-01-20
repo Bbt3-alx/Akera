@@ -29,7 +29,7 @@ const RedirectAuthenticatedUser = ({ children }) => {
   const { isAuthenticated, user } = useAuthStore();
 
   // Safeguard for null user
-  if (isAuthenticated && user && user._doc.isVerified) {
+  if (isAuthenticated && user) {
     return <Navigate to="/" replace />;
   }
 

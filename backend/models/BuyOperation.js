@@ -1,12 +1,12 @@
 import { Schema, model } from "mongoose";
-import getKarat from "../utils/getKarat.js";
+import getCarat from "../utils/getCarat.js";
 
 const goldObject = {
   base: { type: Number }, // Gold price per gram
   weight: { type: Number },
   w_weight: { type: Number, min: 0 },
   density: { type: Number },
-  karat: { type: Number },
+  carat: { type: Number },
   value: { type: Number }, // The value in money for this gold
   situation: { type: String },
 };
@@ -49,8 +49,8 @@ buyOperationSchema.pre("save", function (next) {
     this.density = this.weight / this.w_weight;
   }
   if (!this.carat && this.density) {
-    // Calculate the karat if not defined
-    this.carat = getKarat(this.density);
+    // Calculate the carat if not defined
+    this.carat = getCarat(this.density);
   }
   next();
 });

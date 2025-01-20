@@ -4,8 +4,9 @@ import axios from "axios";
 // Setting axios to send cookies with requests by default
 axios.defaults.withCredentials = true;
 
+console.log("Current mode:", import.meta.env.MODE);
 const API_URL =
-  import.meta.env.NODE_ENV === "development"
+  import.meta.env.MODE === "development"
     ? "http://localhost:5000/api/auth"
     : "/api/auth";
 
@@ -20,7 +21,7 @@ export const useAuthStore = create((set) => ({
   isCheckingAuth: true,
 
   // Function to handle user signup
-  signup: async (email, password, username) => {
+  signup: async (email, password, name) => {
     // Start loading and reset any previous errors
     set({ isLoading: true, error: null });
 
@@ -28,7 +29,7 @@ export const useAuthStore = create((set) => ({
       const response = await axios.post(`${API_URL}/signup`, {
         email,
         password,
-        username,
+        name,
       });
 
       // Update the store with the new user data if signup is successful
@@ -40,7 +41,7 @@ export const useAuthStore = create((set) => ({
     } catch (error) {
       // Handle errors and stop loading
       set({
-        error: error.response.data.message || "Error signing up",
+        error: error.response.data.message || "Error during sign up.",
         isLoading: false,
       });
       throw error; // Rethrow the error to be handled elsewhere if needed
@@ -66,7 +67,7 @@ export const useAuthStore = create((set) => ({
       });
     } catch (error) {
       set({
-        error: error.response.data.message || "Error logging in",
+        error: error.response.data.message || "Error during login.",
         isLoading: false,
       });
       throw error;
@@ -111,6 +112,7 @@ export const useAuthStore = create((set) => ({
         isCheckingAuth: false,
       });
     } catch (error) {
+      console.log(error);
       set({
         error: null, // No error message in this case
         isCheckingAuth: false,

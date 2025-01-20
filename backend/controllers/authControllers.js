@@ -36,7 +36,9 @@ export const signup = async (req, res) => {
     const defaultRole = "partner";
     let userRoles = [defaultRole];
 
-    userRoles = [...new Set([...userRoles, ...roles])]; // Combine and remove duplicates roles
+    if (roles) {
+      userRoles = [...new Set([...userRoles, ...roles])]; // Combine and remove duplicates roles
+    }
 
     // Hash the password before store it to the db
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -74,7 +76,8 @@ export const signup = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.log(error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -87,7 +90,6 @@ export const verifyEmail = async (req, res) => {
       verificationToken: code,
       verificationTokenExpiresAt: { $gt: Date.now() },
     });
-    console.log(user);
 
     if (!user) {
       return res
@@ -113,7 +115,7 @@ export const verifyEmail = async (req, res) => {
     });
   } catch (error) {
     console.log(`Error in verifying email: ${error}`);
-    res.status(500).json({ success: false, message: "Server error" });
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
@@ -146,7 +148,7 @@ export const login = async (req, res) => {
     }
 
     // Validate role
-    if (!user.roles.includes(role)) {
+    if (role && !user.roles.includes(role)) {
       return res
         .status(403)
         .json({ success: false, message: "Access denied. Invalid role." });
@@ -173,6 +175,7 @@ export const login = async (req, res) => {
       token,
     });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ status: false, message: error.message });
   }
 };
@@ -210,7 +213,8 @@ export const forgotPassword = async (req, res) => {
       .status(200)
       .json({ status: true, message: "Reset link sent to your email" });
   } catch (error) {
-    res.status(400).json({
+    console.log(error);
+    return res.status(400).json({
       success: false,
       message: `Error sending reset email: ${error}`,
     });
@@ -245,7 +249,7 @@ export const resetPassword = async (req, res) => {
       .status(200)
       .json({ satus: true, message: "Password reset successfully" });
   } catch (error) {
-    console.log("Error reseting password");
+    console.log("Error reseting password:", error);
     res.status(400).json({ status: false, message: error.message });
   }
 };

@@ -3,7 +3,7 @@ const validateSignupInput = (email, password, name, roles) => {
 
   try {
     if (!email || !password || !name) {
-      throw new Error("Missing required fields");
+      throw new Error("Missing required fields.");
     }
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       throw new Error("Invalid email format");
@@ -17,12 +17,12 @@ const validateSignupInput = (email, password, name, roles) => {
       });
     }
 
-    if (roles.includes("admin")) {
+    if (roles && roles.includes("admin")) {
       throw new Error("Cannot assign admin role during signup.");
     }
   } catch (error) {
     console.log(error.message);
-    throw new Error(error.message);
+    throw new Error("Something went wrong.");
   }
 };
 

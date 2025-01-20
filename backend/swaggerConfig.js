@@ -289,7 +289,7 @@ const swaggerOptions = {
             "amount",
             "partner",
             "company",
-            "buyId",
+            "buyOperationId",
           ],
           properties: {
             weight: {
