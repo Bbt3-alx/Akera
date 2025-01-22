@@ -7,11 +7,11 @@ Gold traders and currency exchange businesses deal with thousands of transaction
 Studies show that small businesses lose 30% of revenue due to inefficient financial management tools.
 What if managing all your accounts and transactions could be as simple as a few clicks?
 
-Akera is a financial management system designed to automate gold and currency trading workflows. It tracks transactions, converts currencies, generates invoices, and provides insightful reports all in one place.
+Akera is a financial management system designed to simplify and automate processes related to gold and currency trading transactions, which are often manual and inefficient. The project aims to improve transparency and speed of operations while allowing users to track their performance and make informed decisions through analyses based on accurate and real-time data. Using modern technologies such as Node.js, Express, and MongoDB, Akera is primarily targeted at gold sales managers, traders, and developers.
 
 ## Features
 1. User Management: With dedicated endpoints for user signup and authentication, businesses can easily manage user access and ensure secure interactions within the system.
-2. Streamlined Operations: The API provides endpoints for managing daily operations, including buying and selling gold, which helps businesses streamline their processes and improve efficiency.
+2. Streamlined Operations: The API provides endpoints for managing daily operations, including buying, shipping and selling gold or even generating receipt, which helps businesses streamline their processes and improve efficiency.
 3. Comprehensive Financial Management: The API includes features for managing payments and transactions, allowing businesses to keep track of their financial activities in one place.
 4. Partner and Company Management: Businesses can manage their relationships with partners and companies through specific API endpoints, facilitating better collaboration.
 5. Scalability: As a finance management system, Akera is designed to grow with the business, accommodating increasing transaction volumes and operational complexity.
