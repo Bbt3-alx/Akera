@@ -346,7 +346,7 @@ const swaggerOptions = {
 
         // SellOperation schema
         SellOperation: {
-          required: ["rate", "weight", "amount"],
+          required: ["rate", "weight", "amount", "unit"],
           properties: {
             rate: {
               type: "number",
@@ -357,6 +357,10 @@ const swaggerOptions = {
               description:
                 "Weight of the gold being sold (must be at least 1).",
               minimum: 1,
+            },
+            unit: {
+              type: "string",
+              description: "The unit of weight (e.g., 'grams', 'ounces').",
             },
             amount: {
               type: "number",

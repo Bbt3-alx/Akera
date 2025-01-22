@@ -7,6 +7,9 @@ const companySchema = new Schema(
     address: { type: String, required: true },
     contact: { type: String, required: true },
     balance: { type: Number, default: 0 },
+    usdBalance: { type: Number, default: 0 }, // Balance in USD after selling gold.
+    totalWeightExpedited: { type: Number, default: 0 }, // Total weight expedited by the company for sell.
+    remainWeight: { type: Number, default: 0 }, // Remain weight to be sold
     manager: { type: Schema.Types.ObjectId, ref: "User", required: true }, // Associated manager
     partners: [{ type: Schema.Types.ObjectId, ref: "Partner", required: true }], // Associated partners
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],

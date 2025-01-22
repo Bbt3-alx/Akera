@@ -5,7 +5,9 @@ const sellOperationSchema = new Schema({
   rate: { type: Number, required: true },
   weight: { type: Number, required: true, min: 1 },
   amount: { type: Number, required: true },
-  date: { type: Date, default: Date.now }, // Removed required: true
+  unit: { type: String, enum: ["g", "kg", "oz"] },
+  totalAmount: { type: Number },
+  date: { type: Date, default: Date.now },
   company: { type: Schema.Types.ObjectId, ref: "Company" },
   status: {
     type: String,

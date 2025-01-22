@@ -1,6 +1,7 @@
 import ShippingOperation from "../models/ShippingOperation.js";
 import BuyOperation from "../models/BuyOperation.js";
 import User from "../models/User.js";
+import checkUserAuthorization from "../utils/checkUserAuthorization.js";
 
 // Create new shipping operation
 export const createShippingOperation = async (req, res) => {
@@ -14,12 +15,13 @@ export const createShippingOperation = async (req, res) => {
   }
 
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    if (!manager || !manager.company) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Access denied. Unauthorized." });
+    let manager;
+    try {
+      manager = await checkUserAuthorization(req);
+    } catch (error) {
+      return res.status(403).json({ success: false, message: error.message });
     }
+
     const operation = await BuyOperation.findById(operationId).populate(
       "partner"
     );
@@ -82,6 +84,12 @@ export const createShippingOperation = async (req, res) => {
     // Update linked operation status as shipped
     operation.status = "shipped";
     await operation.save();
+
+    // Update the company total weight expedited and balance
+    manager.company.totalWeightExpedited += totalWeight;
+    manager.company.remainWeight += totalWeight;
+    manager.company.balance -= totalFees;
+    manager.company.save();
 
     res.status(201).json({
       success: true,
