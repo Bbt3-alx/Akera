@@ -13,7 +13,7 @@ const router = express.Router();
 //ROUTE TO CREATE A NEW SELL OPERATION
 /**
  * @swagger
- * /api/sells:
+ * /api/v1/sells:
  *   post:
  *     summary: Create a new sell operation
  *     tags:
@@ -82,7 +82,7 @@ router.post("/", verifyToken, authorizeRoles("manager"), createSellOperation);
 // ROUTE TO RETRIEVES ALL THE SELLS OPERATION
 /**
  * @swagger
- * /api/sells:
+ * /api/v1/sells:
  *   get:
  *     summary: Retrieve all sell operations
  *     tags:
@@ -121,7 +121,7 @@ router.get("/", verifyToken, authorizeRoles("manager"), getSellOperations);
 // ROUTE TO GET A SPECIFIC SELL OPERATION BY ID
 /**
  * @swagger
- * /api/sells/{operationId}:
+ * /api/v1/sells/{operationId}:
  *   get:
  *     summary: Get a specific sell operation by ID
  *     tags:
@@ -183,7 +183,7 @@ router.get(
 //ROUTE TO UPDATE A SELL
 /**
  * @swagger
- * /api/sells/{operationId}:
+ * /api/v1/sells/{operationId}:
  *   put:
  *     summary: Update a sell operation
  *     tags:
@@ -264,7 +264,7 @@ router.put(
 // ROUTE TO DELETE A SELL
 /**
  * @swagger
- * /api/sells/{operationId}:
+ * /api/v1/sells/{operationId}:
  *   delete:
  *     summary: Delete a specific sell operation
  *     tags:

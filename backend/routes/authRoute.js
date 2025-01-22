@@ -22,7 +22,7 @@ const router = Router();
 
 /**
  * @swagger
- * /api/auth/signup:
+ * /api/v1/auth/signup:
  *   post:
  *     summary: Signup a new user
  *     tags:
@@ -70,7 +70,7 @@ router.post("/signup", signup);
 
 /**
  * @swagger
- * /api/auth/verify-email:
+ * /api/v1/auth/verify-email:
  *   post:
  *     summary: Verify user email
  *     tags:
@@ -134,7 +134,7 @@ router.post("/verify-email", verifyEmail);
 
 /**
  * @swagger
- * /api/auth/login:
+ * /api/v1/auth/login:
  *   post:
  *     summary: Login a user
  *     tags:
@@ -259,7 +259,7 @@ router.post("/login", isValidRole, login);
 
 /**
  * @swagger
- * /api/auth/logout:
+ * /api/v1/auth/logout:
  *   post:
  *     summary: Logout a user
  *     tags:
@@ -283,7 +283,7 @@ router.post("/logout", logout);
 
 /**
  * @swagger
- * /api/auth/forgot-password:
+ * /api/v1/auth/forgot-password:
  *   post:
  *     summary: Request a password reset
  *     tags:
@@ -332,7 +332,7 @@ router.post("/forgot-password", forgotPassword);
 
 /**
  * @swagger
- * /api/auth/reset-password/{token}:
+ * /api/v1/auth/reset-password/{token}:
  *   post:
  *     summary: Reset user password
  *     tags:
@@ -388,7 +388,7 @@ router.post("/reset-password/:token", resetPassword);
 
 /**
  * @swagger
- * /api/auth/verify-auth:
+ * /api/v1/auth/verify-auth:
  *   get:
  *     summary: Verify user authentication
  *     tags:
