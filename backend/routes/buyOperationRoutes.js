@@ -21,7 +21,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/operations/buy:
+ * /api/v1/operations/buy:
  *   post:
  *     summary: Create a new buy operation
  *     tags:
@@ -138,7 +138,7 @@ router.post("/buy", verifyToken, authorizeRoles("manager"), createBuyOperation);
 // ROUTE TO RETRIEVES ALL BUY THE OPERATION
 /**
  * @swagger
- * /api/operations:
+ * /api/v1/operations:
  *   get:
  *     summary: Retrieves all the buy operations
  *     tags:
@@ -203,7 +203,7 @@ router.get("/", verifyToken, authorizeRoles("manager"), getAllOperations);
 // ROUTE TO GET A SPECIFIC OPERATION
 /**
  * @swagger
- * /api/operations/{operationId}:
+ * /api/v1/operations/{operationId}:
  *   get:
  *     summary: Get a buy operation by its ID
  *     tags:
@@ -278,7 +278,7 @@ router.get(
 // ROUTE TO UPDATE AN OPERATION
 /**
  * @swagger
- * /api/operations/{operationId}:
+ * /api/v1/operations/{operationId}:
  *   put:
  *     summary: Update an operation
  *     tags:
@@ -409,7 +409,7 @@ router.put(
 // ROUTE TO DELETE AN OPERATION
 /**
  * @swagger
- * /api/operations/{operationId}:
+ * /api/v1/operations/{operationId}:
  *   delete:
  *     summary: Delete an operation
  *     tags:

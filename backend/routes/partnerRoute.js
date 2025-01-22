@@ -22,7 +22,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/partners/new:
+ * /api/v1/partners/new:
  *   post:
  *     summary: Create a new partner
  *     tags:
@@ -120,7 +120,7 @@ router.post("/new", verifyToken, authorizeRoles("manager"), addPartner);
 // ROUTE TO RETRIEVES ALL THE PARTNER BELONG TO A COMPANY
 /**
  * @swagger
- * /api/partners:
+ * /api/v1/partners:
  *   get:
  *     summary: Get the partner list for the logged-in manager
  *     tags:
@@ -172,7 +172,7 @@ router.get("/", verifyToken, myPartners);
 // ROUTE TO GET A SPECIFIC PARTNER BY ITS ID
 /**
  * @swagger
- * /api/partners/{partnerId}:
+ * /api/v1/partners/{partnerId}:
  *   get:
  *     summary: Get a specific partner by its ID
  *     tags:
@@ -242,7 +242,7 @@ router.get("/:partnerId", verifyToken, authorizeRoles("manager"), getpartner);
 // ROUTE TO UPDATE A SPECIFIC PARTNER
 /**
  * @swagger
- * /api/partners/update/{partnerId}:
+ * /api/v1/partners/update/{partnerId}:
  *   put:
  *     summary: Update a partner's details
  *     tags:
@@ -318,7 +318,7 @@ router.put("/update/:partnerId", verifyToken, updatePartner);
 // ROUTE TO GET A PERTNER'S BALANCE
 /**
  * @swagger
- * /api/partners/{partnerId}/balance:
+ * /api/v1/partners/{partnerId}/balance:
  *   get:
  *     summary: Get balances for a specific partner
  *     tags:
@@ -387,7 +387,7 @@ router.get(
 // Remove a partner
 /**
  * @swagger
- * /api/partners/remove/{partnerId}:
+ * /api/v1/partners/remove/{partnerId}:
  *   delete:
  *     summary: Remove a partner from the company
  *     tags:

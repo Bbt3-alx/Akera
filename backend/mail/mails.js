@@ -48,7 +48,7 @@ export const sendWelcomeEmail = async (email, username) => {
     console.log("Welcome email sent succesfully!", response);
   } catch (error) {
     console.log(`Error sending email: ${error}`);
-    throw new Error(`Error sending email: ${error}`);
+    throw new Error(`Error sending email: ${error.message}`);
   }
 };
 
@@ -63,6 +63,7 @@ export const sendResetPasswordEmail = async (email, resetUrl) => {
       html: PASSWORD_RESET_REQUEST_TEMPLATE.replace("{resetURL}", resetUrl),
       category: "Reset password",
     });
+    console.log("Reset pwd email sent successfully:", response);
   } catch (error) {
     console.log(`Error something went wrong: ${error}`);
     res.status(400).josn({ status: false, message: error.message });
@@ -80,6 +81,7 @@ export const sendResetSuccessEmail = async (email) => {
       html: PASSWORD_RESET_SUCCESS_TEMPLATE,
       category: "Security Alert",
     });
+    console.log("Password reset successfully:", response);
   } catch (error) {
     console.log(`Error sending password update confirmation email`);
     res.status(400).josn({ status: false, message: error.message });

@@ -22,7 +22,7 @@ const validateSignupInput = (email, password, name, roles) => {
     }
   } catch (error) {
     console.log(error.message);
-    throw new Error("Something went wrong.");
+    throw new Error(error.message);
   }
 };
 

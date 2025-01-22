@@ -24,7 +24,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/payments/new:
+ * /api/v1/payments/new:
  *   post:
  *     summary: Make a new payment
  *     tags:
@@ -122,7 +122,7 @@ router.post("/new", verifyToken, authorizeRoles("manager"), createPayment);
 // ROUTES TO MAKE A PAYMENT FOR AN OPERATION
 /**
  * @swagger
- * /api/payments/operation/{operationId}/pay:
+ * /api/v1/payments/operation/{operationId}/pay:
  *   post:
  *     summary: Pay for an operation
  *     tags:
@@ -226,7 +226,7 @@ router.post(
 // ROUTE TO GENERATE RECEIPT FOR A PAYMENT
 /**
  * @swagger
- * /api/payments/receipt/{paymentId}:
+ * /api/v1/payments/receipt/{paymentId}:
  *   get:
  *     summary: Generate a receipt for a payment
  *     tags:
@@ -333,7 +333,7 @@ router.post(
 // ROUTE TO RETRIEVE ALL THE PAYMENT HISTORIES
 /**
  * @swagger
- * /api/payments:
+ * /api/v1/payments:
  *   get:
  *     summary: Get all payment histories
  *     tags:
@@ -372,7 +372,7 @@ router.get("/", verifyToken, authorizeRoles("manager"), getPaymentHistories);
 // ROUTE TO GET A SPECIFIC PAYMENT BY IT'S ID
 /**
  * @swagger
- * /api/payments/{paymentId}:
+ * /api/v1/payments/{paymentId}:
  *   get:
  *     summary: Get a specific payment by ID
  *     tags:
@@ -455,7 +455,7 @@ router.get("/:paymentId", verifyToken, authorizeRoles("manager"), getPayment);
 // ROUTE TO GET PAYMENT HYSTORIES FOR A SPECIFIC OPERATION
 /**
  * @swagger
- * /api/payments/operation/{operationId}:
+ * /api/v1/payments/operation/{operationId}:
  *   get:
  *     summary: Get payment histories of an operation
  *     tags:
@@ -519,7 +519,7 @@ router.get(
 // ROUTE TO UPDATE A PAYMENT
 /**
  * @swagger
- * /api/payments/edit/{paymentId}:
+ * /api/v1/payments/edit/{paymentId}:
  *   put:
  *     summary: Update a payment
  *     tags:
@@ -627,7 +627,7 @@ router.put(
 
 /**
  * @swagger
- * /api/payments/cancel/{paymentId}:
+ * /api/v1/payments/cancel/{paymentId}:
  *   delete:
  *     summary: Cancel a payment
  *     tags:

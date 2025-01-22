@@ -15,7 +15,7 @@ const router = express.Router();
 // ROUTE TO MAKE A NEW SHIPMENT
 /**
  * @swagger
- * /api/shipments/{operationId}:
+ * /api/v1/shipments/{operationId}:
  *   post:
  *     summary: Create a new shipping operation
  *     tags:
@@ -116,7 +116,7 @@ router.post(
 // ROUTE TO GET ALL THE SHIPMENTS
 /**
  * @swagger
- * /api/shipments/history:
+ * /api/v1/shipments/history:
  *   get:
  *     summary: Get all shipping histories of a company
  *     tags:
@@ -176,7 +176,7 @@ router.get(
 // ROUTE TO GET A SINGLE SHIPMENT
 /**
  * @swagger
- * /api/shipments/{shipmentId}:
+ * /api/v1/shipments/{shipmentId}:
  *   get:
  *     summary: Get a single shipment by its ID
  *     tags:
@@ -252,7 +252,7 @@ router.get(
 
 /**
  * @swagger
- * /api/shipments/{shipmentId}:
+ * /api/v1/shipments/{shipmentId}:
  *   put:
  *     summary: Update a shipment
  *     tags:
@@ -340,7 +340,7 @@ router.put(
 //ROUTE TO DELETE A SHIPMENT
 /**
  * @swagger
- * /api/shipments/{shipmentId}:
+ * /api/v1/shipments/{shipmentId}:
  *   delete:
  *     summary: Delete a shipment
  *     tags:

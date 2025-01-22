@@ -19,10 +19,9 @@ export const signup = async (req, res) => {
     // Input validation
     try {
       validateSignupInput(email, password, name, roles);
-    } catch (validationError) {
-      return res
-        .status(422)
-        .json({ success: false, message: validationError.message });
+    } catch (error) {
+      console.log(error);
+      return res.status(422).json({ success: false, message: error.message });
     }
 
     const userAlreadyExist = await User.findOne({ email });

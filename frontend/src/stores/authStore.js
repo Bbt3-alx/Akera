@@ -4,11 +4,11 @@ import axios from "axios";
 // Setting axios to send cookies with requests by default
 axios.defaults.withCredentials = true;
 
-console.log("Current mode:", import.meta.env.MODE);
+//console.log("Current mode:", import.meta.env.MODE);
 const API_URL =
   import.meta.env.MODE === "development"
-    ? "http://localhost:5000/api/auth"
-    : "/api/auth";
+    ? "http://localhost:5000/api/v1/auth"
+    : "/api/v1/auth";
 
 // Creating a Zustand store to manage authentication state
 export const useAuthStore = create((set) => ({
@@ -112,7 +112,6 @@ export const useAuthStore = create((set) => ({
         isCheckingAuth: false,
       });
     } catch (error) {
-      console.log(error);
       set({
         error: null, // No error message in this case
         isCheckingAuth: false,

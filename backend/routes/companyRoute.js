@@ -15,7 +15,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/companies:
+ * /api/v1/companies:
  *   post:
  *     summary: Create a new company
  *     tags:
@@ -119,7 +119,7 @@ router.post(
 
 /**
  * @swagger
- * /api/companies/{id}:
+ * /api/v1/companies/{id}:
  *   get:
  *     summary: Get company details
  *     tags:

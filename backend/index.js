@@ -19,20 +19,25 @@ dotenv.config();
 const app = express();
 const __dirname = path.resolve();
 
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://akera.onrender.com"],
+    credentials: true,
+  })
+);
 app.use(express.json()); //Parse incoming reques
 app.use(cookieParser()); //Parse incoming cookies
 
 // Routes
-app.use("/api/auth", authRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/companies", companyRoutes);
-app.use("/api/partners", partnerRoutes);
-app.use("/api/transactions", transactionRoutes);
-app.use("/api/operations", buyOperationRoutes);
-app.use("/api/sells", sellOperationRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/shipments", shipmentRoutes);
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/companies", companyRoutes);
+app.use("/api/v1/partners", partnerRoutes);
+app.use("/api/v1/transactions", transactionRoutes);
+app.use("/api/v1/operations", buyOperationRoutes);
+app.use("/api/v1/sells", sellOperationRoutes);
+app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1/shipments", shipmentRoutes);
 
 // Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));

@@ -22,7 +22,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/transactions/new:
+ * /api/v1/transactions/new:
  *   post:
  *     summary: Make a new transaction
  *     tags:
@@ -131,7 +131,7 @@ router.post("/new", verifyToken, authorizeRoles("manager"), makeTransaction);
 // ROUTE TO RETRIEVE ALL THE TRANSACTION BELONG TO A COMPANY
 /**
  * @swagger
- * /api/transactions:
+ * /api/v1/transactions:
  *   get:
  *     summary: Retrieve all transactions belonging to a company
  *     tags:
@@ -183,7 +183,7 @@ router.get("/", verifyToken, authorizeRoles("manager"), getTransactions);
 // ROUTE TO RETRIEVE ALL TRANSACTIONS OF A PARTNER
 /**
  * @swagger
- * /api/transactions/partner/{partnerId}:
+ * /api/v1/transactions/partner/{partnerId}:
  *   get:
  *     summary: Retrieve all transactions for a specific partner
  *     tags:
@@ -260,7 +260,7 @@ router.get(
 // ROUTE TO GET A TRANSACTION BY ITS ID
 /**
  * @swagger
- * /api/transactions/{transactionId}:
+ * /api/v1/transactions/{transactionId}:
  *   get:
  *     summary: Get specific transaction by its ID
  *     tags:
@@ -335,7 +335,7 @@ router.get(
 // ROUTE TO EDIT A TRANSACTION
 /**
  * @swagger
- * /api/transactions/{transactionId}/edit/{partnerId}:
+ * /api/v1/transactions/{transactionId}/edit/{partnerId}:
  *   put:
  *     summary: Edit a transaction
  *     tags:
@@ -446,7 +446,7 @@ export default router;
 // ROUTE TO DELETE A TRANSACTION
 /**
  * @swagger
- * /api/transactions/{transactionId}/partner/{partnerId}:
+ * /api/v1/transactions/{transactionId}/partner/{partnerId}:
  *   delete:
  *     summary: Delete a transaction
  *     tags:

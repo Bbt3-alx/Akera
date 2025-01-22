@@ -1,6 +1,5 @@
 import User from "../models/User.js";
 import SellOperation from "../models/SellOperation.js";
-import ShippingOperation from "../models/ShippingOperation.js";
 import {
   convertWeightToTroyOunces,
   convertWeightToGrams,
