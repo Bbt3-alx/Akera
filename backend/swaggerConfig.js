@@ -1,6 +1,7 @@
 import swaggerJsDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 
+const API_URL = process.env.API_URL;
 const swaggerOptions = {
   // SWAGGER DEFINTINON
   definition: {
@@ -14,8 +15,8 @@ const swaggerOptions = {
     // SERVER INFOS
     servers: [
       {
-        url: "http://localhost:5000",
-        description: `${process.env.NODE_ENV} server`,
+        url: API_URL,
+        description: `${process.env.VITE_NODE_ENV} server`,
       },
     ],
 
