@@ -7,7 +7,7 @@ Gold traders and currency exchange businesses deal with thousands of transaction
 Studies show that small businesses lose 30% of revenue due to inefficient financial management tools.
 What if managing all your accounts and transactions could be as simple as a few clicks?
 
-Akera is a financial management system designed to simplify and automate processes related to gold and currency trading transactions, which are often manual and inefficient. The project aims to improve transparency and speed of operations while allowing users to track their performance and make informed decisions through analyses based on accurate and real-time data. Using modern technologies such as Node.js, Express, and MongoDB, Akera is primarily targeted at gold sales managers, traders, and developers.
+Akera is a specialized platform designed to automate and simplify the operations of businesses involved in purchasing physical gold and shipping it globally, particularly to hubs like Dubai. The project aims to improve transparency and speed of operations while allowing users to track their performance and make informed decisions through analyses based on accurate and real-time data. Using modern technologies such as Node.js, Express, and MongoDB, Akera is primarily targeted at gold sales managers, and developers.
 
 ## Features
 1. User Management: With dedicated endpoints for user signup and authentication, businesses can easily manage user access and ensure secure interactions within the system.
