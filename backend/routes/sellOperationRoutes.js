@@ -86,7 +86,7 @@ router.post("/", verifyToken, authorizeRoles("manager"), createSellOperation);
  *   get:
  *     summary: Retrieve all sell operations
  *     tags:
- *       - Sell
+ *       - Sell Operations
  *     responses:
  *       200:
  *         description: Sales retrieved successfully.
@@ -125,7 +125,7 @@ router.get("/", verifyToken, authorizeRoles("manager"), getSellOperations);
  *   get:
  *     summary: Get a specific sell operation by ID
  *     tags:
- *       - Sell
+ *       - Sell Operations
  *     parameters:
  *       - name: operationId
  *         in: path
@@ -187,7 +187,7 @@ router.get(
  *   put:
  *     summary: Update a sell operation
  *     tags:
- *       - Sell
+ *       - Sell Operations
  *     parameters:
  *       - name: operationId
  *         in: path
@@ -268,7 +268,7 @@ router.put(
  *   delete:
  *     summary: Delete a specific sell operation
  *     tags:
- *       - Sell
+ *       - Sell Operations
  *     parameters:
  *       - name: operationId
  *         in: path
