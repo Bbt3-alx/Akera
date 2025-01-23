@@ -54,9 +54,12 @@ This application is targeted at:
    ```bash
    npm install
    ```
-4. Configure your MongoDB database in a `.env` file.
+4. Configure your MongoDB database and other environment variable in a `.env` file.
    ```bash
    DATABASE_URI=your_mongodb_connection_string
+   JWT_SECRET=your_jwt_secret
+   VITE_NODE_ENV=your_current_environment. ex: development
+   MAILTRAP_TOKEN=your_mail_trap_token. // You can get one mailtrap.io
    ```
 
 6. Start the server
