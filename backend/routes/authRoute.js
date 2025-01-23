@@ -16,8 +16,8 @@ const router = Router();
 /**
  * @swagger
  * tags:
- *   - name: Signup
- *     description: API endpoint to register a new user
+ *   - name: Auth
+ *     description: API endpoints for user authentication
  */
 
 /**
@@ -26,7 +26,7 @@ const router = Router();
  *   post:
  *     summary: Signup a new user
  *     tags:
- *       - Signup
+ *       - Auth
  *     requestBody:
  *       required: true
  *       content:
@@ -60,13 +60,6 @@ const router = Router();
  *               $ref: '#/components/responses/ServerError'
  */
 router.post("/signup", signup);
-
-/**
- * @swagger
- * tags:
- *   - name: Auth
- *     description: API endpoints for user authentication
- */
 
 /**
  * @swagger

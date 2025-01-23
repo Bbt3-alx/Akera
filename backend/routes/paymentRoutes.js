@@ -44,7 +44,7 @@ const router = express.Router();
  *                 description: Payment method (e.g., credit card, cash, etc.)
  *               partnerId:
  *                 type: string
- *                 description: The ID of the partner being paid
+ *                 description: The ID of the partner being paid. (For payment for an operation.)
  *               description:
  *                 type: string
  *                 description: Description of the payment
@@ -227,7 +227,7 @@ router.post(
 /**
  * @swagger
  * /api/v1/payments/receipt/{paymentId}:
- *   get:
+ *   post:
  *     summary: Generate a receipt for a payment
  *     tags:
  *       - Payments

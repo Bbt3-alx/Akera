@@ -17,7 +17,7 @@ const router = express.Router();
  *   post:
  *     summary: Create a new sell operation
  *     tags:
- *       - Sell
+ *       - Sell Operations
  *     requestBody:
  *       required: true
  *       content:

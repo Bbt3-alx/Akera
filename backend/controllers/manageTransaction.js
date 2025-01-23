@@ -1,6 +1,8 @@
 import Transaction from "../models/Transaction.js";
 import User from "../models/User.js";
 import Partner from "../models/Partner.js";
+import { isValidObjectId } from "mongoose";
+import { ObjectId } from "mongodb";
 
 // Make a new transaction
 export const makeTransaction = async (req, res) => {
@@ -13,6 +15,11 @@ export const makeTransaction = async (req, res) => {
       .json({ success: false, message: "All fields are required" });
   }
 
+  if (!isValidObjectId(partnerId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid partner ID format." });
+  }
   // Check if the provided amount is a number and greater than 0.
   if (isNaN(amount) || amount < 1) {
     console.log("Amount must be a number greater than 0.");
@@ -95,6 +102,13 @@ export const makeTransaction = async (req, res) => {
       manager.company.transactions.push(savedTransaction);
       manager.company.balance -= amount;
       await manager.company.save({ session });
+
+      // Make a transaction with the timestamp (in seconds)
+
+      const objectId = new ObjectId(savedTransaction._id);
+      const code = objectId.getTimestamp().getTime() / 1000; // Convert to seconds
+      savedTransaction.code = code;
+      await savedTransaction.save({ session });
 
       // Commit the transaction
       await session.commitTransaction();

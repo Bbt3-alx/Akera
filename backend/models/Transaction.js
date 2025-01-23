@@ -1,11 +1,10 @@
 import { Schema, model } from "mongoose";
 
-const uniq = "ID" + new Date().getTime();
 //Transaction Schema
 const transactionSchema = new Schema(
   {
     amount: { type: Number, required: true },
-    code: { type: String, default: uniq },
+    code: { type: String },
     date: { type: Date, default: Date.now },
     description: { type: String, required: true }, // Name of the person to be paid or purpose
     status: {

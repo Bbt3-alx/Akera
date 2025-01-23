@@ -2,6 +2,8 @@ import { isValidObjectId } from "mongoose";
 import Payment from "../models/Payment.js";
 import User from "../models/User.js";
 import Partner from "../models/Partner.js";
+import Receipt from "../models/Receipt.js";
+import { ObjectId } from "mongodb";
 
 // Make a new payment
 export const createPayment = async (req, res) => {
@@ -52,6 +54,12 @@ export const createPayment = async (req, res) => {
 
     // Check if a partner is involved
     if (partnerId) {
+      // Check if valid ObjectID
+      if (!isValidObjectId(partnerId)) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid partner ID format." });
+      }
       const partner = await Partner.findById(partnerId);
       if (!partner) {
         return res
@@ -88,24 +96,28 @@ export const generateReceipt = async (req, res) => {
   }
 
   try {
-    const payment = await Payment.findById(paymentId).populate("operation"); // Retrieve associeted operation details
+    const payment = await Payment.findById(paymentId).populate(
+      "operation",
+      "-status -date -createdAt -updatedAt -__v -partner -company"
+    ); // Retrieve associeted operation details
 
     if (!payment) {
       return res.status(404).json({ error: "Payment not found" });
     }
 
-    const receipt = {
-      paymentId: payment._id,
-      operationId: payment.operation._id,
+    const receipt = new Receipt({
       amount: payment.amount,
       totalAmount: payment.operation.amount,
       remain: payment.remain,
-      date: payment.date,
       method: payment.method,
+      paymentId: payment._id,
+      operationId: payment.operation._id,
       operationDetails: payment.operation,
-      partner: payment.partner,
-      company: payment.company,
-    };
+      partnerId: payment.partner,
+      companyId: payment.company,
+    });
+
+    await receipt.save();
 
     // Receipt JSON format
     res.status(200).json({ success: true, receipt: receipt });

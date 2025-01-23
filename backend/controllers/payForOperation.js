@@ -7,6 +7,11 @@ const payForOperation = async (req, res) => {
   const { amount, method, partnerId } = req.body;
   const { operationId } = req.params;
 
+  if (!isValidObjectId(operationId)) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid operation ID format." });
+  }
   try {
     const manager = await User.findById(req.user.id).populate("company");
     if (!manager) {
@@ -23,7 +28,7 @@ const payForOperation = async (req, res) => {
       });
     }
 
-    // Check if the delected partner exist
+    // Check if the selected partner exist
     const partner = await Partner.findById(partnerId);
     if (!partner) {
       return res
