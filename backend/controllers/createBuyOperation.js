@@ -62,7 +62,7 @@ export const createBuyOperation = async (req, res) => {
 
       // Calculate the gold density and get the corresponding carat
       const density = (weight / w_weight).toFixed(2);
-      const carat = getcarat(density);
+      const carat = getCarat(density);
 
       // Ensure carat is valid
       if (carat < 10) {
