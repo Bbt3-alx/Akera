@@ -2,6 +2,7 @@ import BuyOperation from "../models/BuyOperation.js";
 import Payment from "../models/Payment.js";
 import Partner from "../models/Partner.js";
 import User from "../models/User.js";
+import { isValidObjectId } from "mongoose";
 
 const payForOperation = async (req, res) => {
   const { amount, method, partnerId } = req.body;
