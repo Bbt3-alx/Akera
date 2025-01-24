@@ -122,7 +122,7 @@ router.post("/new", verifyToken, authorizeRoles("manager"), createPayment);
 // ROUTES TO MAKE A PAYMENT FOR AN OPERATION
 /**
  * @swagger
- * /api/v1/payments/operation/{operationId}/pay:
+ * /api/v1/payments/operations/{operationId}/pay:
  *   post:
  *     summary: Pay for an operation
  *     tags:
