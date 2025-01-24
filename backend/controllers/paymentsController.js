@@ -312,7 +312,7 @@ export const cancelPayment = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      cancelledPayment: ccancelledPayment,
+      cancelledPayment,
       message: `Payment with ID ${paymentId} successfully cancelled`,
     });
   } catch (error) {

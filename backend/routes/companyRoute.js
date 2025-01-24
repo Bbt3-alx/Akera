@@ -36,23 +36,9 @@ const router = express.Router();
  *               contact:
  *                 type: string
  *                 description: The contact information (phone/email) of the company
- *               partners:
- *                 type: array
- *                 items:
- *                   type: object
- *                   properties:
- *                     name:
- *                       type: string
- *                       description: The name of the partner
- *                     phone:
- *                       type: string
- *                       description: The partner's phone number
- *                     email:
- *                       type: string
- *                       description: The partner's email address
- *                     balance:
- *                       type: integer
- *                       description: The partner's balance
+ *               balance:
+ *                  type: integer
+ *                  description: The partner's balance
  *             required:
  *               - name
  *               - address
