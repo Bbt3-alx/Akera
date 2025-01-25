@@ -92,7 +92,12 @@ Contributions are welcome! If you would like to contribute, please:
 This project is licensed under the MIT License
 
 ## Acknowledgments
-Special thanks to ALX for the support throughout this training program. Thanks also to the open-source communities that inspired and facilitated this project.
+I would like to extend my heartfelt thanks to ALX Africa for their invaluable support throughout this training program. Their commitment to fostering talent and providing resources has been instrumental in my development as a backend developer.
+
+Mentorship: Special thanks to the mentors who guided me through the learning process, offering insights and feedback that helped shape my understanding of software development.
+Community Support: I am grateful for the collaborative environment fostered by ALX Africa, which encouraged knowledge sharing and teamwork among peers.
+Resources: The access to learning materials, workshops, and hands-on projects provided by ALX Africa has greatly enhanced my skills and confidence in building real-world applications.
+This project, Akera, is a direct result of the skills and knowledge I gained during this program, and I look forward to applying what I’ve learned in future endeavors.
 
 ## Author
 ### Brehyma Traore – Software Engineer
