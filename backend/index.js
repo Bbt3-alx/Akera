@@ -14,6 +14,7 @@ import buyOperationRoutes from "./routes/buyOperationRoutes.js";
 import sellOperationRoutes from "./routes/sellOperationRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import shipmentRoutes from "./routes/shippingOperationRoutes.js";
+import usdTransactionRoutes from "./routes/usdTransactionRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -38,6 +39,7 @@ app.use("/api/v1/operations", buyOperationRoutes);
 app.use("/api/v1/sells", sellOperationRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipments", shipmentRoutes);
+app.use("/api/v1/dollars", usdTransactionRoutes);
 
 // Swagger
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));

@@ -14,6 +14,8 @@ const companySchema = new Schema(
     partners: [{ type: Schema.Types.ObjectId, ref: "Partner", required: true }], // Associated partners
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
     operations: [{ type: Schema.Types.ObjectId, ref: "BuyOperation" }],
+    //usdTransactions: [{ type: Schema.Types.ObjectId, ref: "SellUSD" }],
+    usdCustomers: [{ type: Schema.Types.ObjectId, ref: "UsdCustomer" }],
   },
   { timestamps: true }
 );
