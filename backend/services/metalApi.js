@@ -1,5 +1,6 @@
 const myHeaders = new Headers();
-myHeaders.append("x-access-token", "goldapi-o2vg1sm6e660b9-io");
+const METAL_API = process.env.METAL_API;
+myHeaders.append("x-access-token", METAL_API);
 myHeaders.append("Content-Type", "application/json");
 
 const requestOptions = {
