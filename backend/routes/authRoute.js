@@ -145,13 +145,9 @@ router.post("/verify-email", verifyEmail);
  *               password:
  *                 type: string
  *                 description: User's password
- *               role:
- *                 type: string
- *                 description: User's role
  *             required:
  *               - email
  *               - password
- *               - role
  *     responses:
  *       200:
  *         description: User logged in successfully.

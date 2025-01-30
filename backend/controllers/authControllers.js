@@ -11,8 +11,11 @@ import {
   sendResetPasswordEmail,
   sendResetSuccessEmail,
 } from "../mail/mails.js";
+import mongoose from "mongoose";
 
 configDotenv();
+
+// Signup
 export const signup = async (req, res) => {
   const { email, password, name, roles } = req.body;
   try {
@@ -46,6 +49,7 @@ export const signup = async (req, res) => {
     const verificationToken = Math.floor(
       100000 + Math.random() * 90000
     ).toString();
+
     // Now store user inputs to the db
     const newUser = User({
       email,
@@ -60,26 +64,30 @@ export const signup = async (req, res) => {
     // jwt
     generateTokenAndSetCookie(res, newUser._id);
 
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.VITE_NODE_ENV === "production") {
       await sendVerificationEmail(newUser.email, verificationToken);
     }
 
     res.status(201).json({
       success: true,
-      message: "User created successfully, please verify your email",
-      user: {
-        id: newUser._id,
-        email: newUser.email,
-        name: newUser.name,
-        roles: newUser.roles,
-      },
+      code: 201,
+      message: "User created. Verify your email.",
+      user: { id: newUser._id, email, name },
     });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("Signup error:", error);
+    res.status(500).json({
+      success: false,
+      code: 500,
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Internal server error"
+          : error.message,
+    });
   }
 };
 
+// Email verification
 export const verifyEmail = async (req, res) => {
   // verify the user email
   const { code } = req.body;
@@ -91,30 +99,42 @@ export const verifyEmail = async (req, res) => {
     });
 
     if (!user) {
-      return res
-        .status(400)
-        .json({ status: false, message: "Invalide verification code" });
+      return res.status(400).json({
+        status: false,
+        code: 400,
+        message: "Invalide or expired verification code.",
+      });
     }
 
     user.isVerified = true;
     user.verificationToken = undefined;
     user.verificationTokenExpiresAt = undefined;
-
     await user.save();
 
+    // Send welcome email
     await sendWelcomeEmail(user.email, user.name);
+
+    // Generate token only after verification
+    generateTokenAndSetCookie(res, user._id);
 
     res.status(200).json({
       success: true,
-      message: "Email verified successfully!",
+      code: 200,
+      message: "Email verified!",
       user: {
-        ...user._doc,
-        password: undefined,
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        roles: user.roles,
       },
     });
   } catch (error) {
-    console.log(`Error in verifying email: ${error}`);
-    return res.status(500).json({ success: false, message: "Server error" });
+    console.error("Email verification error:", error);
+    res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Server error",
+    });
   }
 };
 
@@ -123,155 +143,230 @@ export const login = async (req, res) => {
   const { email, password, role } = req.body;
 
   try {
-    // Validate inputs
     if (!email || !password) {
-      return res
-        .status(422)
-        .json({ success: false, message: "Missing required field" });
+      return res.status(422).json({
+        success: false,
+        code: 422,
+        message: "Email and password required",
+      });
     }
 
     // Find user by email
     const user = await User.findOne({ email });
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      // Generic error to avoid leaking user existence
+      return res.status(401).json({
+        success: false,
+        code: 401,
+        message: "Invalid credentials",
+      });
     }
 
-    // Compare password
-    const isValidPwd = await bcrypt.compare(password, user.password);
-    if (!isValidPwd) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Password incorrect" });
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        code: 403,
+        message: "Verify your email first",
+      });
     }
 
-    // Validate role
-    if (role && !user.roles.includes(role)) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Access denied. Invalid role." });
-    }
-
-    // Generate and set token
-    const token = generateTokenAndSetCookie(res, user._id, role);
-
-    // Update last login time
     user.lastLogin = new Date();
-    user.save();
+    await user.save();
 
-    // Respond with user details
+    // Generate token with all user roles
+    generateTokenAndSetCookie(res, user._id, user.roles);
+
     res.status(200).json({
       success: true,
-      message: `Connected successfully as ${role}`,
+      code: 200,
+      message: "Logged in successfully",
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        role,
-        lastLogin: user.lastLogin,
+        roles: user.roles,
       },
-      token,
     });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ status: false, message: error.message });
+    console.error("Login error:", error);
+    res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Internal server error",
+    });
   }
 };
 
+// Logout controller
 export const logout = (req, res) => {
-  res.clearCookie("token");
-  res.status(200).json({ success: true, message: "Loged out successfylly" });
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  });
+  res.status(200).json({
+    success: true,
+    code: 200,
+    message: "Logged out successfully",
+  });
 };
 
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
   try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res
-        .status(404)
-        .json({ status: false, message: "There is no user with this email" });
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(422).json({
+        success: false,
+        code: 422,
+        message: "Invalid email format.",
+      });
     }
 
-    const pwdResetToken = crypto.randomBytes(30).toString("hex");
-    const resetPwdExp = Date.now() + 1 * 60 * 60 * 1000; // 1 hour
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        code: 200,
+        message: "If the email exists, a reset link will be sent",
+      });
+    }
 
-    user.resetPasswordToken = pwdResetToken;
-    user.resetPasswordExpiresAt = resetPwdExp;
+    const pwdResetToken = crypto.randomBytes(20).toString("hex");
+    const resetPwdExp = Date.now() + 3600000; // 1 hour
 
-    user.save();
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      user.resetPasswordToken = pwdResetToken;
+      user.resetPasswordExpiresAt = resetPwdExp;
 
-    // Send the reset email
-    await sendResetPasswordEmail(
-      user.email,
-      `${process.env.CLIENT_URL}/reset-password/${pwdResetToken}`
-    );
+      user.save({ session });
 
-    res
-      .status(200)
-      .json({ status: true, message: "Reset link sent to your email" });
+      // Send the reset email
+      await sendResetPasswordEmail(
+        user.email,
+        `${process.env.CLIENT_URL}/reset-password/${pwdResetToken}`
+      );
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+
+    res.status(200).json({
+      success: true,
+      code: 200,
+      message: "Reset link sent if email exists",
+    });
   } catch (error) {
-    console.log(error);
-    return res.status(400).json({
+    console.error("Forgot password error:", error);
+    res.status(500).json({
       success: false,
-      message: `Error sending reset email: ${error}`,
+      code: 500,
+      message: "Server error",
     });
   }
 };
 
 export const resetPassword = async (req, res) => {
+  const { token } = req.params;
+  const { password } = req.body;
   try {
-    const { token } = req.params;
-    const { password } = req.body;
+    // Validate password strenght
+    if (password.length < 8) {
+      return res.status(422).json({
+        success: false,
+        code: 422,
+        message: "Password must be 8+ characters",
+      });
+    }
     const user = await User.findOne({
       resetPasswordToken: token,
       resetPasswordExpiresAt: { $gt: Date.now() },
     });
-    console.log("User infos:", user);
     // Check if the token is valide
     if (!user) {
-      return res.status(400).json({ status: false, message: "Invalide token" });
+      return res.status(400).json({
+        status: false,
+        code: 400,
+        message: "Invalide or expired token",
+      });
     }
 
-    // Update the password and invalidate the token
-    const hashedPassword = await bcrypt.hash(password, 10);
-    user.password = hashedPassword;
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpiresAt = undefined;
+    //Check if the new password must old
+    const isSamePassword = await bcrypt.compare(password, user.password);
+    if (isSamePassword) {
+      return res.status(422).json({
+        success: false,
+        code: 422,
+        message: "New password must differ from old.",
+      });
+    }
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      // Update the password and invalidate the token
+      user.password = await bcrypt.hash(password, 12);
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpiresAt = undefined;
+      user.tokenVersion += 1; // Invalidate existing sessions
+      await user.save({ session });
 
-    await user.save();
+      await sendResetSuccessEmail(user.email);
 
-    await sendResetSuccessEmail(user.email);
+      await session.commitTransaction();
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
 
     res
       .status(200)
-      .json({ satus: true, message: "Password reset successfully" });
+      .json({ satus: true, code: 200, message: "Password reset successfully" });
   } catch (error) {
-    console.log("Error reseting password:", error);
-    res.status(400).json({ status: false, message: error.message });
+    console.error("Password reset error:", error);
+    res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Server error",
+    });
   }
 };
 
 export const verifyAuth = async (req, res) => {
   try {
-    // utilizes req.userId to find the corresponding user in the database.
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).select("-password");
     if (!user) {
-      return res.status(400).json({ status: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ status: false, code: 404, message: "User not found" });
     }
 
     // If the user exists, return their information
     // (excluding sensitive data like the password)
     res.status(200).json({
-      status: true,
+      success: true,
+      code: 200,
       user: {
-        ...user._doc,
-        password: undefined,
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        roles: user.roles,
+        isVerified: user.isVerified,
       },
     });
   } catch (error) {
-    console.log("Error checking auhtentication:", error);
-    res.status(400).json({ status: false, message: error.message });
+    console.error("Auth verification error:", error);
+    res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Server error",
+    });
   }
 };

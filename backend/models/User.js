@@ -30,10 +30,13 @@ const userSchema = new Schema(
     resetPasswordExpiresAt: Date,
     verificationToken: String,
     verificationTokenExpiresAt: Date,
+    tokenVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
+// Indexes
+userSchema.index({ email: 1 });
 const User = model("User", userSchema);
 
 export default User;

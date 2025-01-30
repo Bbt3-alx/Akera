@@ -1,4 +1,3 @@
-import User from "../models/User.js";
 import { DollarExchange, UsdCustomer } from "../models/DollarExchange.js";
 import checkUserAuthorization from "../utils/checkUserAuthorization.js";
 import { isValidObjectId } from "mongoose";
