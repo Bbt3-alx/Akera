@@ -1,0 +1,5 @@
+export const RETENTION_PERIODES = {
+  USD_TRANSACTION: 7 * 365 * 24 * 60 * 60 * 1000,
+  DELETED_CUSTOMER: 1 * 365 * 24 * 60 * 60 * 1000,
+  AUDIT_LOG: 5 * 365 * 24 * 60 * 60 * 1000,
+};
