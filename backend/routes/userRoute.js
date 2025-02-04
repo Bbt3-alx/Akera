@@ -16,6 +16,15 @@ router.get(
   }
 );
 router.get(
+  "/user",
+  verifyToken,
+  authorizeRoles("admin", "manager", "partner"),
+  (req, res) => {
+    res.send(`welcome you are connected as ${req.user.role}: ${req.user.id}`);
+  }
+);
+
+router.get(
   "/partner",
   verifyToken,
   authorizeRoles("admin", "manager", "partner"),

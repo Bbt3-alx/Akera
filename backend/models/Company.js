@@ -14,11 +14,20 @@ const companySchema = new Schema(
     partners: [{ type: Schema.Types.ObjectId, ref: "Partner", required: true }], // Associated partners
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
     operations: [{ type: Schema.Types.ObjectId, ref: "BuyOperation" }],
-    //usdTransactions: [{ type: Schema.Types.ObjectId, ref: "SellUSD" }],
+    currency: { type: String, default: "XOF" },
+    status: {
+      type: String,
+      enum: ["active", "inactive", "closed"],
+      default: "active",
+    },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
     usdCustomers: [{ type: Schema.Types.ObjectId, ref: "UsdCustomer" }],
   },
   { timestamps: true }
 );
+companySchema.index({ name: 1, deletedAt: 1 });
+companySchema.index({ contact: 1, deletedAt: 1 });
 
 const Company = model("Company", companySchema);
 

@@ -18,10 +18,14 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 import shipmentRoutes from "./routes/shippingOperationRoutes.js";
 import usdTransactionRoutes from "./routes/usdTransactionRoutes.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
+import { activityLogger } from "./middlewares/activityLogger.js";
 
 dotenv.config();
 const app = express();
 const __dirname = path.resolve();
+
+// Activity looger
+app.use(activityLogger);
 
 // Security Middleware
 app.use(helmet());

@@ -22,10 +22,7 @@ const userSchema = new Schema(
     // },
     lastLogin: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
-    // createdBy: {
-    //   type: Schema.Types.ObjectId,
-    //   ref: "User",
-    // }, // Reference to the manager who created the account
+    //createdBy: { type: Schema.Types.ObjectId, ref: "User" }, // Reference to the manager who created the account
     resetPasswordToken: String,
     resetPasswordExpiresAt: Date,
     verificationToken: String,

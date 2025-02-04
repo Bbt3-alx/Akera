@@ -1,12 +1,14 @@
 import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   // Retrieve the Authorization header
   const authHeader = req.headers["authorization"];
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({
       success: false,
+      code: 401,
       message: "Authorization header missing or malformed",
     });
   }
@@ -17,6 +19,7 @@ const verifyToken = (req, res, next) => {
   if (!token) {
     return res.status(401).json({
       success: false,
+      code: 401,
       message: "No token provided, authorization denied",
     });
   }
@@ -26,14 +29,21 @@ const verifyToken = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.user = decoded; // Attach the user data to the request object (id and role)
-    console.log("Decoded user: ", req.user);
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(403).json({
+        success: false,
+        code: 403,
+        message: "Invalid token. Unauthorized.",
+      });
+    }
     // Proceed to the next middleware
     next();
   } catch (error) {
-    console.log("Error verifying token:", error.message); // For debugging
-
+    console.log("Error verifying token:", error.message);
     return res.status(401).json({
       success: false,
+      code: 401,
       message: "Invalid or expired token",
     });
   }

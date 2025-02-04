@@ -27,9 +27,11 @@ const buyOperationSchema = new Schema(
     date: { type: Date, default: Date.now },
     status: {
       type: String,
-      enum: ["pending", "shipped", "completed", "cancelled", "on hold"],
+      enum: ["pending", "shipped", "completed", "canceled", "on hold"],
       default: "pending",
     },
+    deletedAt: { type: Date, default: null },
+    deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: true }
 );
@@ -55,5 +57,6 @@ buyOperationSchema.pre("save", function (next) {
   next();
 });
 
+buyOperationSchema.index({ deletedAt: 1 });
 const BuyOperation = model("BuyOperation", buyOperationSchema);
 export default BuyOperation;

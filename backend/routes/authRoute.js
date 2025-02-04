@@ -1,5 +1,4 @@
 import { Router } from "express";
-import isValidRole from "../middlewares/isValideRole.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import {
   signup,
@@ -244,7 +243,7 @@ router.post("/verify-email", verifyEmail);
  *                   type: string
  *                   example: "Server error"
  */
-router.post("/login", isValidRole, login);
+router.post("/login", login);
 
 /**
  * @swagger

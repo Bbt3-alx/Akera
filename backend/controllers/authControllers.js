@@ -140,7 +140,7 @@ export const verifyEmail = async (req, res) => {
 
 // Login controller
 export const login = async (req, res) => {
-  const { email, password, role } = req.body;
+  const { email, password } = req.body;
 
   try {
     if (!email || !password) {
