@@ -11,7 +11,14 @@ const userSchema = new Schema(
       {
         type: String,
         required: true,
-        enum: ["admin", "manager", "partner"],
+        enum: [
+          "super_admin",
+          "admin",
+          "accountant",
+          "employee",
+          "manager",
+          "partner",
+        ],
         default: "partner",
       },
     ],

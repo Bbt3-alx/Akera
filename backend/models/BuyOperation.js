@@ -13,7 +13,7 @@ const goldObject = {
 
 const buyOperationSchema = new Schema(
   {
-    currency: { type: String, enum: ["FCFA", "GNF", "USD"], default: "FCFA" },
+    currency: { type: String, enum: ["XOF", "GNF", "USD"], default: "XOF" },
     golds: [goldObject],
     amount: { type: Number },
     paymentStatus: {
@@ -27,11 +27,19 @@ const buyOperationSchema = new Schema(
     date: { type: Date, default: Date.now },
     status: {
       type: String,
-      enum: ["pending", "shipped", "completed", "canceled", "on hold"],
+      enum: [
+        "pending",
+        "shipped",
+        "completed",
+        "canceled",
+        "on hold",
+        "archived",
+      ],
       default: "pending",
     },
     deletedAt: { type: Date, default: null },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    archived: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

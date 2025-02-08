@@ -2,13 +2,19 @@ import express from "express";
 import authorizeRoles from "../middlewares/roleAuthorization.js";
 import {
   addPartner,
-  myPartners,
+  getPartners,
   getPartnerBalance,
   removePartner,
-  getpartner,
+  getPartner,
+  restorePartner,
 } from "../controllers/managePartner.js";
+import { audit } from "../middlewares/audit.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import { updatePartner } from "../controllers/managePartner.js";
+import { paginate } from "../middlewares/pagination.js";
+import { validatePartnerId } from "../middlewares/validators.js";
+import { ROLES } from "../constants/roles.js";
+import { cache } from "../middlewares/cache.js";
 
 const router = express.Router();
 
@@ -115,7 +121,12 @@ const router = express.Router();
  *                   type: string
  *                   example: "Error creating partner: ..."
  */
-router.post("/new", verifyToken, authorizeRoles("manager"), addPartner);
+router.post(
+  "/new",
+  verifyToken,
+  authorizeRoles(ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  addPartner
+);
 
 // ROUTE TO RETRIEVES ALL THE PARTNER BELONG TO A COMPANY
 /**
@@ -167,18 +178,25 @@ router.post("/new", verifyToken, authorizeRoles("manager"), addPartner);
  *                   type: string
  *                   example: "Error fetching partners: ..."
  */
-router.get("/", verifyToken, myPartners);
+router.get(
+  "/",
+  verifyToken,
+  authorizeRoles(ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  cache("partners", 60),
+  paginate(),
+  getPartners
+);
 
 // ROUTE TO GET A SPECIFIC PARTNER BY ITS ID
 /**
  * @swagger
- * /api/v1/partners/{partnerId}:
+ * /api/v1/partners/{id}:
  *   get:
  *     summary: Get a specific partner by its ID
  *     tags:
  *       - Partner
  *     parameters:
- *       - name: partnerId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The unique ID of the partner to retrieve
@@ -237,18 +255,23 @@ router.get("/", verifyToken, myPartners);
  *                   type: string
  *                   example: "Error fetching partner: ..."
  */
-router.get("/:partnerId", verifyToken, authorizeRoles("manager"), getpartner);
+router.get(
+  "/:id",
+  verifyToken,
+  authorizeRoles(ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  getPartner
+);
 
 // ROUTE TO UPDATE A SPECIFIC PARTNER
 /**
  * @swagger
- * /api/v1/partners/update/{partnerId}:
+ * /api/v1/partners/{id}/update:
  *   put:
  *     summary: Update a partner's details
  *     tags:
  *       - Partner
  *     parameters:
- *       - name: partnerId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the partner to be updated
@@ -313,12 +336,19 @@ router.get("/:partnerId", verifyToken, authorizeRoles("manager"), getpartner);
  *                   type: string
  *                   example: "Error updating partner: ..."
  */
-router.put("/update/:partnerId", verifyToken, updatePartner);
+router.put(
+  "/:id/update/",
+  verifyToken,
+  authorizeRoles(ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  validatePartnerId,
+  audit("UPDATE", "Partner"),
+  updatePartner
+);
 
 // ROUTE TO GET A PERTNER'S BALANCE
 /**
  * @swagger
- * /api/v1/partners/{partnerId}/balance:
+ * /api/v1/partners/{id}/balance:
  *   get:
  *     summary: Get balances for a specific partner
  *     tags:
@@ -378,22 +408,23 @@ router.put("/update/:partnerId", verifyToken, updatePartner);
  *                   example: "Error fetching partner balance: ..."
  */
 router.get(
-  "/:partnerId/balance",
+  "/:id/balance",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  validatePartnerId,
   getPartnerBalance
 );
 
 // Remove a partner
 /**
  * @swagger
- * /api/v1/partners/remove/{partnerId}:
+ * /api/v1/partners/{id}/remove:
  *   delete:
  *     summary: Remove a partner from the company
  *     tags:
  *       - Partner
  *     parameters:
- *       - name: partnerId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the partner to be removed
@@ -455,10 +486,22 @@ router.get(
  *                   type: string
  *                   example: "Error removing partner: ..."
  */
-router.delete(
-  "/remove/:partnerId",
+router.put(
+  "/:id/remove",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.MANAGER, ROLES.ADMIN, ROLES.SUPER_ADMIN),
+  validatePartnerId,
+  audit("DELETE", "Partner"),
   removePartner
+);
+
+// RESTORE PARTNER
+router.put(
+  "/:id/restore",
+  verifyToken,
+  authorizeRoles(ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER),
+  validatePartnerId,
+  audit("RESTORE", "Partner"),
+  restorePartner
 );
 export default router;

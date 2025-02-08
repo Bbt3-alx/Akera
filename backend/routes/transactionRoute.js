@@ -1,15 +1,18 @@
 import {
-  editTransaction,
-  getPartnerTransaction,
+  updateTransaction,
+  getPartnerTransactions,
   getTransactions,
   getTransaction,
-  makeTransaction,
+  createTransaction,
   deleteTransaction,
+  restoreTransaction,
 } from "../controllers/manageTransaction.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import authorizeRoles from "../middlewares/roleAuthorization.js";
 import express from "express";
-
+import { validateTransactionInput } from "../middlewares/validators.js";
+import { cache } from "../middlewares/cache.js";
+import { audit } from "../middlewares/audit.js";
 const router = express.Router();
 
 // ROUTE TO MAKE A NEW TRANSACTION
@@ -22,7 +25,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/v1/transactions/new:
+ * /api/v1/transactions/:
  *   post:
  *     summary: Make a new transaction
  *     tags:
@@ -126,7 +129,14 @@ const router = express.Router();
  *                   type: string
  *                   example: "Error making transaction: ..."
  */
-router.post("/new", verifyToken, authorizeRoles("manager"), makeTransaction);
+router.post(
+  "/",
+  verifyToken,
+  authorizeRoles("manager"),
+  validateTransactionInput,
+  audit("TRANSACTION_CREATE", "Transaction"),
+  createTransaction
+);
 
 // ROUTE TO RETRIEVE ALL THE TRANSACTION BELONG TO A COMPANY
 /**
@@ -178,18 +188,24 @@ router.post("/new", verifyToken, authorizeRoles("manager"), makeTransaction);
  *                   type: string
  *                   example: "Error fetching transactions: ..."
  */
-router.get("/", verifyToken, authorizeRoles("manager"), getTransactions);
+router.get(
+  "/",
+  verifyToken,
+  authorizeRoles("manager"),
+  cache("transactions", 3600),
+  getTransactions
+);
 
 // ROUTE TO RETRIEVE ALL TRANSACTIONS OF A PARTNER
 /**
  * @swagger
- * /api/v1/transactions/partner/{partnerId}:
+ * /api/v1/transactions/partner/{id}:
  *   get:
  *     summary: Retrieve all transactions for a specific partner
  *     tags:
  *       - Transaction
  *     parameters:
- *       - name: partnerId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the partner whose transactions are retrieved
@@ -251,22 +267,23 @@ router.get("/", verifyToken, authorizeRoles("manager"), getTransactions);
  *                   example: "Error fetching partner transactions: ..."
  */
 router.get(
-  "/partner/:partnerId",
+  "/partner/:id",
   verifyToken,
   authorizeRoles("manager"),
-  getPartnerTransaction
+  cache("partnerTransactions", 3600),
+  getPartnerTransactions
 );
 
 // ROUTE TO GET A TRANSACTION BY ITS ID
 /**
  * @swagger
- * /api/v1/transactions/{transactionId}:
+ * /api/v1/transactions/{id}:
  *   get:
  *     summary: Get specific transaction by its ID
  *     tags:
  *       - Transaction
  *     parameters:
- *       - name: transactionId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The unique ID of the transaction to retrieve
@@ -326,28 +343,29 @@ router.get(
  *                   example: "Error fetching transaction: ..."
  */
 router.get(
-  "/:transactionId",
+  "/:id",
   verifyToken,
   authorizeRoles("manager"),
+  cache("transaction", 3600),
   getTransaction
 );
 
 // ROUTE TO EDIT A TRANSACTION
 /**
  * @swagger
- * /api/v1/transactions/{transactionId}/edit/{partnerId}:
+ * /api/v1/transactions/{id}/edit/{id}:
  *   put:
  *     summary: Edit a transaction
  *     tags:
  *       - Transaction
  *     parameters:
- *       - name: transactionId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The unique ID of the transaction to edit
  *         schema:
  *           type: string
- *       - name: partnerId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the partner associated with the transaction
@@ -436,29 +454,30 @@ router.get(
  *                   example: "Error editing transaction: ..."
  */
 router.put(
-  "/:transactionId/edit/:partnerId",
+  "/:id/edit",
   verifyToken,
   authorizeRoles("manager"),
-  editTransaction
+  audit("TRANSACTION_UPDATE", "Transaction"),
+  updateTransaction
 );
 export default router;
 
-// ROUTE TO DELETE A TRANSACTION
+// ROUTE TO CANCEL A TRANSACTION
 /**
  * @swagger
- * /api/v1/transactions/{transactionId}/partner/{partnerId}:
+ * /api/v1/transactions/{id}/cancel:
  *   delete:
  *     summary: Delete a transaction
  *     tags:
  *       - Transaction
  *     parameters:
- *       - name: transactionId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The unique ID of the transaction to delete
  *         schema:
  *           type: string
- *       - name: partnerId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the partner associated with the transaction
@@ -477,7 +496,7 @@ export default router;
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Transaction with ID {transactionId} deleted successfully."
+ *                   example: "Transaction with ID {id} deleted successfully."
  *       401:
  *         description: Unauthorized access.
  *         content:
@@ -518,9 +537,19 @@ export default router;
  *                   type: string
  *                   example: "Error deleting transaction: ..."
  */
-router.delete(
-  "/:transactionId/partner/:partnerId",
+router.put(
+  "/:id/cancel",
   verifyToken,
   authorizeRoles("manager"),
+  audit("TRANSACTION_DELETE", "Transaction"),
   deleteTransaction
+);
+
+// ROUTE TO RESTORE A TRANSACTION
+router.put(
+  "/:id/restore",
+  verifyToken,
+  authorizeRoles("manager"),
+  audit("TRANSACTION_RESTORE", "Transaction"),
+  restoreTransaction
 );
