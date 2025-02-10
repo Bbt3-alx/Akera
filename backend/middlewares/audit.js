@@ -15,10 +15,8 @@ export const audit = (action, collection) => async (req, res, next) => {
           collectionName: collection,
           targetId: req.params.id || req.body._id,
           userId: req.user.id,
-          details: {
-            old: oldDoc,
-            new: req.method === "PUT" ? req.body : undefined,
-          },
+          companyId: req.user.company,
+          changes: req.body,
         });
       }
     } catch (error) {

@@ -36,6 +36,7 @@
   "dependencies": {
     "@bull-board/express": "^6.7.4",
     "aws-sdk": "^2.1692.0",
+    "axios": "^1.7.9",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
     "cookie-parser": "^1.4.7",

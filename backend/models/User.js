@@ -39,8 +39,6 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-// Indexes
-userSchema.index({ email: 1 });
 const User = model("User", userSchema);
 
 export default User;

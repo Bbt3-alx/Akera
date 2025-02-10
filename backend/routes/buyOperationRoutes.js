@@ -6,8 +6,12 @@ import {
   deleteBuyOperation,
   getAllOperations,
   getOperation,
+  restoreBuyOperation,
   updateOperation,
 } from "../controllers/createBuyOperation.js";
+import { validateBuyOperation } from "../middlewares/validators.js";
+import { audit } from "../middlewares/audit.js";
+import { cache } from "../middlewares/cache.js";
 
 const router = express.Router();
 
@@ -21,7 +25,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/v1/operations/buy:
+ * /api/v1/operations:
  *   post:
  *     summary: Create a new buy operation
  *     tags:
@@ -133,9 +137,15 @@ const router = express.Router();
  *                   type: string
  *                   example: "Error creating buy operation: ..."
  */
-router.post("/buy", verifyToken, authorizeRoles("manager"), createBuyOperation);
+router.post(
+  "/",
+  verifyToken,
+  authorizeRoles("manager"),
+  validateBuyOperation,
+  createBuyOperation
+);
 
-// ROUTE TO RETRIEVES ALL BUY THE OPERATION
+// ROUTE TO RETRIEVES ALL BUY THE OPERATIONS
 /**
  * @swagger
  * /api/v1/operations:
@@ -198,18 +208,24 @@ router.post("/buy", verifyToken, authorizeRoles("manager"), createBuyOperation);
  *                   type: string
  *                   example: "Error fetching operations: ..."
  */
-router.get("/", verifyToken, authorizeRoles("manager"), getAllOperations);
+router.get(
+  "/",
+  verifyToken,
+  authorizeRoles("manager"),
+  cache("buyOperations", 3600),
+  getAllOperations
+);
 
 // ROUTE TO GET A SPECIFIC OPERATION
 /**
  * @swagger
- * /api/v1/operations/{operationId}:
+ * /api/v1/operations/{id}:
  *   get:
  *     summary: Get a buy operation by its ID
  *     tags:
  *       - Buy Operations
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the operation to retrieve
@@ -269,22 +285,23 @@ router.get("/", verifyToken, authorizeRoles("manager"), getAllOperations);
  *                   example: "Error fetching operation: ..."
  */
 router.get(
-  "/:operationId",
+  "/:id",
   verifyToken,
   authorizeRoles("manager"),
+  cache("buyOperation", 3600),
   getOperation
 );
 
 // ROUTE TO UPDATE AN OPERATION
 /**
  * @swagger
- * /api/v1/operations/{operationId}:
+ * /api/v1/operations/{id}/edit:
  *   put:
  *     summary: Update an operation
  *     tags:
  *       - Buy Operations
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the operation to update
@@ -345,7 +362,7 @@ router.get(
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Operation with ID: {operationId} updated successfully."
+ *                   example: "Operation with ID: {id} updated successfully."
  *       400:
  *         description: Invalid input or partner not found.
  *         content:
@@ -400,22 +417,23 @@ router.get(
  *                   example: "Error updating operation: ..."
  */
 router.put(
-  "/edit/:operationId",
+  "/:id/edit",
   verifyToken,
   authorizeRoles("manager"),
+  audit("UPDATE", "BuyOperation"),
   updateOperation
 );
 
 // ROUTE TO DELETE AN OPERATION
 /**
  * @swagger
- * /api/v1/operations/{operationId}:
+ * /api/v1/operations/{id}/delete:
  *   delete:
  *     summary: Delete an operation
  *     tags:
  *       - Buy Operations
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the operation to delete
@@ -434,7 +452,7 @@ router.put(
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Operation with ID {operationId} deleted successfully."
+ *                   example: "Operation with ID {id} deleted successfully."
  *       400:
  *         description: Invalid operation ID format or operation ID is required.
  *         content:
@@ -488,11 +506,21 @@ router.put(
  *                   type: string
  *                   example: "Error deleting operation: ..."
  */
-router.delete(
-  "/delete/:operationId",
+router.put(
+  "/:id/delete",
   verifyToken,
   authorizeRoles("manager"),
+  audit("DELETE", "BuyOperation"),
   deleteBuyOperation
+);
+
+// RESTORE OPERATION
+router.put(
+  "/:id/restore",
+  verifyToken,
+  authorizeRoles("manager"),
+  audit("RESTORE", "BuyOperation"),
+  restoreBuyOperation
 );
 
 export default router;

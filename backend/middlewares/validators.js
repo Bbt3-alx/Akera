@@ -74,3 +74,40 @@ export const validateTransactionInput = (req, res, next) => {
 
   next();
 };
+
+// Validate buy operation
+export const validateBuyOperation = (req, res, next) => {
+  const { gold, partnerId } = req.body;
+  const errors = [];
+
+  if (!Array.isArray(gold) || gold.length === 0) {
+    errors.push("At least one gold item required");
+  }
+  if (!mongoose.Types.ObjectId.isValid(partnerId)) {
+    errors.push("invalid partner ID");
+  }
+  // if (!validateCurrency(currency)) {
+  //   errors.push("Invalid currency");
+  // }
+
+  gold.forEach((item, index) => {
+    if (!item.base || item.base <= 0)
+      errors.push(`Item ${index + 1}: Invalid base price`);
+    if (!item.weight || item.weight <= 0)
+      errors.push(`Item ${index + 1}: Invalid weight`);
+    if (!item.w_weight || item.w_weight >= item.weight)
+      errors.push(
+        `Item ${index + 1}: Water weight must be less than actual weight`
+      );
+  });
+
+  if (errors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      code: 400,
+      errors,
+    });
+  }
+
+  next();
+};

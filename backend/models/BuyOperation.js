@@ -40,6 +40,12 @@ const buyOperationSchema = new Schema(
     deletedAt: { type: Date, default: null },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
     archived: { type: Boolean, default: false },
+    restorationHistory: [
+      {
+        restoredAt: Date,
+        restoredBy: { type: Schema.Types.ObjectId, ref: "User" },
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -65,6 +71,7 @@ buyOperationSchema.pre("save", function (next) {
   next();
 });
 
-buyOperationSchema.index({ deletedAt: 1 });
+buyOperationSchema.index({ company: 1, deletedAt: 1 });
+buyOperationSchema.index({ partner: 1, status: 1 });
 const BuyOperation = model("BuyOperation", buyOperationSchema);
 export default BuyOperation;

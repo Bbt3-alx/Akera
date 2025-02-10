@@ -174,7 +174,7 @@ export const login = async (req, res) => {
     await user.save();
 
     // Generate token with all user roles
-    generateTokenAndSetCookie(res, user._id, user.roles);
+    generateTokenAndSetCookie(res, user._id, user.roles, user.company);
 
     res.status(200).json({
       success: true,
@@ -185,6 +185,7 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         roles: user.roles,
+        company: user.company,
       },
     });
   } catch (error) {
