@@ -1,7 +1,13 @@
+import mongoose from "mongoose";
 import AuditLog from "../models/AuditLog.js";
 import Company from "../models/Company.js";
 
 export const audit = (action, collection) => async (req, res, next) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res
+      .status(400)
+      .json({ success: false, code: 400, message: "Invalid id provided" });
+  }
   const oldDoc =
     req.method === "PUT" && req.params.id
       ? await Company.findById(req.params.id).lean()

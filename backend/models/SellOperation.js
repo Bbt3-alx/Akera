@@ -11,8 +11,8 @@ const sellOperationSchema = new Schema({
   company: { type: Schema.Types.ObjectId, ref: "Company" },
   status: {
     type: String,
-    enum: ["pending", "completed", "cancelled"],
-    default: "pending",
+    enum: ["listed", "sold", "canceled"],
+    default: "listed",
   },
 });
 const SellOperation = model("SellOperation", sellOperationSchema);

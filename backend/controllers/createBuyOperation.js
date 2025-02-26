@@ -6,6 +6,7 @@ import getCarat from "../utils/getCarat.js";
 import { isValidObjectId } from "mongoose";
 import Company from "../models/Company.js";
 import { triggerWebhook } from "../services/webhooks.js";
+import { transactionOptions } from "../constants/mongoTransactionOptions.js";
 
 // Utility function
 function calculateGoldValue(base, carat, weight, currency) {
@@ -17,14 +18,6 @@ function calculateGoldValue(base, carat, weight, currency) {
 
   return (base / conversionRates[currency]) * carat * weight;
 }
-
-// Mongoose Transaction options
-const transactionOptions = {
-  maxCommitTimeMS: 5000,
-  readPreference: "primary",
-  readConcern: { level: "local" },
-  writeConcern: { w: "majority" },
-};
 
 // Create a new buy operation
 export const createBuyOperation = async (req, res) => {
@@ -620,11 +613,10 @@ export const restoreBuyOperation = async (req, res) => {
       message: "Operation restored successfully",
     });
   } catch (error) {
-    await session.abortTransaction();
-    console.error("Restoration error:", error);
+    console.error("Restoration", error);
 
     const statusCode = error.message.includes("not found") ? 404 : 500;
-    return res.status(500).json({
+    return res.status(statusCode).json({
       success: false,
       code: statusCode,
       message: error.message,

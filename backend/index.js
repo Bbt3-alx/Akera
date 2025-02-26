@@ -19,6 +19,7 @@ import shipmentRoutes from "./routes/shippingOperationRoutes.js";
 import usdTransactionRoutes from "./routes/usdTransactionRoutes.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import { activityLogger } from "./middlewares/activityLogger.js";
+import getDashboard from "./routes/dashbordRoute.js";
 
 dotenv.config();
 const app = express();
@@ -48,6 +49,7 @@ app.use("/api/v1/sells", sellOperationRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipments", shipmentRoutes);
 app.use("/api/v1/dollars", usdTransactionRoutes);
+app.use("/api/v1/dashboard", getDashboard);
 
 // Swagger (Dev only)
 // if (process.env.NODE_ENV !== "production") {

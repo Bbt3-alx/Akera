@@ -39,10 +39,11 @@ const buyOperationSchema = new Schema(
     },
     deletedAt: { type: Date, default: null },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
     archived: { type: Boolean, default: false },
     restorationHistory: [
       {
-        restoredAt: Date,
+        restoredAt: { type: Date, default: null },
         restoredBy: { type: Schema.Types.ObjectId, ref: "User" },
       },
     ],

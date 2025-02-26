@@ -9,19 +9,22 @@ import {
   deleteShippingOperation,
 } from "../controllers/manageShipment.js";
 import authorizeRoles from "../middlewares/roleAuthorization.js";
+import { cache } from "../middlewares/cache.js";
+import { ROLES } from "../constants/roles.js";
+import { audit } from "../middlewares/audit.js";
 
 const router = express.Router();
 
 // ROUTE TO MAKE A NEW SHIPMENT
 /**
  * @swagger
- * /api/v1/shipments/{operationId}:
+ * /api/v1/shipments/{id}:
  *   post:
  *     summary: Create a new shipping operation
  *     tags:
  *       - Shipping
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the operation to create a shipment for
@@ -107,9 +110,10 @@ const router = express.Router();
  *                   example: "Error creating shipment: ..."
  */
 router.post(
-  "/ship/:operationId",
+  "/ship/:id",
   verifyToken,
-  authorizedRoles("manager"),
+  authorizedRoles(ROLES.ADMIN, ROLES.MANAGER),
+  audit("SHIPMENT_CREATE", "ShipmentOperation"),
   createShippingOperation
 );
 
@@ -167,22 +171,23 @@ router.post(
  *                   example: "Error retrieving shipping history: ..."
  */
 router.get(
-  "/history",
+  "/",
   verifyToken,
-  authorizedRoles("manager"),
+  authorizedRoles(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE),
+  cache("Shipments", 3600),
   getShipmentHistory
 );
 
 // ROUTE TO GET A SINGLE SHIPMENT
 /**
  * @swagger
- * /api/v1/shipments/{shipmentId}:
+ * /api/v1/shipments/{id}:
  *   get:
  *     summary: Get a single shipment by its ID
  *     tags:
  *       - Shipping
  *     parameters:
- *       - name: shipmentId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the shipment to retrieve
@@ -242,9 +247,9 @@ router.get(
  *                   example: "Error retrieving shipment: ..."
  */
 router.get(
-  "/:shipmentId",
+  "/:id",
   verifyToken,
-  authorizedRoles("manager"),
+  authorizedRoles(ROLES.ADMIN, ROLES.MANAGER, ROLES.EMPLOYEE),
   getShipment
 );
 
@@ -252,13 +257,13 @@ router.get(
 
 /**
  * @swagger
- * /api/v1/shipments/{shipmentId}:
+ * /api/v1/shipments/{id}:
  *   put:
  *     summary: Update a shipment
  *     tags:
  *       - Shipping
  *     parameters:
- *       - name: shipmentId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the shipment to update
@@ -331,22 +336,23 @@ router.get(
  *                   example: "Error updating shipment: ..."
  */
 router.put(
-  "/:shipmentId",
+  "/:id",
   verifyToken,
-  authorizedRoles("manager"),
+  authorizedRoles(ROLES.ADMIN, ROLES.MANAGER),
+  audit("UPDATE_SHIPMENT", "ShipmentOperation"),
   updateShippingOperation
 );
 
 //ROUTE TO DELETE A SHIPMENT
 /**
  * @swagger
- * /api/v1/shipments/{shipmentId}:
+ * /api/v1/shipments/{id}:
  *   delete:
  *     summary: Delete a shipment
  *     tags:
  *       - Shipping
  *     parameters:
- *       - name: shipmentId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the shipment to delete
@@ -365,7 +371,7 @@ router.put(
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Shipment with ID {shipmentId} deleted successfully."
+ *                   example: "Shipment with ID {id} deleted successfully."
  *       403:
  *         description: Unauthorized access.
  *         content:
@@ -407,9 +413,10 @@ router.put(
  *                   example: "Error deleting shipment: ..."
  */
 router.delete(
-  "/cancel/:shipmentId",
+  "/cancel/:id",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
+  audit("SHIPMENT_CANCELED", "ShipmentOperation"),
   deleteShippingOperation
 );
 export default router;

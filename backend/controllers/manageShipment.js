@@ -1,244 +1,325 @@
 import ShippingOperation from "../models/ShippingOperation.js";
 import BuyOperation from "../models/BuyOperation.js";
 import User from "../models/User.js";
-import checkUserAuthorization from "../utils/checkUserAuthorization.js";
+import mongoose from "mongoose";
+import Company from "../models/Company.js";
+import { transactionOptions } from "../constants/mongoTransactionOptions.js";
+import { validateStatusTransition } from "../utils/validators.js";
 
 // Create new shipping operation
 export const createShippingOperation = async (req, res) => {
-  const { operationId } = req.params;
-  const { transport = 150 } = req.body;
-
-  if (typeof transport !== "number" || transport <= 0) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid transport fee." });
-  }
+  const session = await mongoose.startSession();
 
   try {
-    let manager;
-    try {
-      manager = await checkUserAuthorization(req);
-    } catch (error) {
-      return res.status(403).json({ success: false, message: error.message });
-    }
+    const { id } = req.params;
+    const { transport = 150 } = req.body;
 
-    const operation = await BuyOperation.findById(operationId).populate(
-      "partner"
-    );
-    if (!operation) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Operation not found." });
-    }
-
-    if (manager.company._id.toString() !== operation.company.toString()) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Access denied." });
-    }
-
-    // Calculate the shipping fees
-    let goldData = [];
-    let totalFees = 0;
-    let totalWeight = 0;
-    let totalBars = operation.golds.length;
-
-    for (const gold of operation.golds) {
-      const fees = gold.weight * transport; // 150 default transportation fees per gram
-      if (isNaN(fees)) {
-        return res.status(400).json({
-          success: false,
-          message: "Calculated fees are not a valid number.",
-        });
+    await session.withTransaction(async () => {
+      if (isNaN(transport) || transport <= 0) {
+        throw new Error("Transport fee must be a positive number");
       }
 
-      totalBars += 1;
-      totalFees += fees;
-      totalWeight += gold.weight;
+      const [manager, buyOperation] = await Promise.all([
+        User.findById(req.user.id).select("company").session(session),
+        BuyOperation.findById(id).populate("partner").session(session),
+      ]);
 
-      const golds = {
-        base: gold.base,
-        weight: gold.weight,
-        w_weight: gold.w_weight,
-        carat: gold.carat,
-        amount: gold.value,
-        situation: gold.situation,
-        fees: fees,
-        partner: operation.partner._id || undefined,
-      };
+      // Authorization checks
+      if (!manager?.company || !buyOperation) {
+        throw new Error("Operation not found");
+      }
 
-      goldData.push(golds);
+      if (buyOperation.company.toString() !== manager.company.toString()) {
+        throw new Error("Unauthorized access");
+      }
+
+      if (buyOperation.status !== "pending") {
+        throw new Error("Operation qualified for shipping");
+      }
+
+      // Calculate shipping details
+      const totalBars = buyOperation.golds.length;
+      const totalWeight = buyOperation.golds.reduce(
+        (sum, g) => sum + g.weight,
+        0
+      );
+      const totalFees = buyOperation.golds.reduce(
+        (sum, g) => sum + g.weight * transport,
+        0
+      );
+
+      const goldData = buyOperation.golds.map((gold) => ({
+        ...gold.toObject(),
+        fees: gold.weight * transport,
+        partner: buyOperation.partner._id,
+      }));
+
+      // Create shipment
+      const newShipment = await ShippingOperation.create(
+        [
+          {
+            golds: goldData,
+            company: manager.company,
+            buyOperation: id,
+            totalBars,
+            totalWeight,
+            totalFees,
+            status: "in progress",
+          },
+        ],
+        { session }
+      );
+
+      // Update related records
+      await Promise.all([
+        BuyOperation.findByIdAndUpdate(id, { status: "shipped" }, { session }),
+        Company.findByIdAndUpdate(
+          manager.company,
+          {
+            $inc: {
+              totalWeightExpedited: totalWeight,
+              remainWeight: totalWeight,
+              balance: -totalFees,
+            },
+          },
+          { session }
+        ),
+      ]);
+
+      res.status(201).json({
+        success: true,
+        code: 201,
+        data: newShipment[0],
+      });
+    }, transactionOptions);
+  } catch (error) {
+    console.error("Create shipment error:", error);
+
+    let statusCode;
+
+    if (error.message.includes("not found")) {
+      statusCode = 404; // Not Found
+    } else if (error.message.includes("Unauthorized")) {
+      statusCode = 403; // Forbidden
+    } else if (error.message.includes("qualified for shipping")) {
+      statusCode = 409; // Conflict
+    } else {
+      statusCode = 400; // Bad Request
     }
 
-    const newShipment = new ShippingOperation({
-      golds: goldData,
-      company: manager.company._id,
-      buyOperationId: operationId,
-      totalBars,
-      totalWeight,
-      totalFees,
-    });
-
-    await newShipment.save();
-
-    // Update linked operation status as shipped
-    operation.status = "shipped";
-    await operation.save();
-
-    // Update the company total weight expedited and balance
-    manager.company.totalWeightExpedited += totalWeight;
-    manager.company.remainWeight += totalWeight;
-    manager.company.balance -= totalFees;
-    manager.company.save();
-
-    res.status(201).json({
-      success: true,
-      message: "Shiped successfully.",
-      shipment: newShipment,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res
+      .status(statusCode)
+      .json({ success: false, code: statusCode, message: error.message });
   }
 };
 
-// Get all the shipping hystories of a company
+// Get Shipment History
 export const getShipmentHistory = async (req, res) => {
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    const history = await ShippingOperation.find({
-      company: manager.company._id,
-    }).sort({ createdAt: -1 }); // Sort by date newest first
+    const manager = await User.findById(req.user.id).select("company").lean();
 
-    if (history.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: "No shipping history found." });
-    }
+    const { page = 1, limit = 10, status } = req.query;
+    const filter = { company: manager?.company };
+
+    if (status) filter.status = status;
+
+    const [shipments, total] = await Promise.all([
+      ShippingOperation.find(filter)
+        .select("-__v -updatedAt")
+        .sort("-createdAt")
+        .skip((page - 1) * limit)
+        .limit(Number(limit))
+        .populate("buyOperation", "amount currency")
+        .lean(),
+      ShippingOperation.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
-      message: "Shipping history retrieved successfully.",
-      history: history,
+      code: 200,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+      data: shipments,
     });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("Get history error:", error);
+    return res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Failed to retrieve history",
+    });
   }
 };
 
-// Get a single shipment byt its ID
+// Get Single Shipment
 export const getShipment = async (req, res) => {
-  const { shipmentId } = req.params;
-
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    if (!manager || !manager.company) {
-      return res
-        .status(403)
-        .json({ sucess: false, message: "Access denied. Unauthorized." });
+    const shipment = await ShippingOperation.findOne({
+      _id: req.params.id,
+      company: req.user.company,
+    })
+      .select("-__v -updatedAt")
+      .populate("buyOperation", "partner amount currency")
+      .lean();
+
+    if (!shipment) {
+      return res.status(404).json({
+        success: false,
+        code: 404,
+        message: "Shipment not found.",
+      });
     }
 
-    const shipment = await ShippingOperation.findById(shipmentId);
-    if (
-      !shipment ||
-      shipment.company.toString() !== manager.company._id.toString()
-    ) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Shipment record not found." });
-    }
-
-    res.status(200).json({ success: true, shipment: shipment });
+    res.status(200).json({ success: true, code: 200, data: shipment });
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("Get shipment error:", error);
+    return res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Failed to retrieve shipment",
+    });
   }
 };
 
 // Update a shipment
 export const updateShippingOperation = async (req, res) => {
-  const { shipmentId } = req.params;
-  const { status } = req.body;
-
+  const session = await mongoose.startSession();
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    if (!manager || !manager.company) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Access denied. Unauthorized." });
-    }
+    const { id } = req.params;
+    const { status } = req.body;
 
-    const shipment = await ShippingOperation.findById(shipmentId);
-    if (!shipment) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Shipment record not found." });
-    }
+    await session.withTransaction(async () => {
+      const currentStatus = await ShippingOperation.findOne({
+        _id: id,
+        company: req.user.company,
+      }).session(session);
 
-    const updatedShipment = await ShippingOperation.findByIdAndUpdate(
-      shipmentId,
-      {
-        status,
-      },
-      { new: true }
-    );
+      if (!currentStatus) {
+        throw new Error("Shipment not found");
+      }
 
-    // Update associeted buy operation status
-    await BuyOperation.findByIdAndUpdate(updatedShipment.buyOperationId, {
-      status: status,
-    });
+      // Validate status
+      if (!validateStatusTransition(currentStatus.status, status)) {
+        throw new Error("Invalid status transition");
+      }
 
-    res.status(200).json({
-      success: true,
-      message: `Shipment status changed to ${status}`,
-      updatedShipment,
-    });
+      const [shipment, updatedShipment] = await Promise.all([
+        ShippingOperation.findOne({
+          _id: id,
+          company: req.user.company,
+        }).session(session),
+        ShippingOperation.findOneAndUpdate(
+          {
+            _id: id,
+            company: req.user.company,
+          },
+          {
+            status,
+          },
+          { new: true }
+        ),
+      ]);
+
+      if (!shipment || !updatedShipment) {
+        throw new Error("Shipment not found");
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `Shipment status changed to ${status}`,
+        updatedShipment,
+      });
+    }, transactionOptions);
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("Update shipment error:", error);
+    let statusCode;
+    if (error.message.includes("not found")) {
+      statusCode = 404;
+    } else if (error.message.includes("Invalid")) {
+      statusCode = 400;
+    } else {
+      statusCode = 500;
+    }
+    return res
+      .status(statusCode)
+      .json({ success: false, code: statusCode, message: error.message });
   }
 };
 
 // Delete a shipment
 export const deleteShippingOperation = async (req, res) => {
-  const { shipmentId } = req.params;
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    if (!manager || !manager.company) {
-      return res
-        .status(403)
-        .json({ success: false, message: "Access denied. Unauthorized." });
-    }
-
-    const shipment = await ShippingOperation.findOne({
-      _id: shipmentId,
-      company: manager.company._id,
-    });
+    const shipment = await ShippingOperation.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        company: req.user.company,
+        deletedAt: null,
+      },
+      {
+        status: "canceled",
+        deletedAt: new Date(),
+      }
+    ).session(session);
 
     if (!shipment) {
+      await session.abortTransaction();
       return res
         .status(404)
-        .json({ success: false, message: "Shipment record not found." });
+        .json({ success: false, message: "Shipment not found." });
     }
 
-    // Update the buy operation status as cancelled
-    console.log(shipment.buyOperationId);
-    await BuyOperation.findByIdAndUpdate(shipment.buyOperationId, {
-      status: "pending",
-    });
+    // Reset buy operation status
+    const buyOperation = await BuyOperation.findByIdAndUpdate(
+      shipment.buyOperation,
+      {
+        status: "on hold",
+      },
+      { session }
+    );
 
-    await ShippingOperation.findByIdAndDelete(shipmentId);
+    if (!buyOperation) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        code: 404,
+        message: "Related buy operation not found",
+      });
+    }
+    // Update company balance
+    await Company.findByIdAndUpdate(
+      shipment.company,
+      {
+        $inc: {
+          totalWeightExpedited: -shipment.totalWeight,
+          remainWeight: -shipment.totalWeight,
+          balance: shipment.totalFees,
+        },
+      },
+      { session }
+    );
 
+    await session.commitTransaction();
     res.status(200).json({
       success: true,
-      message: `Shipment with ID ${shipmentId} deleted successfully.`,
+      code: 200,
+      message: `Shipment canceled successfully.`,
     });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, message: "Something went wrong." });
+    await session.abortTransaction();
+    console.error("Delete shipment error:", error);
+    return res.status(500).json({
+      success: false,
+      code: 500,
+      message: "Failed to delete shipment",
+    });
+  } finally {
+    session.endSession();
   }
 };
