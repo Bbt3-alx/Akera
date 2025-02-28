@@ -4,15 +4,7 @@ const auditLogSchema = new Schema({
   action: {
     type: String,
     required: true,
-    enum: [
-      "CREATE",
-      "UPDATE",
-      "DELETE",
-      "STATUS_CHANGE",
-      "RESTORE",
-      "SHIPMENT_CREATE",
-      "SHIPMENT_UPDATED",
-    ],
+    enum: ["CREATE", "UPDATE", "DELETE", "STATUS_CHANGE", "RESTORE"],
   },
   collectionName: { type: String, required: true },
   targetId: { type: Schema.Types.ObjectId, required: true },

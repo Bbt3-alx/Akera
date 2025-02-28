@@ -113,7 +113,7 @@ router.post(
   "/ship/:id",
   verifyToken,
   authorizedRoles(ROLES.ADMIN, ROLES.MANAGER),
-  audit("SHIPMENT_CREATE", "ShipmentOperation"),
+  audit("CREATE", "ShipmentOperation"),
   createShippingOperation
 );
 
@@ -339,7 +339,7 @@ router.put(
   "/:id",
   verifyToken,
   authorizedRoles(ROLES.ADMIN, ROLES.MANAGER),
-  audit("UPDATE_SHIPMENT", "ShipmentOperation"),
+  audit("UPDATE", "ShipmentOperation"),
   updateShippingOperation
 );
 
@@ -416,7 +416,7 @@ router.delete(
   "/cancel/:id",
   verifyToken,
   authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
-  audit("SHIPMENT_CANCELED", "ShipmentOperation"),
+  audit("DELETE", "ShipmentOperation"),
   deleteShippingOperation
 );
 export default router;

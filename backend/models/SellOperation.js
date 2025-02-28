@@ -3,7 +3,7 @@ import { Schema, model } from "mongoose";
 // Selling Gold
 const sellOperationSchema = new Schema({
   rate: { type: Number, required: true },
-  weight: { type: Number, required: true, min: 1 },
+  weight: { type: Number, required: true, min: 0.001 },
   amount: { type: Number, required: true },
   unit: { type: String, enum: ["g", "kg", "oz"] },
   totalAmount: { type: Number },
@@ -11,9 +11,11 @@ const sellOperationSchema = new Schema({
   company: { type: Schema.Types.ObjectId, ref: "Company" },
   status: {
     type: String,
-    enum: ["listed", "sold", "canceled"],
-    default: "listed",
+    enum: ["sold", "canceled"],
+    default: "sold",
   },
+  deletedAt: { type: Date, default: null },
+  deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
 });
 const SellOperation = model("SellOperation", sellOperationSchema);
 export default SellOperation;

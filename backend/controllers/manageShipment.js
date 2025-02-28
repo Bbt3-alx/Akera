@@ -6,6 +6,12 @@ import Company from "../models/Company.js";
 import { transactionOptions } from "../constants/mongoTransactionOptions.js";
 import { validateStatusTransition } from "../utils/validators.js";
 
+const ERROR_MESSAGES = {
+  OPERATION_NOT_FOUND: "Operation not found",
+  UNAUTHORIZED_ACCESS: "Unauthorized access",
+  OPERATION_NOT_QUALIFIED: "Operation not qualified for shipping",
+  INVALID_TRANSPORT_FEE: "Transport fee must be a positive number",
+};
 // Create new shipping operation
 export const createShippingOperation = async (req, res) => {
   const session = await mongoose.startSession();
@@ -14,11 +20,11 @@ export const createShippingOperation = async (req, res) => {
     const { id } = req.params;
     const { transport = 150 } = req.body;
 
-    await session.withTransaction(async () => {
-      if (isNaN(transport) || transport <= 0) {
-        throw new Error("Transport fee must be a positive number");
-      }
+    if (isNaN(transport) || transport <= 0) {
+      throw new Error(ERROR_MESSAGES.INVALID_TRANSPORT_FEE);
+    }
 
+    await session.withTransaction(async () => {
       const [manager, buyOperation] = await Promise.all([
         User.findById(req.user.id).select("company").session(session),
         BuyOperation.findById(id).populate("partner").session(session),
@@ -26,15 +32,15 @@ export const createShippingOperation = async (req, res) => {
 
       // Authorization checks
       if (!manager?.company || !buyOperation) {
-        throw new Error("Operation not found");
+        throw new Error();
       }
 
       if (buyOperation.company.toString() !== manager.company.toString()) {
-        throw new Error("Unauthorized access");
+        throw new Error(ERROR_MESSAGES.UNAUTHORIZED_ACCESS);
       }
 
       if (buyOperation.status !== "pending") {
-        throw new Error("Operation qualified for shipping");
+        throw new Error(ERROR_MESSAGES.OPERATION_NOT_QUALIFIED);
       }
 
       // Calculate shipping details

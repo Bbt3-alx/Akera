@@ -8,6 +8,7 @@ import {
   getSellOperations,
   updateSellOperation,
 } from "../controllers/manageSellOperation.js";
+import { audit } from "../middlewares/audit.js";
 const router = express.Router();
 
 //ROUTE TO CREATE A NEW SELL OPERATION
@@ -77,7 +78,13 @@ const router = express.Router();
  *                   type: string
  *                   example: "Something went wrong."
  */
-router.post("/", verifyToken, authorizeRoles("manager"), createSellOperation);
+router.post(
+  "/",
+  verifyToken,
+  authorizeRoles("manager"),
+  audit("CREATE", "SellOperation"),
+  createSellOperation
+);
 
 // ROUTE TO RETRIEVES ALL THE SELLS OPERATION
 /**
@@ -121,13 +128,13 @@ router.get("/", verifyToken, authorizeRoles("manager"), getSellOperations);
 // ROUTE TO GET A SPECIFIC SELL OPERATION BY ID
 /**
  * @swagger
- * /api/v1/sells/{operationId}:
+ * /api/v1/sells/{id}:
  *   get:
  *     summary: Get a specific sell operation by ID
  *     tags:
  *       - Sell Operations
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the sell operation to retrieve
@@ -173,23 +180,18 @@ router.get("/", verifyToken, authorizeRoles("manager"), getSellOperations);
  *                   type: string
  *                   example: "Something went wrong."
  */
-router.get(
-  "/:operationId",
-  verifyToken,
-  authorizeRoles("manager"),
-  getSellOperation
-);
+router.get("/:id", verifyToken, authorizeRoles("manager"), getSellOperation);
 
 //ROUTE TO UPDATE A SELL
 /**
  * @swagger
- * /api/v1/sells/{operationId}:
+ * /api/v1/sells/{id}:
  *   put:
  *     summary: Update a sell operation
  *     tags:
  *       - Sell Operations
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the sell operation to update
@@ -255,22 +257,23 @@ router.get(
  *                   example: "Something went wrong."
  */
 router.put(
-  "/:operationId",
+  "/:id",
   verifyToken,
   authorizeRoles("manager"),
+  audit("UPDATE", "SellOperation"),
   updateSellOperation
 );
 
 // ROUTE TO DELETE A SELL
 /**
  * @swagger
- * /api/v1/sells/{operationId}:
+ * /api/v1/sells/{id}:
  *   delete:
  *     summary: Delete a specific sell operation
  *     tags:
  *       - Sell Operations
  *     parameters:
- *       - name: operationId
+ *       - name: id
  *         in: path
  *         required: true
  *         description: The ID of the sell operation to delete
@@ -289,7 +292,7 @@ router.put(
  *                   example: true
  *                 message:
  *                   type: string
- *                   example: "Sell with ID {operationId} deleted successfully."
+ *                   example: "Sell with ID {id} deleted successfully."
  *       404:
  *         description: Sell operation not found.
  *         content:
@@ -318,9 +321,10 @@ router.put(
  *                   example: "Something went wrong."
  */
 router.delete(
-  "/:operationId",
+  "/:id",
   verifyToken,
   authorizeRoles("manager"),
+  audit("DELETE", "SellOperation"),
   deleteSellOperation
 );
 
