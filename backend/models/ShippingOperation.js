@@ -40,8 +40,5 @@ shippingOperationSchema.index({
   status: 1,
 });
 
-shippingOperationSchema.index({ company: 1, createdAt: -1 });
-shippingOperationSchema.index({ status: 1, company: 1 });
-
 const ShippingOperation = model("ShippingOperation", shippingOperationSchema);
 export default ShippingOperation;

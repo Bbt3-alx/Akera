@@ -7,8 +7,9 @@ import {
   getSellOperation,
   getSellOperations,
   updateSellOperation,
-} from "../controllers/manageSellOperation.js";
+} from "../controllers/sellOperationController.js";
 import { audit } from "../middlewares/audit.js";
+import { catchAsync } from "../middlewares/errorHandler.js";
 const router = express.Router();
 
 //ROUTE TO CREATE A NEW SELL OPERATION
