@@ -11,7 +11,7 @@ import checkUserAuthorization from "../utils/checkUserAuthorization.js";
 import {
   validateCreateSellOperationInput,
   validateUpdateSellOperationInput,
-} from "../utils/sellOperationValidation.js";
+} from "../validations/sellOperationValidation.js";
 import { ApiError } from "../middlewares/errorHandler.js";
 import { transactionOptions } from "../constants/mongoTransactionOptions.js";
 import { preciseFinancialCalc } from "../utils/calculationUtils.js";

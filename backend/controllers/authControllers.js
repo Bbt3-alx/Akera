@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { configDotenv } from "dotenv";
 
-import validateSignupInput from "../utils/validateSignupInput.js";
+import validateSignupInput from "../validations/validateSignupInput.js";
 import User from "../models/User.js";
 import { generateTokenAndSetCookie } from "../utils/generateToken.js";
 import {

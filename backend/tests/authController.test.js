@@ -1,7 +1,7 @@
 import request from "supertest";
 import app from "../index.js";
 import * as mockingoose from "mockingoose";
-import User from "../models/userModel.js";
+import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 
 jest.mock("jsonwebtoken", () => ({

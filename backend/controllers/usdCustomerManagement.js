@@ -2,6 +2,8 @@ import { DollarExchange, UsdCustomer } from "../models/DollarExchange.js";
 import checkUserAuthorization from "../utils/checkUserAuthorization.js";
 import { isValidObjectId } from "mongoose";
 import mongoose from "mongoose";
+import { ApiError } from "../middlewares/errorHandler.js";
+import { createStructParentTreeNextKey } from "pdfkit";
 
 // Create a new customer usd
 export const createUsdCustomer = async (req, res) => {
@@ -23,8 +25,8 @@ export const createUsdCustomer = async (req, res) => {
     }
 
     // Check if the customer already exist
-    const existingCsutomer = await UsdCustomer.findOne({ email: email });
-    if (existingCsutomer && existingCsutomer.includes(manager.company._id)) {
+    const existingCustomer = await UsdCustomer.findOne({ email: email });
+    if (existingCustomer && existingCustomer.includes(manager.company._id)) {
       return res.status(409).json({
         success: false,
         code: 409,
@@ -331,5 +333,35 @@ export const restoreUsdCustomer = async (req, res) => {
       .json({ success: false, code: 500, message: "Internal server error." });
   } finally {
     await session.endSession();
+  }
+};
+
+// Get customer transaction history
+export const getCustomerTransactions = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 10, status } = req.query;
+
+    const transactions = await DollarExchange.find({
+      usdCustomer: id,
+      ...(status && { status }),
+    })
+      .sort("-createdAt")
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      code: 200,
+      data: transactions,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: await DollarExchange.countDocuments({ usdCustomer: id }),
+      },
+    });
+  } catch (error) {
+    next(new ApiError(500, "Failed to retrieve transactions", { id }));
   }
 };
