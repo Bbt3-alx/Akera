@@ -3,6 +3,7 @@ export class ApiError extends Error {
     super(message);
     this.statusCode = statusCode;
     (this.details = details), (this.isOperational = isOperational);
+    this.timestamp = new Date().toISOString();
     Error.captureStackTrace(this, this.constructor);
   }
 }

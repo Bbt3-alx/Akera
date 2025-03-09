@@ -3,156 +3,148 @@ import checkUserAuthorization from "../utils/checkUserAuthorization.js";
 import { isValidObjectId } from "mongoose";
 import mongoose from "mongoose";
 import { ApiError } from "../middlewares/errorHandler.js";
-import { createStructParentTreeNextKey } from "pdfkit";
+import { CustomerService } from "../services/customerService.js";
+import { transactionOptions } from "../constants/mongoTransactionOptions.js";
+import {
+  validateCustomerCreation,
+  validateCustomerUpdate,
+} from "../validations/usdCustomerValidation.js";
+import Company from "../models/Company.js";
+import { validateIdParam } from "../utils/validators.js";
 
 // Create a new customer usd
-export const createUsdCustomer = async (req, res) => {
-  const { name, phone, email } = req.body;
+export const createUsdCustomer = async (req, res, next) => {
+  const session = await mongoose.startSession();
 
-  if ((!name, !phone, !email)) {
-    return res
-      .status(400)
-      .json({ success: false, code: 400, message: "Missing required fields." });
-  }
   try {
-    const manager = await checkUserAuthorization(req);
+    await session.withTransaction(async () => {
+      const service = new CustomerService(session);
+      const manager = await checkUserAuthorization(req);
 
-    // Validate email
-    if (!/^\S+@\S+\.\S+/.test(email)) {
-      return res
-        .status(422)
-        .json({ success: false, code: 422, message: "Invalid email format." });
-    }
+      validateCustomerCreation(req.body);
 
-    // Check if the customer already exist
-    const existingCustomer = await UsdCustomer.findOne({ email: email });
-    if (existingCustomer && existingCustomer.includes(manager.company._id)) {
-      return res.status(409).json({
-        success: false,
-        code: 409,
-        message: "Customer already exist.",
+      const existingCustomer = await UsdCustomer.findOne({
+        email: req.body.email,
+        companies: manager.company._id,
       });
-    }
 
-    // create the neew usd customer
-    const newUsdCustomer = new UsdCustomer({
-      name,
-      phone,
-      email,
-      companies: manager.company._id,
-    });
+      if (existingCustomer) throw new ApiError(409, "Customer already exists");
 
-    await newUsdCustomer.save();
+      const customer = await service.createCustomer(
+        req.body,
+        manager.company._id,
+        manager._id
+      );
 
-    // Add the new customer to company usd customer list
-    manager.company.usdCustomers.push(newUsdCustomer._id);
-    await manager.company.save();
+      await Company.findByIdAndUpdate(
+        manager.company._id,
+        {
+          $push: { usdCustomers: customer._id },
+        },
+        { session }
+      );
 
-    res.status(201).json({
-      success: true,
-      code: 201,
-      message: "USD customer successfully created.",
-    });
+      res.status(201).json({
+        success: true,
+        code: 201,
+        message: "USD customer successfully created.",
+        data: customer,
+      });
+    }, transactionOptions);
   } catch (error) {
-    console.log(error);
-    return resddf
-      .status(500)
-      .json({ success: false, code: 500, message: "Something went wrong." });
+    next(error);
+  } finally {
+    session.endSession();
   }
 };
 
 // Retrieves all the usd customers
-export const getAllUsdCustomers = async (req, res) => {
+export const getAllUsdCustomers = async (req, res, next) => {
   try {
     const manager = await checkUserAuthorization(req);
-    const usdCustomers = await UsdCustomer.find({
-      company: manager.company._id,
+
+    const { page = 1, limit = 5 } = req.params;
+    const filter = { companies: manager.company._id };
+
+    const [usdCustomers, total] = await Promise.all([
+      UsdCustomer.find({
+        companies: manager.company._id,
+        deletedAt: null,
+        archivedAt: null,
+      })
+        .select("-__v -updatedAt")
+        .sort("-createdAt")
+        .skip(Number(page - 1) * limit)
+        .lean(),
+      UsdCustomer.countDocuments(filter),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      code: 200,
+      data: usdCustomers,
+      pagination: {
+        page: Number(page),
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
-
-    if (usdCustomers.length === 0) {
-      return res.status(200).json({
-        success: true,
-        code: 200,
-        message: "You don't have any customer yet.",
-      });
-    }
-
-    res.status(200).json({ success: true, code: 200, usdCustomers });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    next(error);
   }
 };
 
 // Get a specific customer by id
-export const getUsdCustomer = async (req, res) => {
-  const { usdCustomerId } = req.params;
+export const getUsdCustomer = async (req, res, next) => {
+  validateIdParam(req);
 
-  if (!isValidObjectId(usdCustomerId)) {
-    return res.status(400).json({
-      success: false,
-      code: 400,
-      message: "Invalid USD customer ID format.",
-    });
-  }
   try {
     const manager = await checkUserAuthorization(req);
     const usdCustomer = await UsdCustomer.findOne({
-      _id: usdCustomerId,
+      _id: req.params.id,
+      companies: manager.company._id,
+      deletedAt: null,
+      archivedAt: null,
     });
 
     if (!usdCustomer) {
-      return res.status(404).json({
-        success: false,
-        code: 404,
-        message: "USD customer not found.",
-      });
+      throw new ApiError(404, "USD customer not found");
     }
 
-    if (!usdCustomer.companies.includes(manager.company._id)) {
-      return res.status(403).json({
-        success: false,
-        code: 403,
-        message: "Access denied. unauthorized.",
-      });
-    }
-
-    res.status(200).json({ success: true, code: 200, usdCustomer });
+    res.status(200).json({ success: true, code: 200, data: usdCustomer });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    if (error instanceof ApiError) {
+      next(error);
+    } else {
+      error = new ApiError(500, "Error fetching custmer");
+      next(error);
+    }
   }
 };
 
 // Update a usd customer
-export const updateUsdCustomer = async (req, res) => {
-  const { usdCustomerId } = req.params;
+export const updateUsdCustomer = async (req, res, next) => {
+  const { id } = req.params;
   const { name, phone, email } = req.body;
 
   try {
+    validateIdParam(req);
+    validateCustomerUpdate(req.body);
+
     const manager = await checkUserAuthorization(req);
-    const usdCustomer = await UsdCustomer.findById(usdCustomerId);
+    const usdCustomer = await UsdCustomer.findOne({
+      _id: id,
+      companies: manager.company._id,
+      deletedAt: null,
+      archivedAt: null,
+    });
+
     if (!usdCustomer) {
-      return res.status(404).json({
-        success: false,
-        code: 404,
-        message: "USD customer not found.",
-      });
+      throw new ApiError(404, "Customer not found");
     }
 
-    if (!usdCustomer.companies.includes(manager.company._id)) {
-      return res.status(400).json({
-        success: false,
-        code: 400,
-        message: "Access denied. Unauthorized.",
-      });
-    }
     const updatedUsdCustomer = await UsdCustomer.findByIdAndUpdate(
-      usdCustomerId,
+      id,
       {
         name,
         phone,
@@ -164,173 +156,160 @@ export const updateUsdCustomer = async (req, res) => {
     res.status(200).json({
       success: true,
       code: 200,
-      message: `USD customer ${updatedUsdCustomer._id} updated successfully.`,
+      message: `Customer updated successfully.`,
+      data: updatedUsdCustomer,
     });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    console.error("Customer update error:", error);
+    if (error instanceof ApiError) {
+      next(error);
+    } else {
+      error = new ApiError(500, "Failed to update customer");
+      next(error);
+    }
   }
 };
 
 // Soft delete a usd customer
-export const softDeleteUsdCustomer = async (req, res) => {
-  const { usdCustomerId } = req.params;
-
-  if (!isValidObjectId(usdCustomerId)) {
-    return res.status(422).json({
-      success: false,
-      code: 422,
-      message: "Invalid customer ID format.",
-    });
-  }
+export const softDeleteUsdCustomer = async (req, res, next) => {
+  const { id } = req.params;
 
   const session = await mongoose.startSession();
-  session.startTransaction();
   try {
-    const manager = await checkUserAuthorization(req);
-    const usdCustomer = await UsdCustomer.findOne({
-      _id: usdCustomerId,
-      deletedAt: null,
-    }).session(session);
+    validateIdParam(req);
 
-    if (!usdCustomer) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        success: false,
-        code: 404,
-        message: "Customer not found or already deleted.",
+    await session.withTransaction(async () => {
+      const manager = await checkUserAuthorization(req, session);
+      const customer = await UsdCustomer.findOne({
+        _id: id,
+        deletedAt: null,
+        companies: manager.company._id,
+      }).session(session);
+
+      if (!customer) {
+        throw new ApiError(404, "Customer not found or already deleted", {
+          customerId: req.params.id,
+          companyId: manager.company._id,
+        });
+      }
+
+      // soft delete customer
+      customer.deletedAt = new Date();
+      customer.deletedBy = manager._id;
+      customer.archivedAt = null;
+      customer.archivedBy = null;
+      customer.status = "inactive";
+      customer.version += 1;
+      await customer.save({ session });
+
+      // Cascade soft delete related records
+      await DollarExchange.updateMany(
+        { usdCustomer: customer._id, deletedAt: null },
+        [
+          {
+            $set: {
+              previousStatus: "$status",
+              status: "archived",
+              archivedAt: new Date(),
+              archivedBy: manager._id,
+              archivedReason: "Parent deleted",
+              version: { $add: ["$version", 1] },
+            },
+          },
+        ],
+        { session }
+      );
+
+      res.status(200).json({
+        success: true,
+        code: 200,
+        message: "Customer and related transactions deleted",
+        data: customer.toJSON(),
       });
-    }
-
-    console.log(usdCustomer.companies);
-    if (!usdCustomer.companies.includes(manager.company._id)) {
-      await session.abortTransaction();
-      return res.status(403).json({
-        success: false,
-        code: 403,
-        message: "Access denied. Unauthorized.",
-      });
-    }
-
-    // Check for active transactions
-    const activeTransaction = await DollarExchange.countDocuments({
-      usdCustomer: usdCustomer._id,
-      deletedAt: null,
-    });
-
-    if (activeTransaction > 0) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: `Customer has ${activeTransaction} active transactions. Delete transactions first.`,
-      });
-    }
-
-    // soft delete customer
-    usdCustomer.deletedAt = new Date();
-    usdCustomer.deletedBy = manager._id;
-    await usdCustomer.save({ session });
-
-    // Cascade soft delete related records (optional)
-    await DollarExchange.updateMany(
-      { usdCustomer: usdCustomer._id },
-      {
-        $set: { deletedAt: new Date(), deletedBy: manager._id },
-        status: "canceled",
-      },
-      { session }
-    );
-
-    await session.commitTransaction();
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: "Customer and related transactions soft-deleted.",
-    });
+    }, transactionOptions);
   } catch (error) {
-    await session.abortTransaction();
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Deletion failed", {
+            customerId: req.params.id,
+            errorCode: "DELETE_FAILURE",
+          });
+    next(apiError);
   } finally {
     await session.endSession();
   }
 };
 
 // Restore soft deleted usd customer
-export const restoreUsdCustomer = async (req, res) => {
-  const { usdCustomerId } = req.params;
-
-  if (!isValidObjectId(usdCustomerId)) {
-    return res.status(400).json({
-      success: false,
-      code: 400,
-      message: "Invalide USD customer ID.",
-    });
-  }
-
+export const restoreUsdCustomer = async (req, res, next) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
   try {
-    const manager = await checkUserAuthorization(req);
-    const usdCustomer = await UsdCustomer.findOne({
-      _id: usdCustomerId,
-      deletedAt: { $ne: null },
-    }).session(session);
+    validateIdParam(req);
+    await session.withTransaction(async () => {
+      const manager = await checkUserAuthorization(req, session);
+      const customer = await UsdCustomer.findOne({
+        _id: req.params.id,
+        companies: manager.company._id,
+        status: "inactive",
+      }).session(session);
 
-    if (!usdCustomer) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        success: false,
-        code: 404,
-        message: "Customer not found or already active.",
+      if (!customer) {
+        throw new ApiError(404, "Customer not found or already active", {
+          customerId: req.params.id,
+          companyId: manager.company._id,
+        });
+      }
+
+      customer.deletedAt = null;
+      customer.archivedat = null;
+      customer.archivedBy = null;
+      customer.deletedBy = null;
+      customer.restoredBy = manager._d;
+      customer.status = "active";
+      customer.version += 1;
+      await customer.save({ session });
+
+      await DollarExchange.updateMany(
+        { usdCustomer: customer._id, deletedAt: { $ne: null } },
+        [
+          {
+            $set: {
+              deletedAt: null,
+              deletedBy: null,
+              archivedAt: null,
+              archivedBy: null,
+              status: "$previousStatus",
+              previousStatus: "$$REMOVE",
+              version: { $add: ["$version", 1] },
+            },
+          },
+        ],
+        { session }
+      );
+
+      res.status(200).json({
+        success: true,
+        code: 200,
+        message: "Customer and transactions restored.",
+        data: customer.toJSON(),
       });
-    }
-
-    if (!usdCustomer.companies.includes(manager.company._id)) {
-      await session.abortTransaction();
-      return res.status(403).json({
-        success: false,
-        code: 403,
-        message: "Access denied. Unauthorized.",
-      });
-    }
-
-    // Restore the customer
-    usdCustomer.deletedAt = null;
-    usdCustomer.restoredBy = null;
-    await usdCustomer.save({ session });
-
-    // Restore related transactions (optional)
-    await DollarExchange.updateMany(
-      { usdCustomer: usdCustomerId },
-      {
-        $set: {
-          deletedAt: null,
-          deletedBy: null,
-          status: "pending",
-        },
-      },
-      { session }
-    );
-
-    await session.commitTransaction();
-
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: "Customer and transactions restored.",
-    });
+    }, transactionOptions);
   } catch (error) {
-    await session.abortTransaction();
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    console.error("Customer restoration error:", error);
+    if (error instanceof ApiError) {
+      next(error);
+    } else {
+      error = new ApiError(500, "Failed to restore customer");
+      next(error);
+    }
   } finally {
     await session.endSession();
   }
@@ -339,17 +318,36 @@ export const restoreUsdCustomer = async (req, res) => {
 // Get customer transaction history
 export const getCustomerTransactions = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    const { page = 1, limit = 10, status } = req.query;
+    const {
+      page = 1,
+      limit = 50,
+      status,
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount,
+    } = req.query;
 
-    const transactions = await DollarExchange.find({
-      usdCustomer: id,
+    const filter = {
+      usdCustomer: req.params.id,
       ...(status && { status }),
-    })
-      .sort("-createdAt")
-      .skip((page - 1) * limit)
-      .limit(Number(limit))
-      .lean();
+      ...(startDate && { createdAt: { $gte: new Date(startDate) } }),
+      ...(endDate && {
+        createdAt: { ...filter.createdAt, $lte: new Date(endDate) },
+      }),
+      ...(minAmount && { amount: { $gte: Number(minAmount) } }),
+      ...(maxAmount && {
+        amount: { ...filter.amount, $lte: Number(maxAmount) },
+      }),
+    };
+    const [transactions, total] = await Promise.all([
+      DollarExchange.find({ usdCustomer: req.params.id })
+        .sort("-createdAt")
+        .skip((page - 1) * limit)
+        .limit(Number(limit))
+        .lean(),
+      DollarExchange.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -357,11 +355,22 @@ export const getCustomerTransactions = async (req, res, next) => {
       data: transactions,
       pagination: {
         page: Number(page),
-        limit: Number(limit),
-        total: await DollarExchange.countDocuments({ usdCustomer: id }),
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+      },
+      filters: {
+        dateRange: { startDate, endDate },
+        amountRange: { minAmount, maxAmount },
       },
     });
   } catch (error) {
-    next(new ApiError(500, "Failed to retrieve transactions", { id }));
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to retrieve transactions", {
+            customerId: req.params.id,
+            error: error.message,
+          });
+    next(apiError);
   }
 };

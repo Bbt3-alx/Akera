@@ -17,11 +17,13 @@ import sellOperationRoutes from "./routes/sellOperationRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import shipmentRoutes from "./routes/shippingOperationRoutes.js";
 import usdTransactionRoutes from "./routes/usdTransactionRoutes.js";
+import usdCustomerRoutes from "./routes/usdCustomerRoutes.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import { activityLogger } from "./middlewares/activityLogger.js";
 import getDashboard from "./routes/dashbordRoute.js";
 import { errorHandler, catchAsync } from "./middlewares/errorHandler.js";
 import { standardizeResponse } from "./middlewares/responseFormatter.js";
+import { xssProtection } from "./middlewares/security.js";
 
 dotenv.config();
 const app = express();
@@ -40,6 +42,8 @@ app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 app.use(cookieParser());
 
+app.use(xssProtection);
+
 // Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
@@ -51,8 +55,9 @@ app.use("/api/v1/sells", sellOperationRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/shipments", shipmentRoutes);
 app.use("/api/v1/dollars", usdTransactionRoutes);
+app.use("/api/v1/dollars", usdCustomerRoutes);
 app.use("/api/v1/dashboard", getDashboard);
-app.use(standardizeResponse);
+// app.use(standardizeResponse);
 app.use((err, req, res, next) => {
   errorHandler(err, req, res);
 });

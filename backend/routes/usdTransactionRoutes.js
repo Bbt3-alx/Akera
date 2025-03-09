@@ -10,14 +10,8 @@ import {
   softDeleteSellUsd,
   updateSellUsd,
 } from "../controllers/manageUsdTransactions.js";
-import {
-  createUsdCustomer,
-  getAllUsdCustomers,
-  getUsdCustomer,
-  restoreUsdCustomer,
-  softDeleteUsdCustomer,
-  updateUsdCustomer,
-} from "../controllers/usdCustomerManagement.js";
+import { audit } from "../middlewares/audit.js";
+import { ROLES } from "../constants/roles.js";
 
 const router = express.Router();
 
@@ -25,7 +19,8 @@ const router = express.Router();
 router.post(
   "/transactions",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.PARTNER, ROLES.ADMIN),
+  audit("CREATE", "DollarExchange"),
   createSellUsd
 );
 
@@ -33,7 +28,7 @@ router.post(
 router.get(
   "/transactions",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.MANAGER, ROLES.EMPLOYEE),
   getAllUsdTransactions
 );
 
@@ -41,88 +36,43 @@ router.get(
 router.get(
   "/transactions/actives",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.MANAGER, ROLES.EMPLOYEE),
   activeTransactions
 );
 
 // ROUTE TO GET A SPECIFIC USD TRANSACTION
 router.get(
-  "/transactions/:usdTransactionId",
+  "/transactions/:id",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.MANAGER, ROLES.EMPLOYEE),
   getUsdTransaction
 );
 
 // ROUTE TO UPDATE A USD TRANSACTION
 router.put(
-  "/transactions/edit/:usdTransactionId",
+  "/transactions/edit/:id",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
+  audit("UPDATE", "DollarExchange"),
   updateSellUsd
 );
 
 // ROUTE TO SOFT DELETE A USD TRANSACTION
 router.put(
-  "/transactions/delete/:usdTransactionId",
+  "/transactions/delete/:id",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
+  audit("DELETE", "DollarExchange"),
   softDeleteSellUsd
 );
 
 // ROUTE TO  RESTORE A SOFT DELETED OPERATION
 router.put(
-  "/transactions/restore/:usdTransactionId",
+  "/transactions/restore/:id",
   verifyToken,
-  authorizeRoles("manager"),
+  authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
+  audit("RESTORE", "DollarExchange"),
   restoreSellUsd
 );
 
-// usd customers
-// CREATE A NEW CUSTOMER
-router.post(
-  "/customers",
-  verifyToken,
-  authorizeRoles("manager"),
-  createUsdCustomer
-);
-
-// RETRIEVES ALL THE USD CUSTOMER
-router.get(
-  "/customers",
-  verifyToken,
-  authorizeRoles("manager"),
-  getAllUsdCustomers
-);
-
-// ROUTE TO GET A SPECIFIC USD CUSTOMER
-router.get(
-  "/customers/:usdCustomerId",
-  verifyToken,
-  authorizeRoles("manager"),
-  getUsdCustomer
-);
-
-// ROUTE TO UPDATE USD CUSTOMER
-router.put(
-  "/customers/edit/:usdCustomerId",
-  verifyToken,
-  authorizeRoles("manager"),
-  updateUsdCustomer
-);
-
-// ROUTE TO SOFT DELETE A USD CUSTOMER
-router.delete(
-  "/customers/delete/:usdCustomerId",
-  verifyToken,
-  authorizeRoles("manager"),
-  softDeleteUsdCustomer
-);
-
-// ROUTE TO RESTORE A SOFT DELETED USD CUSTOMER
-router.put(
-  "/customers/restore/:usdCustomerId",
-  verifyToken,
-  authorizeRoles("manager"),
-  restoreUsdCustomer
-);
 export default router;

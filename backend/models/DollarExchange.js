@@ -6,10 +6,14 @@ const usdCustomerSchema = new Schema(
     phone: { type: String },
     email: { type: String, required: true },
     toPaid: { type: Number, default: 0 },
+    status: { type: String, enum: ["active", "inactive"], default: "active" },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who created the customer
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who updated the customer
     companies: [{ type: Schema.Types.ObjectId, ref: "Company" }],
     deletedAt: { type: Date, default: null }, // Soft delete flag
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who deleted the customer
     restoredBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who restored the customer
+    version: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
@@ -30,7 +34,7 @@ const dollarExchangeSchema = new Schema(
     usdTaker: { type: String }, // The usd recipient in Dubai
     status: {
       type: String,
-      enum: ["pending", "canceled", "completed", "in progress"],
+      enum: ["pending", "canceled", "completed", "archived", "in progress"],
       default: "pending",
     },
     confirmedBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who initiated the transaction
@@ -38,6 +42,10 @@ const dollarExchangeSchema = new Schema(
     deletedAt: { type: Date, default: null },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who deleted the transaction
     restoredBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who restored the transaction
+    archivedAt: { type: Date, default: null },
+    archivedReason: String,
+    previousStatus: String,
+    version: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

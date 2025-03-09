@@ -125,14 +125,14 @@ export const getTransactions = async (req, res) => {
     if (minAmount) filter.amount = { $gte: Number(minAmount) };
     if (maxAmount)
       filter.amount = { ...filter.amount, $lte: Number(maxAmount) };
-    const transactions = await Transaction.find({
-      company: manager.company,
-    });
+    // const transactions = await Transaction.find({
+    //   company: manager.company,
+    // });
 
-    const [transaction, total] = await Promise.all([
+    const [transactions, total] = await Promise.all([
       Transaction.find(filter)
         .select("-__v -updatedAt")
-        .sort("-date")
+        .sort("-createdAt")
         .skip((page - 1) * limit)
         .populate("partner", "name balance")
         .lean(),
