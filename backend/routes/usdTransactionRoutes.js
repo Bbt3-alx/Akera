@@ -2,7 +2,7 @@ import express from "express";
 import verifyToken from "../middlewares/verifyToken.js";
 import authorizeRoles from "../middlewares/roleAuthorization.js";
 import {
-  activeTransactions,
+  getActiveUsdTransactions,
   createSellUsd,
   getAllUsdTransactions,
   getUsdTransaction,
@@ -37,7 +37,7 @@ router.get(
   "/transactions/actives",
   verifyToken,
   authorizeRoles(ROLES.ADMIN, ROLES.ACCOUNTANT, ROLES.MANAGER, ROLES.EMPLOYEE),
-  activeTransactions
+  getActiveUsdTransactions
 );
 
 // ROUTE TO GET A SPECIFIC USD TRANSACTION
@@ -50,7 +50,7 @@ router.get(
 
 // ROUTE TO UPDATE A USD TRANSACTION
 router.put(
-  "/transactions/edit/:id",
+  "/transactions/:id/edit",
   verifyToken,
   authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
   audit("UPDATE", "DollarExchange"),
@@ -59,7 +59,7 @@ router.put(
 
 // ROUTE TO SOFT DELETE A USD TRANSACTION
 router.put(
-  "/transactions/delete/:id",
+  "/transactions/:id/delete",
   verifyToken,
   authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
   audit("DELETE", "DollarExchange"),
@@ -68,7 +68,7 @@ router.put(
 
 // ROUTE TO  RESTORE A SOFT DELETED OPERATION
 router.put(
-  "/transactions/restore/:id",
+  "/transactions/:id/restore",
   verifyToken,
   authorizeRoles(ROLES.ADMIN, ROLES.MANAGER),
   audit("RESTORE", "DollarExchange"),

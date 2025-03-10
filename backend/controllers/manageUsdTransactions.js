@@ -1,517 +1,493 @@
 import { UsdCustomer, DollarExchange } from "../models/DollarExchange.js";
-import { isValidObjectId } from "mongoose";
 import checkUserAuthorization from "../utils/checkUserAuthorization.js";
 import mongoose from "mongoose";
 import Company from "../models/Company.js";
-
+import { validateIdParam } from "../utils/validators.js";
+import { transactionOptions } from "../constants/mongoTransactionOptions.js";
+import { ApiError } from "../middlewares/errorHandler.js";
+import { validateUsdTransactionInput } from "../validations/usdTransactionValidation.js";
 // Sell USD
-export const createSellUsd = async (req, res) => {
+export const createSellUsd = async (req, res, next) => {
   const { rate, amountUSD, usdCustomerId, usdTaker } = req.body;
 
-  if (!rate || !amountUSD || !usdCustomerId) {
-    return res
-      .status(400)
-      .json({ success: false, code: 400, message: "All fields are required." });
-  }
-  if (!isValidObjectId(usdCustomerId)) {
-    return res.status(422).json({
-      success: false,
-      code: 422,
-      message: "Invalid usdCustomer ID format.",
-    });
-  }
+  validateIdParam(req);
+  validateUsdTransactionInput(req.body);
 
   // Start a mongoose transaction for Atomic Updates
   const session = await mongoose.startSession();
-  session.startTransaction();
 
   try {
-    const manager = await checkUserAuthorization(req);
-    const customer = await UsdCustomer.findById(usdCustomerId);
+    await session.withTransaction(async () => {
+      const manager = await checkUserAuthorization(req, session);
+      if (!manager?.company)
+        throw new ApiError(403, "Access denied. Company Not Found", {
+          errorCode: "COMPANY_NOT_FOUND",
+        });
 
-    if (!customer) {
-      return res
-        .status(404)
-        .json({ success: false, code: 404, message: "Customer not found." });
-    }
-    if (isNaN(rate) || isNaN(amountUSD) || rate <= 0 || amountUSD <= 0) {
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "All rate and amount must be a number.",
-      });
-    }
+      const customer = await UsdCustomer.findOne({
+        _id: usdCustomerId,
+        companies: manager.company._id,
+      }).session(session);
 
-    // Check if the company has sufficient usd.
-    if (manager.company.usdBalance < amountUSD) {
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "Insufficient usd balance.",
-      });
-    }
+      if (!customer) {
+        throw new ApiError(404, "Customer not found");
+      }
 
-    const amountCFA = parseFloat(rate) * parseFloat(amountUSD);
-    const newSell = new DollarExchange({
-      rate,
-      amountUSD,
-      usdCustomer: usdCustomerId,
-      amountCFA,
-      usdTaker,
-      confirmedBy: manager._id,
-      company: manager.company._id,
-    });
+      // Check if the company has sufficient usd.
+      const result = await Company.updateOne(
+        {
+          _id: manager.company._id,
+          usdBalance: { $gte: amountUSD },
+        },
+        { session }
+      );
+      if (result.modifiedCount === 0) {
+        throw new ApiError(400, "Insufficient Funds", {
+          companyId: req.user.company,
+          errorCode: "INSUFFICIENT_FUNDS",
+        });
+      }
 
-    await newSell.save({ session });
+      const amountCFA = parseFloat(rate) * parseFloat(amountUSD);
+      const newSell = await DollarExchange.create(
+        [
+          {
+            rate,
+            amountUSD,
+            usdCustomer: usdCustomerId,
+            amountCFA,
+            usdTaker,
+            confirmedBy: manager._id,
+            company: manager.company._id,
+          },
+        ],
+        { session }
+      );
 
-    // Update company usd balance
-    const updatedCompany = await Company.findByIdAndUpdate(
-      manager.company._id,
-      {
-        $inc: { usdBalance: -amountUSD },
-      },
-      { new: true, session }
-    );
+      // Update company usd balance
+      manager.company.usdBalance -= amountUSD;
+      await manager.company.save({ session });
 
-    if (!updatedCompany) throw new Error("Company update failed.");
+      // Update customer balance
+      customer.outstandingBalance += amountCFA;
+      await customer.save({ session });
 
-    // Update customer balance
-    const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
-      usdCustomerId,
-      { $inc: { toPaid: amountCFA } },
-      { new: true, session }
-    );
-    if (!updatedCustomer) throw new Error("Customer update failed.");
-
-    await session.commitTransaction();
-
-    res.status(201).json({ success: true, code: 201, newSell });
+      res.status(201).json({ success: true, code: 201, data: newSell[0] });
+    }, transactionOptions);
   } catch (error) {
-    await session.abortTransaction();
-    console.log(error);
-    return res.status(500).json({
-      success: false,
-      code: 500,
-      message: "Internal server error.",
-    });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to create usd transaction", {
+            companyId: req.user.company,
+          });
+    next(apiError);
   } finally {
     await session.endSession();
   }
 };
 
 // Retrieves all usd transaction
-export const getAllUsdTransactions = async (req, res) => {
+export const getAllUsdTransactions = async (req, res, next) => {
   try {
     const manager = await checkUserAuthorization(req);
-    const usdTransactions = await DollarExchange.find({
-      company: manager.company._id,
-    }).sort({ createdAt: -1 });
+    const { page = 1, limit = 30 } = req.params;
+    const filter = { company: manager.company._id };
 
-    if (usdTransactions.lenght === 0) {
-      return res.status(200).json({
-        success: true,
-        code: 200,
-        message: "There are no usd transaction yet.",
-      });
-    }
+    const [transactions, total] = await Promise.all([
+      DollarExchange.find(filter)
+        .sort("-createdAt")
+        .select("-__v -updatedAt")
+        .skip(Number((page - 1) * limit))
+        .limit(limit)
+        .lean(),
+      DollarExchange.countDocuments(filter),
+    ]);
 
-    res.status(200).json({ success: true, code: 200, usdTransactions });
+    res.status(200).json({
+      success: true,
+      code: 200,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPage: Math.ceil(total / limit),
+      },
+      data: transactions,
+    });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to retrieves trnasactions", {
+            companyId: req.user.company,
+          });
+    next(apiError);
   }
 };
 
 // Retrieves all active usd transaction
-export const activeTransactions = async (req, res) => {
+export const getActiveUsdTransactions = async (req, res, next) => {
   try {
     const manager = await checkUserAuthorization(req);
-    const usdTransactions = await DollarExchange.find({
+
+    const { page = 1, limit = 30 } = req.params;
+    const filter = {
       company: manager.company._id,
       deletedAt: null,
-    }).sort({ createdAt: -1 });
+      archivedAt: null,
+    };
 
-    if (usdTransactions.lenght === 0) {
-      return res.status(200).json({
-        success: true,
-        code: 200,
-        message: "There are no usd transaction yet.",
-      });
-    }
+    const [transactions, total] = await Promise.all([
+      DollarExchange.find(filter)
+        .sort({ createdAt: -1 })
+        .select("-__v -updatedAt")
+        .skip(Number((page - 1) * limit))
+        .limit(Number(limit))
+        .lean(),
+      DollarExchange.countDocuments(filter),
+    ]);
 
-    res.status(200).json({ success: true, code: 200, usdTransactions });
+    res.status(200).json({
+      success: true,
+      code: 200,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPage: Math.ceil(total / limit),
+      },
+      data: transactions,
+    });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed fetching transactions", {
+            company: req.user.company,
+          });
+    next(apiError);
   }
 };
 
 // Get a usd transaction by id
-export const getUsdTransaction = async (req, res) => {
-  const { usdTransactionId } = req.params;
+export const getUsdTransaction = async (req, res, next) => {
+  const { id } = req.params;
 
-  if (!isValidObjectId(usdTransactionId)) {
-    return res.status(422).json({
-      success: false,
-      code: 422,
-      message: "Invalid transaction ID format.",
-    });
-  }
+  validateIdParam(req);
   try {
     const manager = await checkUserAuthorization(req);
     const usdTransaction = await DollarExchange.findOne({
-      _id: usdTransactionId,
+      _id: id,
       company: manager.company._id,
     });
 
     if (!usdTransaction) {
-      return res.status(404).json({
-        success: false,
-        code: 404,
-        message: "USD Transaction not found.",
-      });
+      throw new ApiError(404, "Operation not found");
     }
 
-    res.status(200).json({ success: true, code: 200, usdTransaction });
+    res.status(200).json({ success: true, code: 200, data: usdTransaction });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to retrieves operation", {
+            operationId: req.params.id,
+            companyId: req.user.company,
+          });
+    next(apiError);
   }
 };
 
 // Update a transaction
-export const updateSellUsd = async (req, res) => {
-  const { usdTransactionId } = req.params;
-  const { rate, amountUSD, usdCustomer: newUsdCustomer, usdTaker } = req.body;
+export const updateSellUsd = async (req, res, next) => {
+  const { id } = req.params;
+  const { rate, amountUSD, newUsdCustomer, usdTaker } = req.body;
 
-  if (!isValidObjectId(usdTransactionId)) {
-    return res.status(422).json({
-      success: false,
-      code: 422,
-      message: "Invalid USD transaction ID format.",
-    });
-  }
-
+  validateIdParam(req);
   const session = await mongoose.startSession();
   try {
-    session.startTransaction();
-    const manager = await checkUserAuthorization(req);
-    const originalTransaction = await DollarExchange.findById(usdTransactionId)
-      .populate("usdCustomer")
-      .session(session);
-    if (!originalTransaction) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "USD sell record not found.",
-      });
-    }
+    await session.withTransaction(async () => {
+      const manager = await checkUserAuthorization(req, session);
+      const originalTransaction = await DollarExchange.findOne({
+        _id: req.params.id,
+        company: manager.company._id,
+        deletedAt: null,
+        archivedAt: null,
+      })
+        .populate("usdCustomer")
+        .session(session);
 
-    // Check if originalTransaction is not canceled
-    if (originalTransaction.deletedAt) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "You can not update a deleted transaction.",
-      });
-    }
+      console.log(originalTransaction);
+      if (!originalTransaction) {
+        throw new ApiError(404, "Operation not found", {
+          usdCustomerId: id,
+          companyId: req.user.company,
+        });
+      }
 
-    // Validate new customer ID (if provided)
-    if (newUsdCustomer && !isValidObjectId(newUsdCustomer)) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "Invalid customer ID format.",
-      });
-    }
+      // Determine new values
+      const newUSDTaker =
+        usdTaker !== undefined ? usdTaker : originalTransaction.usdTaker;
+      const newRate =
+        rate !== undefined ? parseFloat(rate) : originalTransaction.rate;
+      const newAmountUSD =
+        amountUSD !== undefined
+          ? parseFloat(amountUSD)
+          : originalTransaction.amountUSD;
+      const finalUsdCustomer =
+        newUsdCustomer !== undefined
+          ? newUsdCustomer
+          : originalTransaction.usdCustomer;
 
-    // Determine new values
-    const newUSDTaker =
-      usdTaker !== undefined ? usdTaker : originalTransaction.usdTaker;
-    const newRate =
-      rate !== undefined ? parseFloat(rate) : originalTransaction.rate;
-    const newAmountUSD =
-      amountUSD !== undefined
-        ? parseFloat(amountUSD)
-        : originalTransaction.amountUSD;
-    const finalUsdCustomer = newUsdCustomer || originalTransaction.usdCustomer;
+      // Validate numeric inputs
+      if (
+        isNaN(newRate) ||
+        isNaN(newAmountUSD) ||
+        newRate <= 0 ||
+        newAmountUSD <= 0
+      ) {
+        throw new ApiError(422, "Rate and amount must be positive numbers");
+      }
 
-    // Validate numeric inputs
-    if (
-      isNaN(newRate) ||
-      isNaN(newAmountUSD) ||
-      newRate <= 0 ||
-      newAmountUSD <= 0
-    ) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "Rate and amount must be positive numbers.",
-      });
-    }
+      // Check balance after reverting original transaction
+      const availableBalance =
+        manager.company.usdBalance + originalTransaction.amountUSD;
+      if (availableBalance < newAmountUSD) {
+        throw new ApiError(
+          422,
+          "Insufficient USD balance to update transaction"
+        );
+      }
 
-    // Check balance after reverting original transaction
-    const availableBalance =
-      manager.company.usdBalance + originalTransaction.amountUSD;
-    if (availableBalance < newAmountUSD) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "Insufficient USD balance to update transaction.",
-      });
-    }
+      // Calculate differences
+      const amountDifferenceUsd = newAmountUSD - originalTransaction.amountUSD;
+      const amountCFA = newRate * newAmountUSD;
+      const amountDifferenceCfa = amountCFA - originalTransaction.amountCFA;
+      const remainingAmount =
+        amountDifferenceCfa + originalTransaction.remainingAmount;
 
-    // Calculate differences
-    const amountDifferenceUsd = newAmountUSD - originalTransaction.amountUSD;
-    const amountCFA = newRate * newAmountUSD;
-    const amountDifferenceCfa = amountCFA - originalTransaction.amountCFA;
-    const remainingAmount =
-      amountDifferenceCfa + originalTransaction.remainingAmount;
+      // Update transaction
+      const updatedTransaction = await DollarExchange.findByIdAndUpdate(
+        id,
+        {
+          rate: newRate,
+          amountUSD: newAmountUSD,
+          usdCustomer: finalUsdCustomer,
+          amountCFA,
+          usdTaker: newUSDTaker,
+          remainingAmount,
+          updatedBy: manager._id,
+        },
+        { new: true, session }
+      );
 
-    // Update transaction
-    const updatedTransaction = await DollarExchange.findByIdAndUpdate(
-      usdTransactionId,
-      {
-        rate: newRate,
-        amountUSD: newAmountUSD,
-        usdCustomer: finalUsdCustomer,
-        amountCFA,
-        usdTaker: newUSDTaker,
-        remainingAmount,
-        updatedBy: manager._id,
-      },
-      { new: true, session }
-    );
-
-    // Adjust company balance atomically
-    await Company.findByIdAndUpdate(
-      manager.company._id,
-      { $inc: { usdBalance: -amountDifferenceUsd } },
-      { session }
-    );
-
-    // Handle customer changes
-    if (
-      finalUsdCustomer.toString() !==
-      originalTransaction.usdCustomer._id.toString()
-    ) {
-      // Revert original customer
-      await UsdCustomer.findByIdAndUpdate(
-        originalTransaction.usdCustomer._id,
-        { $inc: { toPaid: -originalTransaction.amountCFA } },
+      // Adjust company balance atomically
+      await Company.findByIdAndUpdate(
+        manager.company._id,
+        { $inc: { usdBalance: -amountDifferenceUsd } },
         { session }
       );
 
-      // Update new customer
-      await UsdCustomer.findByIdAndUpdate(
-        finalUsdCustomer,
-        { $inc: { toPaid: amountCFA } },
-        { session }
-      );
-    } else {
-      // Update existing customer
-      await UsdCustomer.findByIdAndUpdate(
-        originalTransaction.usdCustomer._id,
-        { $inc: { toPaid: amountDifferenceCfa } },
-        { session }
-      );
-    }
+      // Handle customer changes
+      if (
+        finalUsdCustomer.toString() !==
+        originalTransaction.usdCustomer._id.toString()
+      ) {
+        // Update new customer
+        await UsdCustomer.findByIdAndUpdate(
+          finalUsdCustomer,
+          { $inc: { outstandingBalance: amountCFA } },
+          { session }
+        );
 
-    await session.commitTransaction();
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: `Transaction ${updatedTransaction._id} updated.`,
-      transaction: updatedTransaction,
-    });
+        // Revert original customer
+        await UsdCustomer.findByIdAndUpdate(
+          originalTransaction.usdCustomer._id,
+          { $inc: { outstandingBalance: -originalTransaction.amountCFA } },
+          { session }
+        );
+      } else {
+        // Update existing customer
+        await UsdCustomer.findByIdAndUpdate(
+          originalTransaction.usdCustomer._id,
+          { $inc: { outstandingBalance: amountDifferenceCfa } },
+          { session }
+        );
+      }
+
+      res.status(200).json({
+        success: true,
+        code: 200,
+        message: `Transaction updated successfully`,
+        data: updatedTransaction,
+      });
+    }, transactionOptions);
   } catch (error) {
-    await session.abortTransaction();
-    console.log("Update error:", error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+    console.error("Update sell usd error:", error);
+
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to update usd sell");
+    next(apiError);
   } finally {
     await session.endSession();
   }
 };
 
 // Soft delete a usd transaction
-export const softDeleteSellUsd = async (req, res) => {
-  const { usdTransactionId } = req.params;
+export const softDeleteSellUsd = async (req, res, next) => {
+  const { id } = req.params;
 
-  if (!isValidObjectId(usdTransactionId)) {
-    return res.status(422).json({
-      success: false,
-      code: 422,
-      message: "Invalid USD transaction ID format.",
-    });
-  }
+  validateIdParam(req);
 
   const session = await mongoose.startSession();
-  session.startTransaction();
   try {
-    const manager = await checkUserAuthorization(req);
-    const transaction = await DollarExchange.findOne({
-      _id: usdTransactionId,
-      company: manager.company._id,
-    });
-
-    if (!transaction) {
-      return res
-        .status(404)
-        .json({ success: false, code: 404, message: "Transaction not found." });
-    }
-    if (transaction.deletedAt) {
-      return res.status(400).json({
-        success: false,
-        code: 400,
-        message: "Transaction already deleted.",
+    await session.withTransaction(async () => {
+      const manager = await checkUserAuthorization(req, session);
+      const transaction = await DollarExchange.findOneAndUpdate({
+        _id: id,
+        company: manager.company._id,
+        deletedAt: null,
       });
-    }
 
-    // Soft delete the selected transaction
-    transaction.deletedAt = new Date();
-    transaction.deletedBy = manager._id;
-    transaction.status = "canceled";
-    await transaction.save({ session });
+      if (!transaction) {
+        throw new ApiError(404, "Transaction not found");
+      }
 
-    // Reverse original transaction effects
-    const updatedCompany = await Company.findByIdAndUpdate(
-      manager.company._id,
-      {
-        $inc: { usdBalance: transaction.amountUSD }, // Return USD to company
-      },
-      { new: true, session }
-    );
+      // Soft delete the selected transaction
+      transaction.deletedAt = new Date();
+      transaction.deletedBy = manager._id;
+      transaction.status = "canceled";
+      transaction.previousStatus = transaction.status;
+      await transaction.save({ session });
 
-    const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
-      transaction.usdCustomer,
-      {
-        $inc: { toPaid: -transaction.amountCFA }, // Deduct from customer’s toPaid
-      },
-      { new: true, session }
-    );
+      // Reverse original transaction effects
+      const updatedCompany = await Company.findByIdAndUpdate(
+        manager.company._id,
+        {
+          $inc: { usdBalance: transaction.amountUSD }, // Return USD to company
+        },
+        { new: true, session }
+      );
 
-    if (!updatedCompany || !updatedCustomer) {
-      throw new Error("Balance update failed");
-    }
+      const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
+        transaction.usdCustomer,
+        {
+          $inc: { outstandingBalance: -transaction.amountCFA }, // Deduct from customer’s outstandingBalance
+        },
+        { new: true, session }
+      );
 
-    await session.commitTransaction();
+      if (!updatedCompany || !updatedCustomer) {
+        throw new ApiError(400, "Balance update failed");
+      }
 
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: `USD Transaction with ID ${transaction._id} soft deleted successfully.`,
-      transaction,
-    });
+      res.status(200).json({
+        success: true,
+        code: 200,
+        message: `USD Transaction deleted successfully`,
+        data: transaction,
+      });
+    }, transactionOptions);
   } catch (error) {
-    await session.abortTransaction();
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 500, message: "Internal server error." });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to delete usd sell", {
+            usdSellOperationId: req.params.id,
+            company: req.user.company,
+          });
+    next(apiError);
   } finally {
-    session.endSession();
+    await session.endSession();
   }
 };
 
 // Restore a soft-deleted transaction
-export const restoreSellUsd = async (req, res) => {
-  const { usdTransactionId } = req.params;
+export const restoreSellUsd = async (req, res, next) => {
+  const { id } = req.params;
 
-  if (!isValidObjectId(usdTransactionId)) {
-    return res.status(422).json({
-      success: false,
-      code: 422,
-      message: "Invalid usd trasaction ID format.",
-    });
-  }
+  validateIdParam(req);
 
   const session = await mongoose.startSession();
-  session.startTransaction();
   try {
-    const manager = await checkUserAuthorization(req);
-    const transaction = await DollarExchange.findOne({
-      _id: usdTransactionId,
-      company: manager.company._id,
-    }).session(session);
+    await session.withTransaction(async () => {
+      const manager = await checkUserAuthorization(req, session);
+      const transaction = await DollarExchange.findOne({
+        _id: id,
+        company: manager.company._id,
+        deletedAt: { $ne: null },
+      }).session(session);
 
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        code: 404,
-        message: "USD Transaction not found.",
+      if (!transaction) {
+        throw new ApiError(404, "Transaction not found");
+      }
+
+      // prevent negative balance
+      if (manager.company.usdBalance < transaction.amountUSD) {
+        throw new ApiError(
+          422,
+          "Insufficient USD balance to restore this transaction"
+        );
+      }
+
+      // Restore the transaction
+      transaction.deletedAt = null;
+      transaction.restoredBy = manager._id;
+      transaction.status = transaction.previousStatus;
+      await transaction.save({ session });
+
+      // Adjust company and customer balances
+      const updatedCompany = await Company.findByIdAndUpdate(
+        manager.company._id,
+        {
+          $inc: { usdBalance: -transaction.amountUSD }, // Deduct USD
+        },
+        { new: true, session }
+      );
+
+      const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
+        transaction.usdCustomer,
+        {
+          $inc: { outstandingBalance: transaction.amountCFA }, // Add to customer’s outstandingBalance
+        },
+        { new: true, session }
+      );
+
+      if (!updatedCustomer || !updatedCompany) {
+        throw new ApiError(400, "Balance update failed.");
+      }
+
+      await session.commitTransaction();
+      res.status(200).json({
+        success: true,
+        code: 200,
+        message: `Transaction restored`,
+        data: transaction,
       });
-    }
-
-    // Check if the transaction was already deleted
-    if (!transaction.deletedAt) {
-      return res.status(400).json({
-        success: false,
-        code: 400,
-        message: "Transaction is not deleted.",
-      });
-    }
-
-    // prevent negative balance
-    if (manager.company.usdBalance < transaction.amountUSD) {
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "Insufficient USD balance to restore this transaction.",
-      });
-    }
-
-    // Restore the transaction
-    transaction.deletedAt = null;
-    transaction.restoredBy = manager._id;
-    transaction.status = "pending";
-    await transaction.save({ session });
-
-    // Adjust company and customer balances
-    const updatedCompany = await Company.findByIdAndUpdate(
-      manager.company._id,
-      {
-        $inc: { usdBalance: -transaction.amountUSD }, // Deduct USD
-      },
-      { new: true, session }
-    );
-
-    const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
-      transaction.usdCustomer,
-      {
-        $inc: { toPaid: transaction.amountCFA }, // Add to customer’s toPaid
-      },
-      { new: true, session }
-    );
-
-    if (!updatedCustomer || !updatedCompany) {
-      throw new Error("Balance update failed.");
-    }
-
-    await session.commitTransaction();
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: `Transaction ${transaction._id} restored.`,
-    });
+    }, transactionOptions);
   } catch (error) {
-    await session.abortTransaction();
-    console.log(error);
-    return res
-      .status(500)
-      .json({ success: false, code: 422, message: "Internal server error." });
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    const apiError =
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to restore usd transactiion");
+    next(apiError);
   } finally {
     await session.endSession();
   }

@@ -5,7 +5,7 @@ const usdCustomerSchema = new Schema(
     name: { type: String, required: true },
     phone: { type: String },
     email: { type: String, required: true },
-    toPaid: { type: Number, default: 0 },
+    outstandingBalance: { type: Number, default: 0 },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
     createdBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who created the customer
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" }, // Who updated the customer
@@ -55,8 +55,7 @@ dollarExchangeSchema.pre("save", function (next) {
   next();
 });
 
-usdCustomerSchema.index({ deletedAt: 1 });
-dollarExchangeSchema.index({ deletedAt: 1, company: 1 });
+dollarExchangeSchema.index({ deletedAt: 1, company: 1, createdAt: -1 });
 
 const UsdCustomer = model("UsdCustomer", usdCustomerSchema);
 const DollarExchange = model("DollarExchange", dollarExchangeSchema);
