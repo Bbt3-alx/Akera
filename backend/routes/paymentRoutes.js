@@ -324,7 +324,7 @@ router.post(
  *                   example: "Error generating receipt: ..."
  */
 router.post(
-  "/receipt/:paymentId",
+  "/:paymentId/receipt",
   verifyToken,
   authorizeRoles("manager"),
   generateReceipt
