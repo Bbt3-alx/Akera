@@ -5,8 +5,12 @@ import Company from "../models/Company.js";
 import { validateIdParam } from "../utils/validators.js";
 import { transactionOptions } from "../constants/mongoTransactionOptions.js";
 import { ApiError } from "../middlewares/errorHandler.js";
-import { validateUsdTransactionInput } from "../validations/usdTransactionValidation.js";
-// Sell USD
+import {
+  validateUsdTransactionInput,
+  validateUsdTransactionUpdateInput,
+} from "../validations/usdTransactionValidation.js";
+import IdempotencyKey from "../models/IdempotencyKey.js";
+
 export const createSellUsd = async (req, res, next) => {
   const { rate, amountUSD, usdCustomerId, usdTaker } = req.body;
 
@@ -18,6 +22,14 @@ export const createSellUsd = async (req, res, next) => {
 
   try {
     await session.withTransaction(async () => {
+      const idempotencyRecord = await IdempotencyKey.findOne({
+        key: req.idempotencyKey,
+      }).session(session);
+
+      if (idempotencyRecord?.status === "completed") {
+        return res.status(200).json(idempotencyRecord.response);
+      }
+
       const manager = await checkUserAuthorization(req, session);
       if (!manager?.company)
         throw new ApiError(403, "Access denied. Company Not Found", {
@@ -33,11 +45,16 @@ export const createSellUsd = async (req, res, next) => {
         throw new ApiError(404, "Customer not found");
       }
 
+      const amountCFA = parseFloat(rate) * parseFloat(amountUSD);
+
       // Check if the company has sufficient usd.
       const result = await Company.updateOne(
         {
           _id: manager.company._id,
           usdBalance: { $gte: amountUSD },
+        },
+        {
+          $inc: { usdBalance: -amountUSD, balance: amountCFA },
         },
         { session }
       );
@@ -48,7 +65,6 @@ export const createSellUsd = async (req, res, next) => {
         });
       }
 
-      const amountCFA = parseFloat(rate) * parseFloat(amountUSD);
       const newSell = await DollarExchange.create(
         [
           {
@@ -64,13 +80,24 @@ export const createSellUsd = async (req, res, next) => {
         { session }
       );
 
-      // Update company usd balance
-      manager.company.usdBalance -= amountUSD;
-      await manager.company.save({ session });
-
       // Update customer balance
       customer.outstandingBalance += amountCFA;
       await customer.save({ session });
+
+      await IdempotencyKey.updateOne(
+        {
+          key: req.idempotencyKey,
+        },
+        {
+          status: "completed",
+          response: {
+            success: true,
+            code: 201,
+            data: newSell[0],
+          },
+        },
+        { session }
+      );
 
       res.status(201).json({ success: true, code: 201, data: newSell[0] });
     }, transactionOptions);
@@ -78,12 +105,21 @@ export const createSellUsd = async (req, res, next) => {
     if (session.inTransaction()) {
       await session.abortTransaction();
     }
+    console.error("Create usd transaction error:", error);
+    await IdempotencyKey.updateOne(
+      {
+        key: req.idempotencyKey,
+      },
+      { status: "failed" }
+    );
+
     const apiError =
       error instanceof ApiError
         ? error
         : new ApiError(500, "Failed to create usd transaction", {
             companyId: req.user.company,
           });
+
     next(apiError);
   } finally {
     await session.endSession();
@@ -122,7 +158,7 @@ export const getAllUsdTransactions = async (req, res, next) => {
     const apiError =
       error instanceof ApiError
         ? error
-        : new ApiError(500, "Failed to retrieves trnasactions", {
+        : new ApiError(500, "Failed to retrieves tranasactions", {
             companyId: req.user.company,
           });
     next(apiError);
@@ -183,6 +219,8 @@ export const getUsdTransaction = async (req, res, next) => {
     const usdTransaction = await DollarExchange.findOne({
       _id: id,
       company: manager.company._id,
+      deletedAt: null,
+      archivedAt: null,
     });
 
     if (!usdTransaction) {
@@ -208,6 +246,7 @@ export const updateSellUsd = async (req, res, next) => {
   const { rate, amountUSD, newUsdCustomer, usdTaker } = req.body;
 
   validateIdParam(req);
+  validateUsdTransactionUpdateInput(req.body);
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
@@ -221,7 +260,6 @@ export const updateSellUsd = async (req, res, next) => {
         .populate("usdCustomer")
         .session(session);
 
-      console.log(originalTransaction);
       if (!originalTransaction) {
         throw new ApiError(404, "Operation not found", {
           usdCustomerId: id,
@@ -243,14 +281,13 @@ export const updateSellUsd = async (req, res, next) => {
           ? newUsdCustomer
           : originalTransaction.usdCustomer;
 
-      // Validate numeric inputs
-      if (
-        isNaN(newRate) ||
-        isNaN(newAmountUSD) ||
-        newRate <= 0 ||
-        newAmountUSD <= 0
-      ) {
-        throw new ApiError(422, "Rate and amount must be positive numbers");
+      if (newUsdCustomer) {
+        const validCustomer = await UsdCustomer.exists({
+          _id: newUsdCustomer,
+          companies: manager.company._id,
+        }).session(session);
+
+        if (!validCustomer) throw new ApiError(404, "invalid customer");
       }
 
       // Check balance after reverting original transaction
@@ -288,7 +325,12 @@ export const updateSellUsd = async (req, res, next) => {
       // Adjust company balance atomically
       await Company.findByIdAndUpdate(
         manager.company._id,
-        { $inc: { usdBalance: -amountDifferenceUsd } },
+        {
+          $inc: {
+            usdBalance: -amountDifferenceUsd,
+            balance: amountDifferenceCfa,
+          },
+        },
         { session }
       );
 
@@ -298,22 +340,28 @@ export const updateSellUsd = async (req, res, next) => {
         originalTransaction.usdCustomer._id.toString()
       ) {
         // Update new customer
-        await UsdCustomer.findByIdAndUpdate(
-          finalUsdCustomer,
+        await UsdCustomer.findOneAndUpdate(
+          { _id: finalUsdCustomer, companies: manager.company._id },
           { $inc: { outstandingBalance: amountCFA } },
           { session }
         );
 
         // Revert original customer
-        await UsdCustomer.findByIdAndUpdate(
-          originalTransaction.usdCustomer._id,
+        await UsdCustomer.findOneAndUpdate(
+          {
+            _id: originalTransaction.usdCustomer._id,
+            companies: manager.company._id,
+          },
           { $inc: { outstandingBalance: -originalTransaction.amountCFA } },
           { session }
         );
       } else {
         // Update existing customer
-        await UsdCustomer.findByIdAndUpdate(
-          originalTransaction.usdCustomer._id,
+        await UsdCustomer.findOneAndUpdate(
+          {
+            _id: originalTransaction.usdCustomer._id,
+            companies: manager.company._id,
+          },
           { $inc: { outstandingBalance: amountDifferenceCfa } },
           { session }
         );
@@ -352,11 +400,11 @@ export const softDeleteSellUsd = async (req, res, next) => {
   try {
     await session.withTransaction(async () => {
       const manager = await checkUserAuthorization(req, session);
-      const transaction = await DollarExchange.findOneAndUpdate({
+      const transaction = await DollarExchange.findOne({
         _id: id,
         company: manager.company._id,
         deletedAt: null,
-      });
+      }).session(session);
 
       if (!transaction) {
         throw new ApiError(404, "Transaction not found");
@@ -455,7 +503,7 @@ export const restoreSellUsd = async (req, res, next) => {
         {
           $inc: { usdBalance: -transaction.amountUSD }, // Deduct USD
         },
-        { new: true, session }
+        { session }
       );
 
       const updatedCustomer = await UsdCustomer.findByIdAndUpdate(

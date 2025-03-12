@@ -12,6 +12,7 @@ import {
 } from "../controllers/manageUsdTransactions.js";
 import { audit } from "../middlewares/audit.js";
 import { ROLES } from "../constants/roles.js";
+import { idempotencyCheck } from "../middlewares/idempotency.js";
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.post(
   "/transactions",
   verifyToken,
   authorizeRoles(ROLES.ADMIN, ROLES.PARTNER, ROLES.ADMIN),
+  idempotencyCheck,
   audit("CREATE", "DollarExchange"),
   createSellUsd
 );
