@@ -3,11 +3,13 @@ import Payment from "../models/Payment.js";
 import User from "../models/User.js";
 import Partner from "../models/Partner.js";
 import Receipt from "../models/Receipt.js";
-import { ObjectId } from "mongodb";
+import { calculatePaymentStatus } from "../utils/paymentUtils.js";
+import { validateIdParam } from "../utils/validators.js";
 
 // Make a new payment
 export const createPayment = async (req, res) => {
   const { amount, method, partnerId, description, totalAmount } = req.body;
+  validateIdParam(req);
 
   if (!amount || !description) {
     return res

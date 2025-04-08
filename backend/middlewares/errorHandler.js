@@ -1,7 +1,8 @@
 export class ApiError extends Error {
-  constructor(statusCode, message, details, isOperational = true) {
+  constructor(statusCode, message, errorCode, details, isOperational = true) {
     super(message);
     this.statusCode = statusCode;
+    this.errorCode = errorCode;
     (this.details = details), (this.isOperational = isOperational);
     this.timestamp = new Date().toISOString();
     Error.captureStackTrace(this, this.constructor);
@@ -11,6 +12,7 @@ export class ApiError extends Error {
 export const errorHandler = (err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const message = err.isOperational ? err.message : "Internal server error";
+  const errorCode = err.errorCode || "INTERNAL_SERVER_ERROR";
 
   if (process.env.VITE_NODE_ENV === "development") {
     console.error(`[${new Date().toISOString()}] ERROR:`, {
@@ -37,6 +39,7 @@ export const errorHandler = (err, req, res, next) => {
     success: false,
     code: statusCode,
     message,
+    errorCode,
     ...(process.env.VITE_NODE_ENV === "development" && { stack: err.stack }),
     ...(err.details && { details: err.details }),
   });

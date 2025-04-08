@@ -28,12 +28,12 @@ const buyOperationSchema = new Schema(
     status: {
       type: String,
       enum: [
-        "pending",
-        "shipped",
-        "completed",
-        "canceled",
-        "on hold",
-        "archived",
+        "PENDING",
+        "SHIPPED",
+        "COMPLETED",
+        "CANCELLED",
+        "ON HOLD",
+        "ARCHIVED",
       ],
       default: "pending",
     },

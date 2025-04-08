@@ -1,127 +1,125 @@
+import mongoose from "mongoose";
 import BuyOperation from "../models/BuyOperation.js";
 import Payment from "../models/Payment.js";
 import Partner from "../models/Partner.js";
-import User from "../models/User.js";
-import { isValidObjectId } from "mongoose";
+import { validateIdParam } from "../utils/validators.js";
+import { transactionOptions } from "../constants/mongoTransactionOptions.js";
+import checkUserAuthorization from "../utils/checkUserAuthorization.js";
+import { ApiError } from "../middlewares/errorHandler.js";
+import { validatePaymentInput } from "../validations/validatePaymentInput.js";
+import {
+  calculatePaymentStatus,
+  validatePaymentData,
+} from "../utils/paymentUtils.js";
 
-const payForOperation = async (req, res) => {
-  const { amount, method, partnerId } = req.body;
-  const { operationId } = req.params;
+const payForOperation = async (req, res, next) => {
+  const session = await mongoose.startSession();
 
-  if (!isValidObjectId(operationId)) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid operation ID format." });
-  }
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    if (!manager) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Access denied, unauthorised" });
-    }
+    // Validate input
+    const { amount, method, partnerId } = validatePaymentInput(req.body);
+    const { operationId } = req.params;
+    validateIdParam(req);
 
-    // Check if the user has a company
-    if (!manager.company) {
-      return res.status(401).json({
-        success: false,
-        message: "You cannot initiate a payment, create a company first.",
-      });
-    }
+    // Parse amount to avoid floating point issues
+    const paymentAmount = parseFloat(Number(amount).toFixed(2));
+
+    session.startTransaction(transactionOptions);
+
+    const manager = await checkUserAuthorization(session);
 
     // Check if the selected partner exist
-    const partner = await Partner.findById(partnerId);
+    const partner = await Partner.findById(partnerId).session(session);
     if (!partner) {
-      return res
-        .status(404)
-        .josn({ success: false, message: "Partner not found." });
+      throw new ApiError(404, "Partner not found", "INVALID_PARTNER");
     }
 
+    // Find the operation
     const operation = await BuyOperation.findOne({
       _id: operationId,
       partner: partnerId,
       company: manager.company._id,
-    });
+      status: { $ne: "CANCELLED" },
+    }).session(session);
+
     if (!operation) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Operation not found" });
+      throw new ApiError(404, "Operation not found", "OPERATION_NOT_FOUND");
     }
 
-    // Validate the payment amount
-    if (amount <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment amount must be greater than zero.",
-      });
+    if (operation.paymentStatus === "paid") {
+      throw new ApiError(409, "Operation already paid", "DUPLICATED_PAYMENT");
     }
 
-    // Check if comapany has sufficient balance
-    if (manager.company.balance < amount) {
-      return res.status(400).json({
-        success: false,
-        message: "Company has insufficient cash for this operation.",
-      });
-    }
-
-    // Check the remain amount
-    const lastPayment = await Payment.findOne({
+    // Calculate remaining amount
+    const previousPayment = await Payment.find({
       operation: operation._id,
-      partner: partnerId,
-      company: manager.company._id,
-    });
+      status: { $ne: "cancelled" },
+    }).session(session);
 
-    const remainingAmount = lastPayment
-      ? lastPayment.remain
-      : operation.amount - operation.amountPaid;
+    const totalPaidAmount = previousPayment.reduce(
+      (total, payment) => total + payment.amount,
+      0
+    );
 
-    if (amount > remainingAmount) {
-      return res.status(400).json({
-        success: false,
-        message: "Amount must not exceed the remaining amount.",
-      });
-    }
+    const remainingAmount = operation.amount - totalPaidAmount;
 
-    // Check company balance
-    if (manager.company.balance < amount) {
-      return res.status(400).json({
-        success: false,
-        message: "Company has insufficient cash for this operation.",
-      });
-    }
+    // Validate payment
+    validatePaymentData(
+      paymentAmount,
+      remainingAmount,
+      manager.company.balance
+    );
 
-    // Update the paid amount
+    // Update the operation paid amount
     operation.amountPaid += amount;
+    operation.paymentStatus = calculatePaymentStatus(
+      operation.amount,
+      operation.amountPaid
+    );
+    await operation.save({ session });
 
     // Create the new payment
     const payment = new Payment({
       operation: operationId,
-      amount: amount.toFixed(0),
-      totalAmount: operation.amount.toFixed(0),
+      amount: paymentAmount,
+      totalAmount: operation.amount,
       remain: operation.amount - operation.amountPaid,
       method,
+      status: "paid",
       partner: partnerId,
       company: manager.company._id,
       paidBy: req.user.id,
     });
 
-    await payment.save();
-    manager.company.balance -= amount;
-    await manager.company.save();
+    await payment.save({ session });
+
+    // Update company balance
+    manager.company.balance -= paymentAmount;
+    await manager.company.save({ session });
 
     // Update partner's balance
-    partner.balance -= amount;
-    await partner.save();
+    partner.balance -= paymentAmount;
+    await partner.save({ session });
 
-    // Check the payment status
-    operation.paymentStatus =
-      operation.amountPaid >= operation.amount ? "paid" : "partially paid";
-    await operation.save();
-
-    res.status(200).json({ success: true, payment: payment });
+    await session.commitTransaction();
+    res.status(200).json({
+      success: true,
+      code: 200,
+      data: payment,
+      message: `Payment of ${paymentAmount} processed successfully. Operation status: ${operation.paymentStatus}`,
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    await session.abortTransaction();
+    console.error("Buy operation payment error:", error);
+
+    // Pass error to error handling middleware
+    next(
+      error instanceof ApiError
+        ? error
+        : new ApiError(500, "Failed to process payment", "PAYMENT_FAILED")
+    );
+  } finally {
+    session.endSession();
   }
 };
 

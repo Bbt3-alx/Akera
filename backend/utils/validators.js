@@ -6,9 +6,21 @@ export const validateEmail = (email) =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export const validateIdParam = (req) => {
-  const { error } = Joi.string().hex().length(24).validate(req.params.id);
-  if (error) throw new ApiError(400, "Invalid ID format");
-  return true;
+  const ids = [];
+
+  // Check params
+  if (req.params.operationId) ids.push(req.params.operationId);
+  if (req.params.id) ids.push(req.params.id);
+
+  // Check body
+  if (req.body.partnerId) ids.push(req.body.partnerId);
+  if (req.body.operationId) ids.push(req.body.operationId);
+
+  for (const id of ids) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      throw new ApiError(400, `Invalid ID format: ${id}`, "INVALID_ID");
+    }
+  }
 };
 
 export const validTransitions = {
