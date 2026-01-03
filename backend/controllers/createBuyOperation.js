@@ -150,6 +150,7 @@ export const createBuyOperation = async (req, res) => {
           golds: processedGold,
           amount: totalAmount,
           amountPaid,
+          remainingAmount: totalAmount - amountPaid,
           paymentStatus,
           partner: partnerId,
           company: manager.company,
@@ -215,7 +216,7 @@ export const getAllOperations = async (req, res) => {
     const [operations, total] = await Promise.all([
       BuyOperation.find(filter)
         .select("-__v -updatedAt")
-        .sort("-date")
+        .sort("-createdAt")
         .skip((page - 1) * limit)
         .populate("partner", "name balance")
         .lean(),

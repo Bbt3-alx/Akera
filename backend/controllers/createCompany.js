@@ -126,6 +126,8 @@ export const getCompanyProfile = async (req, res) => {
   try {
     const company = await Company.findOne({
       _id: req.params.id,
+      status: { $ne: "closed" },
+      deletedAt: null,
       $or: [{ manager: req.user.id }, { partners: req.user.id }],
     })
       .populate("manager", "name email roles")
@@ -158,7 +160,7 @@ export const getCompanyProfile = async (req, res) => {
 
 export const getCompanies = async (req, res) => {
   try {
-    const query = { deleteAt: null };
+    const query = { deletedAt: null };
 
     if (req.query.search) {
       query.$text = { $search: req.query.search };

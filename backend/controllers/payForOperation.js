@@ -14,19 +14,20 @@ import {
 
 const payForOperation = async (req, res, next) => {
   const session = await mongoose.startSession();
+  session.startTransaction(transactionOptions);
 
   try {
     // Validate input
-    const { amount, method, partnerId } = validatePaymentInput(req.body);
+    validatePaymentInput(req.body);
+
+    const { amount, method, partnerId, category } = req.body;
     const { operationId } = req.params;
     validateIdParam(req);
 
     // Parse amount to avoid floating point issues
     const paymentAmount = parseFloat(Number(amount).toFixed(2));
 
-    session.startTransaction(transactionOptions);
-
-    const manager = await checkUserAuthorization(session);
+    const manager = await checkUserAuthorization(req, session);
 
     // Check if the selected partner exist
     const partner = await Partner.findById(partnerId).session(session);
@@ -46,8 +47,12 @@ const payForOperation = async (req, res, next) => {
       throw new ApiError(404, "Operation not found", "OPERATION_NOT_FOUND");
     }
 
-    if (operation.paymentStatus === "paid") {
-      throw new ApiError(409, "Operation already paid", "DUPLICATED_PAYMENT");
+    if (operation.paymentStatus === "completed") {
+      throw new ApiError(
+        409,
+        "Operation already completed",
+        "DUPLICATED_PAYMENT"
+      );
     }
 
     // Calculate remaining amount
@@ -71,7 +76,7 @@ const payForOperation = async (req, res, next) => {
     );
 
     // Update the operation paid amount
-    operation.amountPaid += amount;
+    operation.amountPaid += paymentAmount;
     operation.paymentStatus = calculatePaymentStatus(
       operation.amount,
       operation.amountPaid
@@ -83,9 +88,9 @@ const payForOperation = async (req, res, next) => {
       operation: operationId,
       amount: paymentAmount,
       totalAmount: operation.amount,
-      remain: operation.amount - operation.amountPaid,
+      category: category || "operational",
       method,
-      status: "paid",
+      status: "completed",
       partner: partnerId,
       company: manager.company._id,
       paidBy: req.user.id,
@@ -112,7 +117,6 @@ const payForOperation = async (req, res, next) => {
     await session.abortTransaction();
     console.error("Buy operation payment error:", error);
 
-    // Pass error to error handling middleware
     next(
       error instanceof ApiError
         ? error

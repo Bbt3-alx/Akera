@@ -9,8 +9,6 @@ export const validatePaymentInput = (data) => {
   else if (isNaN(amount) || amount <= 0)
     errors.amount = "Amount must be a positive number";
 
-  if (!method) errors.method = "Payment method is required";
-
   if (!partnerId) errors.partnerId = "Partner ID is required";
   else if (!mongoose.Types.ObjectId.isValid(partnerId))
     errors.partnerId = "Invalid partner ID format";

@@ -1,89 +1,125 @@
 import { isValidObjectId } from "mongoose";
+import { v4 as uuidv4 } from "uuid";
 import Payment from "../models/Payment.js";
 import User from "../models/User.js";
 import Partner from "../models/Partner.js";
 import Receipt from "../models/Receipt.js";
+import Company from "../models/Company.js";
+import { ApiError } from "../middlewares/errorHandler.js";
+import { validatePaymentData } from "../utils/paymentUtils.js";
 import { calculatePaymentStatus } from "../utils/paymentUtils.js";
 import { validateIdParam } from "../utils/validators.js";
 
-// Make a new payment
-export const createPayment = async (req, res) => {
-  const { amount, method, partnerId, description, totalAmount } = req.body;
-  validateIdParam(req);
-
-  if (!amount || !description) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Required fields missing." });
-  }
+// Create new payment draft
+export const createPayment = async (req, res, next) => {
+  const session = await mongoose.startSession();
 
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    if (!manager) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Access denied, unauthorised" });
-    }
+    session.startTransaction();
 
-    // Check if the user has a company
-    if (!manager.company) {
-      return res.status(401).json({
-        success: false,
-        message: "You cannot initiate a payment, create a company first.",
+    const {
+      amount,
+      method,
+      partnerId,
+      description,
+      totalAmount,
+      category,
+      currency = "XOF",
+      idempotencyKey = uuidv4(),
+      reference,
+      attachments = [],
+    } = req.body;
+    validatePaymentData(req.body);
+    validateIdParam(req);
+
+    // check for duplicate paymen using indempotencyKey
+    const existingPayment = await payment.findOne({ idempotencyKey });
+    if (existingPayment) {
+      return res.status(200).json({
+        success: true,
+        message: "Payment already processed",
+        payment: existingPayment,
       });
     }
 
-    // Check the payment amount
-    const total = totalAmount || amount;
-    if (amount > total) {
-      return res.status(400).json({
-        success: false,
-        message: "Payment amount cannot exceed the total amount.",
-      });
+    const manager = await User.findById(req.user.id)
+      .populate("company")
+      .session(session);
+    if (!manager?.company) {
+      throw new ApiError(
+        401,
+        "You need a company account to create",
+        "COMPANY_REQUIRED"
+      );
     }
 
-    // Create the new payment
-    const payment = new Payment({
+    // Prepare the payment data
+    const paymentData = {
       description,
       amount,
-      totalAmount: total,
-      remain: total - amount,
+      totalAmount: totalAmount || amount,
+      remain: (totalAmount || amount) - amount,
       method,
-      partner: partnerId,
-      paidBy: req.user.id,
+      category,
+      currency,
+      reference,
+      idempotencyKey,
+      attachments,
+      status: "draft",
+      createdBy: req.user.id,
+      paidBy: null, // Set to null for now, will be updated later
       company: manager.company._id,
-    });
+    };
 
     // Check if a partner is involved
     if (partnerId) {
-      // Check if valid ObjectID
       if (!isValidObjectId(partnerId)) {
-        return res
-          .status(400)
-          .json({ success: false, message: "Invalid partner ID format." });
-      }
-      const partner = await Partner.findById(partnerId);
-      if (!partner) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Partner not exist." });
+        throw new ApiError(400, "Invalid partner ID format", "INVALID_PARTNER");
       }
 
-      // Deduct the amount to the partner balance
-      partner.balance -= amount;
-      await partner.save();
+      const partner = await Partner.findById(partnerId).session(session);
+      if (!partner) {
+        throw new ApiError(404, "Partner not found", "PARTNER_NOT_FOUND");
+      }
     }
 
-    // Deduct the amount to the company balance
-    manager.company.balance -= amount;
-    await manager.company.save();
+    // Check if partner is associated with the company
+    const partner = await Partner.findById(partnerId).session(session);
+    if (!partner.companies.includes(manager.company._id)) {
+      throw new ApiError(
+        403,
+        "Partner not associated with your company",
+        "UNAUTHORIZED"
+      );
+    }
 
-    // Save the payement to the database
-    await payment.save();
-    res.status(201).json({ success: true, payment });
+    paymentData.partner = partnerId;
+
+    const payment = await Payment.create([paymentData], { session });
+
+    await session.commitTransaction();
+    res.status(201).json({
+      success: true,
+      code: 201,
+      data: payment,
+      message: "Payment draft created successfully",
+    });
   } catch (error) {
-    console.error(error); // Log the error for debugging
-    res.status(500).json({ success: false, message: error.message });
+    await session.aborTransaction();
+    console.error("Payment draft creation error:", error);
+    if (error instanceof ApiError) {
+      next(error);
+    } else {
+      next(
+        new ApiError(
+          500,
+          "Failed to create payment draft",
+          "INTERNAL_SERVER_ERROR"
+        )
+      );
+    }
+  } finally {
+    session.endSession();
   }
 };
 

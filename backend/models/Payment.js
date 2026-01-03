@@ -3,14 +3,10 @@ import { Schema, model } from "mongoose";
 // Payment schema
 const paymentSchema = new Schema(
   {
-    operation: {
-      type: Schema.Types.ObjectId,
-      ref: "BuyOperation",
-      required: true,
-    },
+    // Basic Payment Info
     description: { type: String },
-    amount: { type: Number, required: true, min: 0 }, // Currently paying amount
-    totalAmount: { type: Number, required: true, min: 0 }, // amount from operation
+    amount: { type: Number, required: true, min: 0 },
+    totalAmount: { type: Number, required: true, min: 0 },
     remain: {
       type: Number,
       min: 0,
@@ -18,32 +14,109 @@ const paymentSchema = new Schema(
         return this.totalAmount - this.amount;
       },
     },
+
+    // Categorization & status
+    category: {
+      type: String,
+      enum: ["operational", "payroll", "vendor", "other"],
+      default: "operational",
+    },
     status: {
       type: String,
-      enum: ["cancelled", "paid", "partially paid", "pending"],
+      enum: [
+        "draft",
+        "pending_approval",
+        "approved",
+        "completed",
+        "rejected",
+        "cancelled",
+      ],
+      default: "draft",
     },
-    date: { type: Date, default: Date.now },
-    partner: { type: Schema.Types.ObjectId, ref: "Partner", required: true },
-    company: { type: Schema.Types.ObjectId, ref: "Company", required: true },
-    paidBy: { type: Schema.Types.ObjectId, ref: "User" },
+
+    // Payment details
     method: {
       type: String,
-      enum: ["Cash", "Bank Transfer", "Mobile Money", "Check", "Credit Card"],
-      default: "Cash",
-    }, // Payment model (ex: Mobile Money, Cash)
-    updatedAt: { type: Date, default: Date.now }, // Last update date
-    updatedBy: { type: Schema.Types.ObjectId, ref: "User" }, // Last user who updated the payment
-    cancelledBy: { type: Schema.Types.ObjectId, ref: "User" }, // Last user who cancelled the payment
-    cancelledAt: { type: Date }, // Last date when the payment was cancelled
+      enum: ["bank_transfer", "cash", "check", "card", "mobile_money"],
+      default: "cash",
+    },
+    currency: {
+      type: String,
+      default: "XOF",
+      exchangeRate: { type: Number, default: 1 },
+    },
+
+    // References
+    reference: { type: String }, // External reference number
+    operation: {
+      type: Schema.Types.ObjectId,
+      ref: "BuyOperation",
+    },
+    partner: { type: Schema.Types.ObjectId, ref: "Partner" },
+    company: { type: Schema.Types.ObjectId, ref: "Company", required: true },
+
+    // Attachments
+    attachments: [
+      {
+        name: String,
+        url: String,
+        type: String,
+        uploadedAt: { type: Date, default: Date.now },
+      },
+    ],
+
+    // Audit Information
+    paidBy: { type: Schema.Types.ObjectId, ref: "User" },
+    createdBy: { type: Schema.Types.ObjectId, ref: "User" },
+    approvedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    approvedAt: { type: Date },
+    rejectedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    rejectedAt: { type: Date },
+    rejectedReason: { type: String },
+    updatedAt: { type: Date, default: Date.now },
+    updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
+    cancelledAt: { type: Date },
+
+    // Idempotency
+    idempotencyKey: { type: String, index: true },
+
+    // Workflow
+    statusHistory: [
+      {
+        status: String,
+        timestamp: { type: Date, default: Date.now },
+        user: { type: Schema.Types.ObjectId, ref: "User" },
+        notes: String,
+      },
+    ],
   },
-  { timestamps: true, toJSON: { getters: true } }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-// Add a virtual for getting the payment status dynamically
-paymentSchema.virtual("computedStatus").get(function () {
-  if (this.amount >= this.totalAmount) return "paid";
-  if (this.amount > 0) return "partially paid";
-  return "pending";
+// Add hooks for status change tracking
+paymentSchema.pre("save", function (next) {
+  const payment = this;
+  if (payment.isModified("status")) {
+    payment.statusHistory.push({
+      status: payment.status,
+      timestamp: new Date(),
+      user:
+        payment.approvedBy ||
+        payment.rejectedBy ||
+        payment.cancelledBy ||
+        payment.createdBy,
+    });
+  }
+  next();
+});
+
+// Virtual for formatted amount
+paymentSchema.virtual("formattedAmount").get(function () {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: this.currency,
+  }).format(this.amount);
 });
 
 // Add index for faster queries

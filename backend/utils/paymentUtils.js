@@ -21,7 +21,7 @@ export const validatePaymentData = (
     );
   }
 
-  if (amount > remainingAmountAmount) {
+  if (amount > remainingAmount) {
     throw new ApiError(
       422,
       "Amount must not exceed the remaining amount",
@@ -29,7 +29,7 @@ export const validatePaymentData = (
     );
   }
 
-  if (companyBalance < remainingAmount) {
+  if (companyBalance < amount) {
     throw new ApiError(
       400,
       "Insufficient balance for this operation",

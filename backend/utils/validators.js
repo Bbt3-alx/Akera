@@ -1,5 +1,6 @@
 import Joi from "joi";
 import { ApiError } from "../middlewares/errorHandler.js";
+import mongoose from "mongoose";
 
 export const validatePhone = (phone) => /^\+?[1-9]\d{1,14}$/.test(phone);
 export const validateEmail = (email) =>

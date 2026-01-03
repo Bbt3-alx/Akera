@@ -22,18 +22,19 @@ const buyOperationSchema = new Schema(
       default: "pending",
     },
     amountPaid: { type: Number, default: 0 }, // Total amount already paid
+    remainingAmount: { type: Number, default: 0 }, // Amount left to pay
     partner: { type: Schema.Types.ObjectId, ref: "Partner", required: true },
     company: { type: Schema.Types.ObjectId, ref: "Company", required: true },
     date: { type: Date, default: Date.now },
     status: {
       type: String,
       enum: [
-        "PENDING",
-        "SHIPPED",
-        "COMPLETED",
-        "CANCELLED",
-        "ON HOLD",
-        "ARCHIVED",
+        "pending",
+        "shipped",
+        "completed",
+        "canceled",
+        "on hold",
+        "archived",
       ],
       default: "pending",
     },
