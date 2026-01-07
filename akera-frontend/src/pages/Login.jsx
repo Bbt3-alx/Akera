@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
 
   return (
     <div>
@@ -21,7 +23,7 @@ function Login() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  identifier: identifier,
+                  email: identifier, // assuming identifier is email
                   password: password,
                 }),
               }
@@ -33,6 +35,11 @@ function Login() {
               alert(data.message || "Echec de connexion");
               return;
             }
+
+            // Sauvegarder le token dans le stockage local
+            localStorage.setItem("token", data.token);
+            localStorage.setItem("user", JSON.stringify(data.user));
+            navigate("/dashboard");
             alert("Connexion reussi !");
           } catch (erreur) {
             console.log("Erreur reseaux: ", erreur);
