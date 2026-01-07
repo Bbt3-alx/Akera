@@ -1,21 +1,20 @@
 import { useNavigate } from "react-router-dom";
 
 function Dashboard() {
-  const user = JSON.parse(localStorage.getItem("user"));
   const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  const logout = () => {
+    localStorage.clear();
+    navigate("/");
+  };
+
   return (
     <div>
       <h1>Dashboard Akera</h1>
       <p>Bienvenue, {user?.name}!</p>
 
-      <button
-        onClick={() => {
-          localStorage.clear();
-          navigate("/");
-        }}
-      >
-        Logout
-      </button>
+      <button onClick={logout}>Se déconnecter</button>
     </div>
   );
 }
