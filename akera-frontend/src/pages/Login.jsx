@@ -9,10 +9,34 @@ function Login() {
       <h2>Connexion</h2>
 
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           console.log("Identifier:", identifier);
           console.log("Password:", password);
+
+          try {
+            const response = await fetch(
+              "https://akera.onrender.com/api/v1/auth/login",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  identifier: identifier,
+                  password: password,
+                }),
+              }
+            );
+            const data = await response.json();
+            console.log("API response:", data);
+
+            if (!response.ok) {
+              alert(data.message || "Echec de connexion");
+              return;
+            }
+            alert("Connexion reussi !");
+          } catch (erreur) {
+            console.log("Erreur reseaux: ", erreur);
+          }
         }}
       >
         <input
