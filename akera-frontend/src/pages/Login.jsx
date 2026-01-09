@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../services/api";
 
 function Login() {
-  const [identifier, setIdentifier] = useState("");
+  const [email, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
@@ -13,34 +14,21 @@ function Login() {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          console.log("Identifier:", identifier);
-          console.log("Password:", password);
 
           try {
-            const response = await fetch(
-              "https://akera.onrender.com/api/v1/auth/login",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  email: identifier, // assuming identifier is email
-                  password: password,
-                }),
-              }
-            );
-            const data = await response.json();
-            console.log("API response:", data);
-
-            if (!response.ok) {
-              alert(data.message || "Echec de connexion");
-              return;
-            }
+            const data = await apiRequest("/auth/login", {
+              method: "POST",
+              body: JSON.stringify({
+                email, // assuming identifier is email
+                password,
+              }),
+            });
 
             // Sauvegarder le token dans le stockage local
             localStorage.setItem("token", data.token);
             localStorage.setItem("user", JSON.stringify(data.user));
+
             navigate("/dashboard");
-            alert("Connexion reussi !");
           } catch (erreur) {
             console.log("Erreur reseaux: ", erreur);
           }
@@ -49,7 +37,7 @@ function Login() {
         <input
           type="text"
           placeholder="Email ou téléphone"
-          value={identifier}
+          value={email}
           onChange={(e) => {
             setIdentifier(e.target.value);
           }}
