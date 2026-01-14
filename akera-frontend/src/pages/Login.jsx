@@ -5,6 +5,7 @@ import { apiRequest } from "../services/api";
 function Login() {
   const [email, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("");
   const navigate = useNavigate();
 
   return (
@@ -16,11 +17,12 @@ function Login() {
           e.preventDefault();
 
           try {
-            const data = await apiRequest("/auth/login", {
+            const data = await apiRequest("/api/v1/auth/login", {
               method: "POST",
               body: JSON.stringify({
                 email, // assuming identifier is email
                 password,
+                role,
               }),
             });
 
@@ -49,6 +51,15 @@ function Login() {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
+          }}
+        />
+        <br />
+        <input
+          type="text"
+          placeholder="Rôles (ex: user, admin)"
+          value={role}
+          onChange={(e) => {
+            setRole(e.target.value);
           }}
         />
         <button type="submit">Se connecter</button>
