@@ -11,13 +11,13 @@ const transactionSchema = new Schema(
     code: {
       type: String,
       unique: true,
-      default: () => Math.random().toString(36).substr(2, 9).toUpperCase(),
+      default: () => Math.random().toString(36).slice(2, 11).toUpperCase(),
     },
     date: { type: Date, default: Date.now, index: true },
     description: {
       type: String,
       required: true,
-      maxLenght: [255, "Description too long"],
+      maxLength: [255, "Description too long"],
     }, // Name of the person to be paid or purpose
     status: {
       type: String,
@@ -43,7 +43,11 @@ const transactionSchema = new Schema(
     archived: { type: Boolean, default: false },
     restoredBy: { type: Schema.Types.ObjectId, ref: "User" },
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
 );
 
 // Compound indexes

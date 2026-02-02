@@ -7,13 +7,18 @@ import {
   deleteTransaction,
   restoreTransaction,
 } from "../controllers/manageTransaction.js";
+
 import verifyToken from "../middlewares/verifyToken.js";
-import authorizeRoles from "../middlewares/roleAuthorization.js";
+import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
 import express from "express";
 import { validateTransactionInput } from "../middlewares/validators.js";
 import { cache } from "../middlewares/cache.js";
 import { audit } from "../middlewares/audit.js";
+
 const router = express.Router();
+
+router.use(verifyToken);
+router.use(resolveCompanyContext);
 
 // ROUTE TO MAKE A NEW TRANSACTION
 /**
@@ -131,11 +136,9 @@ const router = express.Router();
  */
 router.post(
   "/",
-  verifyToken,
-  authorizeRoles("manager"),
-  validateTransactionInput,
+  //validateTransactionInput,
   audit("TRANSACTION_CREATE", "Transaction"),
-  createTransaction
+  createTransaction,
 );
 
 // ROUTE TO RETRIEVE ALL THE TRANSACTION BELONG TO A COMPANY
@@ -188,13 +191,7 @@ router.post(
  *                   type: string
  *                   example: "Error fetching transactions: ..."
  */
-router.get(
-  "/",
-  verifyToken,
-  authorizeRoles("manager"),
-  cache("transactions", 3600),
-  getTransactions
-);
+router.get("/", cache("transactions", 3600), getTransactions);
 
 // ROUTE TO RETRIEVE ALL TRANSACTIONS OF A PARTNER
 /**
@@ -268,10 +265,8 @@ router.get(
  */
 router.get(
   "/partner/:id",
-  verifyToken,
-  authorizeRoles("manager"),
   cache("partnerTransactions", 3600),
-  getPartnerTransactions
+  getPartnerTransactions,
 );
 
 // ROUTE TO GET A TRANSACTION BY ITS ID
@@ -342,13 +337,7 @@ router.get(
  *                   type: string
  *                   example: "Error fetching transaction: ..."
  */
-router.get(
-  "/:id",
-  verifyToken,
-  authorizeRoles("manager"),
-  cache("transaction", 3600),
-  getTransaction
-);
+router.get("/:id", cache("transaction", 3600), getTransaction);
 
 // ROUTE TO EDIT A TRANSACTION
 /**
@@ -455,12 +444,9 @@ router.get(
  */
 router.put(
   "/:id/edit",
-  verifyToken,
-  authorizeRoles("manager"),
   audit("TRANSACTION_UPDATE", "Transaction"),
-  updateTransaction
+  updateTransaction,
 );
-export default router;
 
 // ROUTE TO CANCEL A TRANSACTION
 /**
@@ -539,17 +525,15 @@ export default router;
  */
 router.put(
   "/:id/cancel",
-  verifyToken,
-  authorizeRoles("manager"),
   audit("TRANSACTION_DELETE", "Transaction"),
-  deleteTransaction
+  deleteTransaction,
 );
 
 // ROUTE TO RESTORE A TRANSACTION
 router.put(
   "/:id/restore",
-  verifyToken,
-  authorizeRoles("manager"),
   audit("TRANSACTION_RESTORE", "Transaction"),
-  restoreTransaction
+  restoreTransaction,
 );
+
+export default router;

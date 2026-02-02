@@ -12,13 +12,15 @@ import {
 import IdempotencyKey from "../models/IdempotencyKey.js";
 
 export const createSellUsd = async (req, res, next) => {
-  const { rate, amountUSD, usdCustomerId, usdTaker } = req.body;
+  const { rate, amountUSD, usdCustomer, usdTaker } = req.body;
 
   validateIdParam(req);
   validateUsdTransactionInput(req.body);
 
   // Start a mongoose transaction for Atomic Updates
   const session = await mongoose.startSession();
+
+  let response;
 
   try {
     await session.withTransaction(async () => {
@@ -27,7 +29,8 @@ export const createSellUsd = async (req, res, next) => {
       }).session(session);
 
       if (idempotencyRecord?.status === "completed") {
-        return res.status(200).json(idempotencyRecord.response);
+        response = idempotencyRecord.response;
+        return;
       }
 
       const manager = await checkUserAuthorization(req, session);
@@ -37,7 +40,7 @@ export const createSellUsd = async (req, res, next) => {
         });
 
       const customer = await UsdCustomer.findOne({
-        _id: usdCustomerId,
+        _id: usdCustomer,
         companies: manager.company._id,
       }).session(session);
 
@@ -56,7 +59,7 @@ export const createSellUsd = async (req, res, next) => {
         {
           $inc: { usdBalance: -amountUSD, balance: amountCFA },
         },
-        { session }
+        { session },
       );
       if (result.modifiedCount === 0) {
         throw new ApiError(400, "Insufficient Funds", {
@@ -65,24 +68,22 @@ export const createSellUsd = async (req, res, next) => {
         });
       }
 
-      const newSell = await DollarExchange.create(
+      const [newSell] = await DollarExchange.create(
         [
           {
-            rate,
-            amountUSD,
-            usdCustomer: usdCustomerId,
+            ...req.body,
             amountCFA,
-            usdTaker,
             confirmedBy: manager._id,
             company: manager.company._id,
           },
         ],
-        { session }
+        { session },
       );
 
-      // Update customer balance
       customer.outstandingBalance += amountCFA;
       await customer.save({ session });
+
+      response = { success: true, code: 201, data: newSell[0] };
 
       await IdempotencyKey.updateOne(
         {
@@ -90,28 +91,20 @@ export const createSellUsd = async (req, res, next) => {
         },
         {
           status: "completed",
-          response: {
-            success: true,
-            code: 201,
-            data: newSell[0],
-          },
+          response: response,
         },
-        { session }
+        { session },
       );
-
-      res.status(201).json({ success: true, code: 201, data: newSell[0] });
     }, transactionOptions);
+    res.status(response.code).json(response);
   } catch (error) {
     if (session.inTransaction()) {
       await session.abortTransaction();
     }
     console.error("Create usd transaction error:", error);
-    await IdempotencyKey.updateOne(
-      {
-        key: req.idempotencyKey,
-      },
-      { status: "failed" }
-    );
+    await IdempotencyKey.deleteOne({
+      key: req.idempotencyKey,
+    });
 
     const apiError =
       error instanceof ApiError
@@ -262,7 +255,7 @@ export const updateSellUsd = async (req, res, next) => {
 
       if (!originalTransaction) {
         throw new ApiError(404, "Operation not found", {
-          usdCustomerId: id,
+          usdCustomer: id,
           companyId: req.user.company,
         });
       }
@@ -296,7 +289,7 @@ export const updateSellUsd = async (req, res, next) => {
       if (availableBalance < newAmountUSD) {
         throw new ApiError(
           422,
-          "Insufficient USD balance to update transaction"
+          "Insufficient USD balance to update transaction",
         );
       }
 
@@ -319,7 +312,7 @@ export const updateSellUsd = async (req, res, next) => {
           remainingAmount,
           updatedBy: manager._id,
         },
-        { new: true, session }
+        { new: true, session },
       );
 
       // Adjust company balance atomically
@@ -331,7 +324,7 @@ export const updateSellUsd = async (req, res, next) => {
             balance: amountDifferenceCfa,
           },
         },
-        { session }
+        { session },
       );
 
       // Handle customer changes
@@ -343,7 +336,7 @@ export const updateSellUsd = async (req, res, next) => {
         await UsdCustomer.findOneAndUpdate(
           { _id: finalUsdCustomer, companies: manager.company._id },
           { $inc: { outstandingBalance: amountCFA } },
-          { session }
+          { session },
         );
 
         // Revert original customer
@@ -353,7 +346,7 @@ export const updateSellUsd = async (req, res, next) => {
             companies: manager.company._id,
           },
           { $inc: { outstandingBalance: -originalTransaction.amountCFA } },
-          { session }
+          { session },
         );
       } else {
         // Update existing customer
@@ -363,7 +356,7 @@ export const updateSellUsd = async (req, res, next) => {
             companies: manager.company._id,
           },
           { $inc: { outstandingBalance: amountDifferenceCfa } },
-          { session }
+          { session },
         );
       }
 
@@ -423,7 +416,7 @@ export const softDeleteSellUsd = async (req, res, next) => {
         {
           $inc: { usdBalance: transaction.amountUSD }, // Return USD to company
         },
-        { new: true, session }
+        { new: true, session },
       );
 
       const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
@@ -431,7 +424,7 @@ export const softDeleteSellUsd = async (req, res, next) => {
         {
           $inc: { outstandingBalance: -transaction.amountCFA }, // Deduct from customer’s outstandingBalance
         },
-        { new: true, session }
+        { new: true, session },
       );
 
       if (!updatedCompany || !updatedCustomer) {
@@ -487,7 +480,7 @@ export const restoreSellUsd = async (req, res, next) => {
       if (manager.company.usdBalance < transaction.amountUSD) {
         throw new ApiError(
           422,
-          "Insufficient USD balance to restore this transaction"
+          "Insufficient USD balance to restore this transaction",
         );
       }
 
@@ -503,7 +496,7 @@ export const restoreSellUsd = async (req, res, next) => {
         {
           $inc: { usdBalance: -transaction.amountUSD }, // Deduct USD
         },
-        { session }
+        { session },
       );
 
       const updatedCustomer = await UsdCustomer.findByIdAndUpdate(
@@ -511,7 +504,7 @@ export const restoreSellUsd = async (req, res, next) => {
         {
           $inc: { outstandingBalance: transaction.amountCFA }, // Add to customer’s outstandingBalance
         },
-        { new: true, session }
+        { new: true, session },
       );
 
       if (!updatedCustomer || !updatedCompany) {

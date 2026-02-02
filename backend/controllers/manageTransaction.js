@@ -10,53 +10,24 @@ export const createTransaction = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { amount, description, partnerId } = req.body;
+    const { amount, description } = req.body;
+    const { companyId, role } = req.context;
 
-    const manager = await User.findById(req.user.id)
-      .select("company")
-      .session(session);
-
-    // Authorization checks
-    if (!manager?.company) {
+    if (role !== "partner") {
       await session.abortTransaction();
       return res.status(403).json({
         success: false,
         code: 403,
-        message: "Company association required",
+        message: "Only partners can initiate transactions",
       });
     }
 
-    const [partner, company] = await Promise.all([
-      Partner.findById(partnerId).session(session),
-      Company.findById(manager.company).session(session),
-    ]);
-
-    // Validation checks
-    if (!partner || !partner.companies.includes(company._id)) {
+    const company = await Company.findById(companyId).session(session);
+    if (!company) {
       await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        code: 404,
-        message: "Partner not found in your company",
-      });
-    }
-
-    // Verify if the partner has enought balance
-    if (amount > partner.balance) {
-      await session.abortTransaction();
-      return res.status(422).json({
-        success: false,
-        code: 422,
-        message: "Inuffficient partner balance !",
-      });
-    }
-
-    if (amount > company.balance) {
-      await session.abortTransaction();
-      return res.status(401).json({
-        success: false,
-        code: 422,
-        message: "Insufficient company balance",
+        messgae: "Company not found",
       });
     }
 
@@ -66,39 +37,25 @@ export const createTransaction = async (req, res) => {
         {
           amount,
           description,
-          partner: partnerId,
-          company: company._id,
+          company: companyId,
+          partner: req.user.id, // Legacy
+          initiatedBy: req.user.id,
+          initiatedAs: role,
         },
       ],
-      { session }
+      { session },
     );
-
-    // Update balances
-    await Promise.all([
-      Partner.findByIdAndUpdate(
-        partnerId,
-        { $inc: { balance: -amount } },
-        { session }
-      ),
-      Company.findByIdAndUpdate(
-        company._id,
-        {
-          $inc: { balance: -amount },
-        },
-        { session }
-      ),
-    ]);
 
     await session.commitTransaction();
 
     res.status(201).json({ success: true, code: 201, data: transaction[0] });
   } catch (error) {
     await session.abortTransaction();
-    console.log("Tansaction error:", error);
+    console.error("Create transaction error:", error);
     return res.status(500).json({
       success: false,
       code: 500,
-      message: "Transaction processing failed",
+      message: "Transaction creation failed",
     });
   } finally {
     session.endSession();
@@ -317,7 +274,7 @@ export const updateTransaction = async (req, res) => {
     const updatedTransaction = await Transaction.findByIdAndUpdate(
       req.params.id,
       { description, amount, updatedBy: req.user.id },
-      { new: true, session }
+      { new: true, session },
     );
 
     // Update balances
@@ -325,12 +282,12 @@ export const updateTransaction = async (req, res) => {
       Partner.findByIdAndUpdate(
         transaction.partner,
         { $inc: { balance: -amountDifference } },
-        { session }
+        { session },
       ),
       Company.findByIdAndUpdate(
         manager.company,
         { $inc: { balance: -amountDifference } },
-        { session }
+        { session },
       ),
     ]);
 
@@ -379,7 +336,7 @@ export const deleteTransaction = async (req, res) => {
         deletedBy: req.user.id,
         status: "canceled",
       },
-      { new: true, session }
+      { new: true, session },
     );
 
     if (!transaction) {
@@ -396,14 +353,14 @@ export const deleteTransaction = async (req, res) => {
         {
           $inc: { balance: transaction.amount },
         },
-        { session }
+        { session },
       ),
       Company.findByIdAndUpdate(
         manager.company._id,
         {
           $inc: { balance: transaction.amount },
         },
-        { session }
+        { session },
       ),
     ]);
 
@@ -454,7 +411,7 @@ export const restoreTransaction = async (req, res) => {
         restoredBy: req.user.id,
         status: "pending",
       },
-      { new: true, session }
+      { new: true, session },
     );
 
     if (!transaction) {
@@ -473,14 +430,14 @@ export const restoreTransaction = async (req, res) => {
         {
           $inc: { balance: -transaction.amount },
         },
-        { session }
+        { session },
       ),
       Company.findByIdAndUpdate(
         manager.company._id,
         {
           $inc: { balance: -transaction.amount },
         },
-        { session }
+        { session },
       ),
     ]);
 

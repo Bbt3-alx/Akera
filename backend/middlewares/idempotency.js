@@ -17,10 +17,17 @@ export const idempotencyCheck = async (req, res, next) => {
     });
   }
 
+  // Stable stringify function to ensure consistent hashing
+  const stableStringify = (obj) => {
+    return JSON.stringify(obj, Object.keys(obj).sort(), 2);
+  };
+
   // Create request hash fingerprint
   const requestHash = crypto
     .createHash("sha256")
-    .update(JSON.stringify({ body: req.body, path: req.path }))
+    .update(
+      stableStringify({ method: req.method, body: req.body, path: req.path }),
+    )
     .digest("hex");
 
   const session = await mongoose.startSession();
@@ -31,11 +38,19 @@ export const idempotencyCheck = async (req, res, next) => {
       key: idempotencyKey,
     }).session(session);
 
+    if (
+      existingKey &&
+      existingKey.status === "pending" &&
+      Date.now() - existingKey.createdAt.getTime() > 30000
+    ) {
+      await existingKey.deleteOne();
+    }
+
     if (existingKey) {
       if (existingKey.requestHash !== requestHash) {
         throw new ApiError(
           409,
-          "Request conflict - key reused with different parameters"
+          "Request conflict - key reused with different parameters",
         );
       }
 
@@ -58,7 +73,7 @@ export const idempotencyCheck = async (req, res, next) => {
           expiresAt: new Date(Date.now() + 86400000), // 24h
         },
       ],
-      { session }
+      { session },
     );
 
     await session.commitTransaction();

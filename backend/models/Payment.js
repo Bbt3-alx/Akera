@@ -40,11 +40,8 @@ const paymentSchema = new Schema(
       enum: ["bank_transfer", "cash", "check", "card", "mobile_money"],
       default: "cash",
     },
-    currency: {
-      type: String,
-      default: "XOF",
-      exchangeRate: { type: Number, default: 1 },
-    },
+    currency: { type: String, default: "XOF" },
+    exchangeRate: { type: Number, default: 1 },
 
     // References
     reference: { type: String }, // External reference number
@@ -73,7 +70,6 @@ const paymentSchema = new Schema(
     rejectedBy: { type: Schema.Types.ObjectId, ref: "User" },
     rejectedAt: { type: Date },
     rejectedReason: { type: String },
-    updatedAt: { type: Date, default: Date.now },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
     cancelledBy: { type: Schema.Types.ObjectId, ref: "User" },
     cancelledAt: { type: Date },
@@ -91,7 +87,11 @@ const paymentSchema = new Schema(
       },
     ],
   },
-  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+  },
 );
 
 // Add hooks for status change tracking

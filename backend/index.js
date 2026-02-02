@@ -24,6 +24,7 @@ import getDashboard from "./routes/dashbordRoute.js";
 import { errorHandler, catchAsync } from "./middlewares/errorHandler.js";
 import { standardizeResponse } from "./middlewares/responseFormatter.js";
 import { xssProtection } from "./middlewares/security.js";
+import { idempotencyCheck } from "./middlewares/idempotency.js";
 
 dotenv.config();
 const app = express();
@@ -72,7 +73,7 @@ if (process.env.NODE_ENV === "production") {
   app.use(
     express.static(path.join(__dirname, "/frontend/dist"), {
       maxAge: "1y",
-    })
+    }),
   );
   app.get("*", (req, res) => {
     res.sendFile(path.resolve(__dirname, "frontend", "dist", "index.html"));

@@ -45,6 +45,8 @@ function Transaction() {
           partnerId,
         }),
       });
+      const partners = await apiRequest("/api/v1/partners/");
+      console.log("Liste des partenaires:", partners);
 
       // Ajouter la nouvelle transaction en haut de la liste
       setTransactions((prev) => [data.transaction, ...prev]);
@@ -100,21 +102,23 @@ function Transaction() {
       <table border="1" cellPadding="8" cellSpacing="0">
         <thead>
           <tr>
-            <th>Date</th>
+            <th>Code</th>
             <th>Description</th>
             <th>Montant</th>
             <th>Status</th>
-            <th>Code</th>
+            <th>Compte</th>
+            <th>Date</th>
           </tr>
         </thead>
         <tbody>
           {transactions.map((tx) => (
             <tr key={tx._id}>
-              <td>{new Date(tx.date).toLocaleDateString()}</td>
+              <td>{tx.code}</td>
               <td>{tx.description}</td>
               <td>{tx.amount}</td>
               <td>{tx.status}</td>
-              <td>{tx.code}</td>
+              <td>{tx.partner}</td>
+              <td>{new Date(tx.date).toLocaleDateString()}</td>
             </tr>
           ))}
         </tbody>

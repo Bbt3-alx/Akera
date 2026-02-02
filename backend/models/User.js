@@ -36,7 +36,7 @@ const userSchema = new Schema(
     verificationTokenExpiresAt: Date,
     tokenVersion: { type: Number, default: 0 },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 const User = model("User", userSchema);

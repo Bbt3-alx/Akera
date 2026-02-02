@@ -14,13 +14,12 @@ const IdempotencyKeySchema = new Schema(
     },
     requestHash: String, // Hash of request body + endpoint
     response: Schema.Types.Mixed,
-    expireAt: Date,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // TTL index for auto-cleanup
-IdempotencyKeySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 86400 });
+IdempotencyKeySchema.index({ createdAt: 1 }, { expireAfterSeconds: 30 });
 
 const IdempotencyKey = model("IdempotencyKey", IdempotencyKeySchema);
 export default IdempotencyKey;

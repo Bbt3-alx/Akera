@@ -6,7 +6,7 @@ export const validateUsdTransactionInput = (data) => {
     rate: Joi.number().min(1).required(),
     amountUSD: Joi.number().min(1).required(),
     usdTaker: Joi.string().required(),
-    usdCustomerId: Joi.string().required(),
+    usdCustomer: Joi.string().required(),
   });
 
   const { error, value } = schema.validate(data);

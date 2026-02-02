@@ -11,13 +11,13 @@ export const calculatePaymentStatus = (totalAmount, paidAmount) => {
 export const validatePaymentData = (
   amount,
   remainingAmount,
-  companyBalance
+  companyBalance,
 ) => {
   if (amount <= 0) {
     throw new ApiError(
       400,
-      "Payment aount must be greater than zero",
-      "INVALID_AMOUNT"
+      "Payment amount must be greater than zero",
+      "INVALID_AMOUNT",
     );
   }
 
@@ -25,7 +25,7 @@ export const validatePaymentData = (
     throw new ApiError(
       422,
       "Amount must not exceed the remaining amount",
-      "INVALID_AMOUNT"
+      "INVALID_AMOUNT",
     );
   }
 
@@ -33,7 +33,7 @@ export const validatePaymentData = (
     throw new ApiError(
       400,
       "Insufficient balance for this operation",
-      "INSUFFICIENT_FUNDS"
+      "INSUFFICIENT_FUNDS",
     );
   }
 };

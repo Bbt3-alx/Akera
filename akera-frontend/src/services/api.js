@@ -1,3 +1,5 @@
+import { logout } from "../utils/auth";
+
 const API_BASE_URL = "https://akera.onrender.com";
 
 export async function apiRequest(endpoint, options = {}) {
@@ -13,8 +15,18 @@ export async function apiRequest(endpoint, options = {}) {
     ...options,
     headers,
   });
-
   const data = await response.json();
+  if (response.status === 401) {
+    alert(data.message);
+    logout();
+    throw new Error("Session expirée. Veuillez vous reconnecter.");
+  }
+
+  if (response.status === 403) {
+    throw new Error("Accès refusé: permissions insuffisantes.");
+  }
+
+  //const data = await response.json();
 
   if (!response.ok) {
     throw new Error(data.message || "Erreur API");

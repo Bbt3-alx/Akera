@@ -61,7 +61,7 @@ export const validateTransactionInput = (req, res, next) => {
   const errors = [];
 
   if (!amount || isNaN(amount) || amount <= 0) {
-    errors.push("Valid amount requored");
+    errors.push("Valid amount required");
   }
   if (!description?.trim()) errors.push("Description required");
   if (!mongoose.Types.ObjectId.isValid(partnerId)) {
