@@ -3,15 +3,18 @@ import {
   getPartnerTransactions,
   getTransactions,
   getTransaction,
-  createTransaction,
   deleteTransaction,
   restoreTransaction,
+  getTransactionByCode,
 } from "../controllers/manageTransaction.js";
-
+import {
+  createTransaction,
+  payTransaction,
+} from "../controllers/transaction.controller.js";
+import { catchAsync } from "../middlewares/errorHandler.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
 import express from "express";
-import { validateTransactionInput } from "../middlewares/validators.js";
 import { cache } from "../middlewares/cache.js";
 import { audit } from "../middlewares/audit.js";
 
@@ -136,10 +139,11 @@ router.use(resolveCompanyContext);
  */
 router.post(
   "/",
-  //validateTransactionInput,
   audit("TRANSACTION_CREATE", "Transaction"),
-  createTransaction,
+  catchAsync(createTransaction),
 );
+
+router.post("/pay/:transactionCode", catchAsync(payTransaction));
 
 // ROUTE TO RETRIEVE ALL THE TRANSACTION BELONG TO A COMPANY
 /**
@@ -191,7 +195,7 @@ router.post(
  *                   type: string
  *                   example: "Error fetching transactions: ..."
  */
-router.get("/", cache("transactions", 3600), getTransactions);
+router.get("/", getTransactions);
 
 // ROUTE TO RETRIEVE ALL TRANSACTIONS OF A PARTNER
 /**
@@ -263,11 +267,7 @@ router.get("/", cache("transactions", 3600), getTransactions);
  *                   type: string
  *                   example: "Error fetching partner transactions: ..."
  */
-router.get(
-  "/partner/:id",
-  cache("partnerTransactions", 3600),
-  getPartnerTransactions,
-);
+router.get("/mine", getPartnerTransactions);
 
 // ROUTE TO GET A TRANSACTION BY ITS ID
 /**
@@ -337,7 +337,10 @@ router.get(
  *                   type: string
  *                   example: "Error fetching transaction: ..."
  */
-router.get("/:id", cache("transaction", 3600), getTransaction);
+router.get("/:id", getTransaction);
+
+// Get transaction by code
+router.get("/code/:transactionCode", getTransactionByCode);
 
 // ROUTE TO EDIT A TRANSACTION
 /**

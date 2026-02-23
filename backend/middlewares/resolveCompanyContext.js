@@ -1,13 +1,9 @@
 import CompanyMembership from "../models/CompanyMembership.js";
 
 const resolveCompanyContext = async (req, res, next) => {
-  const membership = await CompanyMembership.findOne({
-    user: req.user.id,
-    company: req.headers["x-company-id"],
-  });
-
   try {
-    const companyId = req.headers["x-company-id"];
+    const companyId =
+      req.headers["X-Company-Id"] || req.headers["x-company-id"];
 
     if (!companyId) {
       return res.status(400).json({

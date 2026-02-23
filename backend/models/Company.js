@@ -6,6 +6,7 @@ const companySchema = new Schema(
     name: { type: String, required: true },
     address: { type: String, required: true },
     contact: { type: String, required: true },
+    code: { type: String, required: true, unique: true, index: true },
     balance: { type: Number, default: 0 },
     usdBalance: { type: Number, default: 0 }, // Balance in USD after selling gold.
     totalWeightExpedited: { type: Number, default: 0 }, // Total weight expedited by the company for sell.
@@ -14,7 +15,7 @@ const companySchema = new Schema(
     partners: [{ type: Schema.Types.ObjectId, ref: "Partner", required: true }], // Associated partners
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
     operations: [{ type: Schema.Types.ObjectId, ref: "BuyOperation" }],
-    currency: { type: String, default: "XOF" },
+    baseCurrency: { type: String, enum: ["FCFA", "GNF"], required: true },
     status: {
       type: String,
       enum: ["active", "inactive", "closed"],
@@ -24,7 +25,7 @@ const companySchema = new Schema(
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
     usdCustomers: [{ type: Schema.Types.ObjectId, ref: "UsdCustomer" }],
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 companySchema.index({ name: 1, deletedAt: 1 });
 companySchema.index({ contact: 1, deletedAt: 1 });

@@ -1,97 +1,36 @@
-import Transaction from "../models/Transaction.js";
-import User from "../models/User.js";
-import Partner from "../models/Partner.js";
 import mongoose from "mongoose";
+import Transaction from "../models/Transaction.js";
 import Company from "../models/Company.js";
-
-// Make a new transaction
-export const createTransaction = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { amount, description } = req.body;
-    const { companyId, role } = req.context;
-
-    if (role !== "partner") {
-      await session.abortTransaction();
-      return res.status(403).json({
-        success: false,
-        code: 403,
-        message: "Only partners can initiate transactions",
-      });
-    }
-
-    const company = await Company.findById(companyId).session(session);
-    if (!company) {
-      await session.abortTransaction();
-      return res.status(404).json({
-        success: false,
-        messgae: "Company not found",
-      });
-    }
-
-    // Create transaction
-    const transaction = await Transaction.create(
-      [
-        {
-          amount,
-          description,
-          company: companyId,
-          partner: req.user.id, // Legacy
-          initiatedBy: req.user.id,
-          initiatedAs: role,
-        },
-      ],
-      { session },
-    );
-
-    await session.commitTransaction();
-
-    res.status(201).json({ success: true, code: 201, data: transaction[0] });
-  } catch (error) {
-    await session.abortTransaction();
-    console.error("Create transaction error:", error);
-    return res.status(500).json({
-      success: false,
-      code: 500,
-      message: "Transaction creation failed",
-    });
-  } finally {
-    session.endSession();
-  }
-};
+import CompanyMembership from "../models/CompanyMembership.js";
+import CompanyExchangeRate from "../models/CompanyExchangeRate.js";
+import User from "../models/User.js";
+import { ApiError } from "../middlewares/errorHandler.js";
+import Partner from "../models/Partner.js";
+import { convert } from "../utils/convertAmount.js";
+import { generateTransactionCode } from "../utils/generateTransactionCode.js";
 
 // Get Transactions with Pagination and Filtering
 export const getTransactions = async (req, res) => {
   try {
-    const manager = await User.findById(req.user.id).select("company").lean();
-
-    if (!manager?.company) {
+    const { companyId, role } = req.context;
+    if (role !== "manager" && role !== "employee") {
       return res.status(403).json({
         success: false,
-        code: 403,
-        message: "Company association required",
+        message: "Access denied",
       });
     }
 
-    const { page = 1, limit = 10, status, minAmount, maxAmount } = req.query;
-    const filter = { company: manager.company };
-
-    if (status) filter.status = status;
-    if (minAmount) filter.amount = { $gte: Number(minAmount) };
-    if (maxAmount)
-      filter.amount = { ...filter.amount, $lte: Number(maxAmount) };
-    // const transactions = await Transaction.find({
-    //   company: manager.company,
-    // });
+    const { page = 1, limit = 20, status } = req.query;
+    const filter = {
+      company: companyId,
+      ...(status && { status }),
+    };
 
     const [transactions, total] = await Promise.all([
       Transaction.find(filter)
-        .select("-__v -updatedAt")
-        .sort("-createdAt")
+        .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
-        .populate("partner", "name balance")
+        .limit(Number(limit))
         .lean(),
       Transaction.countDocuments(filter),
     ]);
@@ -108,11 +47,10 @@ export const getTransactions = async (req, res) => {
       data: transactions,
     });
   } catch (error) {
-    console.error("Fetch transaction error:", error);
+    console.error("Get transactions error:", error);
     return res.status(500).json({
       success: false,
-      code: 500,
-      message: "Failed to retrieve transactions",
+      message: "Failed to fetch transactions",
     });
   }
 };
@@ -120,39 +58,48 @@ export const getTransactions = async (req, res) => {
 // Get Partner Transactions
 export const getPartnerTransactions = async (req, res) => {
   try {
-    const manager = await User.findById(req.user.id).select("company").lean();
+    const { companyId, role } = req.context;
 
-    const partnerId = req.params.id;
-
-    if (!manager?.company || !mongoose.Types.ObjectId.isValid(partnerId)) {
+    if (role !== "partner") {
       return res.status(403).json({
         success: false,
-        code: 403,
-        message: "Invalid request",
+        message: "Only partners can access this ressource",
       });
     }
 
-    const transactions = await Transaction.find({
-      company: manager.company,
-      partner: partnerId,
-    })
-      .select("-__v, -updatedAt")
-      .sort("-date")
-      .populate("partner", "name phone")
-      .lean();
+    const { page = 1, limit = 20, status } = req.query;
+
+    const filter = {
+      company: companyId,
+      initiatedBy: req.user.id,
+      ...(status && { status }),
+    };
+
+    const [transactions, total] = await Promise.all([
+      Transaction.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(Number(limit))
+        .lean(),
+      Transaction.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
-      code: 200,
-      count: transactions.length,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
       data: transactions,
     });
   } catch (error) {
-    console.error("Partner transaction error:", error);
+    console.error("Get partner transactions error:", error);
     return res.status(500).json({
-      success: true,
+      success: false,
       code: 500,
-      message: "Failed to retrieve partner transaction",
+      message: "Failed to fetch partner transactions",
     });
   }
 };
@@ -160,20 +107,26 @@ export const getPartnerTransactions = async (req, res) => {
 // Get transaction by ID
 export const getTransaction = async (req, res) => {
   try {
-    const manager = await User.findById(req.user.id).populate("company");
-    const transaction = await Transaction.findOne({
-      _id: req.params.id,
-      company: manager.company,
-    })
-      .select("-__v -updatedAt")
-      .populate("partner", "name phone balance");
+    const { companyId, role } = req.context;
+    const { id } = req.params;
 
-    if (!transaction) {
-      return res
-        .status(404)
-        .json({ success: false, code: 404, message: "Transaction not found." });
+    const baseFilter = {
+      _id: id,
+      company: companyId,
+    };
+
+    if (role === "partner") {
+      baseFilter.initiatedBy = req.user.id;
     }
 
+    const transaction = await Transaction.findOne(baseFilter).lean();
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: "Transaction not found",
+      });
+    }
     res.status(200).json({ success: true, code: 200, data: transaction });
   } catch (error) {
     console.error("Get transaction error:", error);
@@ -307,6 +260,29 @@ export const updateTransaction = async (req, res) => {
   } finally {
     session.endSession();
   }
+};
+
+// Get transaction by code
+export const getTransactionByCode = async (req, res) => {
+  const { companyId, role } = req.context;
+  if (role !== "manager" && role !== "employee") {
+    return res.status(403).json({
+      success: false,
+      message: "Access denied",
+    });
+  }
+
+  const transaction = await Transaction.findOne({
+    transactionCode: req.params.transactionCode,
+    company: companyId,
+  }).lean();
+  if (!transaction) {
+    return res.status(404).json({
+      success: false,
+      message: "Transaction not found",
+    });
+  }
+  res.status(200).json({ success: true, data: transaction });
 };
 
 // Soft Delete a transaction

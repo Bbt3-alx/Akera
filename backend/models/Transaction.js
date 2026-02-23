@@ -3,40 +3,96 @@ import { Schema, model } from "mongoose";
 //Transaction Schema
 const transactionSchema = new Schema(
   {
-    amount: {
-      type: Number,
-      required: true,
-      min: [1, "Amount must be at least 1"],
-    },
-    code: {
+    transactionCode: {
       type: String,
       unique: true,
-      default: () => Math.random().toString(36).slice(2, 11).toUpperCase(),
-    },
-    date: { type: Date, default: Date.now, index: true },
-    description: {
-      type: String,
       required: true,
-      maxLength: [255, "Description too long"],
-    }, // Name of the person to be paid or purpose
-    status: {
-      type: String,
-      enum: ["pending", "paid", "canceled", "archived"],
-      default: "pending",
       index: true,
     },
-    partner: {
+
+    membership: {
       type: Schema.Types.ObjectId,
-      ref: "Partner",
+      ref: "CompanyMembership",
       required: true,
       index: true,
-    }, // Associeted partners
+    },
+
     company: {
       type: Schema.Types.ObjectId,
       ref: "Company",
       required: true,
       index: true,
     },
+
+    inputAmount: {
+      type: Number,
+      required: true,
+    },
+
+    inputCurrency: {
+      type: String,
+      enum: ["FCFA", "GNF"],
+      required: true,
+    },
+
+    partnerAmount: {
+      type: Number,
+      required: true,
+    },
+
+    partnerCurrency: {
+      type: String,
+      enum: ["FCFA", "GNF"],
+      required: true,
+    },
+
+    companyAmount: {
+      type: Number,
+      required: true,
+    },
+
+    companyCurrency: {
+      type: String,
+      enum: ["FCFA", "GNF"],
+      required: true,
+    },
+
+    exchangeRate: {
+      type: Number,
+    },
+
+    date: { type: Date, default: Date.now, index: true },
+
+    beneficiaryName: {
+      type: String,
+      required: true,
+      trim: true,
+      maxLength: [100, "Beneficiary name too long"],
+    },
+
+    description: {
+      type: String,
+      trim: true,
+      maxLength: [255, "Description too long"],
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "processing", "completed", "canceled", "archived"],
+      default: "pending",
+      index: true,
+    },
+
+    idempotencyKey: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    processedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    processedAt: { type: Date },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
     deletedAt: { type: Date, default: null, index: true },
     deletedBy: { type: Schema.Types.ObjectId, ref: "User" },
@@ -53,5 +109,7 @@ const transactionSchema = new Schema(
 // Compound indexes
 transactionSchema.index({ company: 1, partner: 1 });
 transactionSchema.index({ company: 1, date: -1 });
+transactionSchema.index({ idempotencyKey: 1, company: 1 }, { unique: true });
+
 const Transaction = model("Transaction", transactionSchema);
 export default Transaction;

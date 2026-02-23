@@ -20,11 +20,23 @@ const companyMembershipSchema = new Schema(
       required: true,
       index: true,
     },
+
     status: {
       type: String,
       enum: ["active", "invited", "suspended"],
       default: "active",
       index: true,
+    },
+
+    // Finance
+    balance: {
+      type: Number,
+      default: 0,
+    },
+    currency: {
+      type: String,
+      enum: ["FCFA", "GNF"],
+      required: true,
     },
     invitedBy: {
       type: Schema.Types.ObjectId,
