@@ -19,7 +19,8 @@ export const errorHandler = (err, req, res, next) => {
 
   // Duplicate key
   if (err.code === 11000) {
-    const field = Object.keys(err.keyValue)[0];
+    const field = err.keyValue ? Object.keys(err.keyValue)[0] : "unique_field";
+
     err.statusCode = 409;
     err.message = `${field} already exists`;
     err.isOperational = true;

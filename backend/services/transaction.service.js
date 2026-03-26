@@ -6,8 +6,9 @@ import { convert } from "../utils/convertAmount.js";
 import { generateTransactionCode } from "../utils/generateTransactionCode.js";
 import { ApiError } from "../middlewares/errorHandler.js";
 import { runTransaction } from "../utils/dbTransaction.js";
-import { writeLedgerEntry } from "./ledger.service.js";
-import { LEDGER_TYPES } from "../constants/ledgerTypes.js";
+import { ACCOUNTS } from "../constants/accounts.js";
+import { writeJournalEntries } from "./ledger.service.js";
+import { generateReceipt } from "./receipt.service.js";
 
 // Service to create a transaction
 export async function createTransactionService({
@@ -138,16 +139,25 @@ export async function createTransactionService({
     );
 
     // Ledger append-only
-    await writeLedgerEntry({
+    await writeJournalEntries({
       companyId,
-      membershipId,
       transactionId: transaction._id,
-      accountType: "PARTNER",
-      currency: membership.currency,
-      amount: Number(-partnerAmount),
-      type: LEDGER_TYPES.TRANSACTION_CREATION,
       userId,
       session,
+      entries: [
+        {
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          currency: membership.currency,
+          debit: transaction.partnerAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.CLEARING,
+          currency: membership.currency,
+          debit: 0,
+          credit: transaction.partnerAmount,
+        },
+      ],
     });
 
     // Update the cache
@@ -176,6 +186,17 @@ export async function payTransactionService({
   managerId,
 }) {
   return runTransaction(async (session) => {
+    const membership = await CompanyMembership.findOne({
+      user: managerId,
+      company: companyId,
+      status: "active",
+      role: "manager",
+    }).session(session);
+
+    if (!membership) {
+      throw new ApiError(403, "Only managers can pay", "UNAUTHORIZED");
+    }
+
     const transaction = await Transaction.findOneAndUpdate(
       {
         transactionCode,
@@ -187,6 +208,16 @@ export async function payTransactionService({
     );
 
     if (!transaction) {
+      const existing = await Transaction.findOne({
+        transactionCode,
+        company: companyId,
+        status: "processing",
+      }).session(session);
+
+      if (!existing) {
+        throw new ApiError(409, "Transaction in progress", "TX_IN_PROGRESS");
+      }
+
       const completed = await Transaction.findOne({
         transactionCode,
         company: companyId,
@@ -194,23 +225,44 @@ export async function payTransactionService({
       }).session(session);
       if (completed) return completed;
 
-      throw new ApiError(
-        400,
-        "Transaction not payable",
-        "TRANSACTION_NOT_PAYABLE",
-      );
+      throw new ApiError(400, "Transaction not payable", "NOT_PAYABLE");
     }
 
     // Ledger entry append-only
-    await writeLedgerEntry({
+    await writeJournalEntries({
       companyId,
       transactionId: transaction._id,
-      accountType: "COMPANY",
-      currency: transaction.companyCurrency,
-      amount: Number(-transaction.companyAmount),
-      type: LEDGER_TYPES.TRANSACTION_PAYMENT,
       userId: managerId,
       session,
+      entries: [
+        // CLEARING TO FX_POSITION (GNF)
+        {
+          accountCode: ACCOUNTS.CLEARING,
+          currency: transaction.partnerCurrency,
+          debit: transaction.partnerAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.FX_POSITION,
+          currency: transaction.partnerCurrency,
+          debit: 0,
+          credit: transaction.partnerAmount,
+        },
+
+        // FX_POSITION TO COMPANY_CASH (FCFA)
+        {
+          accountCode: ACCOUNTS.FX_POSITION,
+          currency: transaction.companyCurrency,
+          debit: transaction.companyAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.COMPANY_CASH,
+          currency: transaction.companyCurrency,
+          debit: 0,
+          credit: transaction.companyAmount,
+        },
+      ],
     });
 
     const debitCompany = await Company.updateOne(
@@ -236,6 +288,13 @@ export async function payTransactionService({
 
     await transaction.save({ session });
 
-    return transaction;
+    const receipt = await generateReceipt({
+      transaction,
+      companyId,
+      managerId,
+      session,
+    });
+
+    return { transaction, receipt };
   });
 }

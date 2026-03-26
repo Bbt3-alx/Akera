@@ -30,30 +30,42 @@ export async function getAccountBalance({
   return result[0]?.total || 0;
 }
 
-export async function writeLedgerEntry({
+export async function writeJournalEntries({
   companyId,
-  membershipId,
   transactionId,
-  accountType,
-  currency,
-  amount,
-  type,
+  entries,
   userId,
   session,
 }) {
-  return LedgerEntry.create(
-    [
-      {
-        company: companyId,
-        membership: membershipId,
-        transaction: transactionId,
-        accountType,
-        currency,
-        amount,
-        type,
-        createdBy: userId,
-      },
-    ],
-    { session },
-  );
+  validateJournalBalance(entries);
+
+  const formatted = entries.map((entry) => ({
+    company: companyId,
+    transaction: transactionId,
+    accountCode: entry.accountCode,
+    currency: entry.currency,
+    debit: entry.debit || 0,
+    credit: entry.credit || 0,
+    createdBy: userId,
+  }));
+
+  return LedgerEntry.insertMany(formatted, { session });
+}
+
+export function validateJournalBalance(entries) {
+  const balances = new Map();
+
+  for (const e of entries) {
+    if (!balances.has(e.currency)) {
+      balances.set(e.currency, 0);
+    }
+
+    balances.set(e.currency, balances.get(e.currency) + e.debit - e.credit);
+  }
+
+  for (const [currency, balance] of balances.entries()) {
+    if (Math.abs(balance) > 0.001) {
+      throw new Error(`Journal not balanced for currency: ${currency}`);
+    }
+  }
 }

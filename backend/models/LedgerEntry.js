@@ -1,5 +1,4 @@
 import { Schema, model } from "mongoose";
-import { LEDGER_TYPES } from "../constants/ledgerTypes.js";
 
 const ledgerEntrySchema = new Schema(
   {
@@ -10,22 +9,16 @@ const ledgerEntrySchema = new Schema(
       index: true,
     },
 
-    membership: {
-      type: Schema.Types.ObjectId,
-      ref: "CompanyMembership",
-      index: true,
-    },
-
     transaction: {
       type: Schema.Types.ObjectId,
       ref: "Transaction",
       index: true,
     },
 
-    accountType: {
+    accountCode: {
       type: String,
-      enum: ["COMPANY", "PARTNER"],
       required: true,
+      index: true,
     },
 
     currency: {
@@ -34,15 +27,16 @@ const ledgerEntrySchema = new Schema(
       required: true,
     },
 
-    amount: {
+    debit: {
       type: Number,
-      required: true,
+      default: 0,
+      min: 0,
     },
 
-    type: {
-      type: String,
-      enum: Object.values(LEDGER_TYPES),
-      required: true,
+    credit: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
 
     createdBy: {
@@ -54,9 +48,18 @@ const ledgerEntrySchema = new Schema(
   { timestamps: true },
 );
 
-ledgerEntrySchema.index({ company: 1, accountType: 1, currency: 1 });
-ledgerEntrySchema.index({ membership: 1, accountType: 1, currency: 1 });
-ledgerEntrySchema.index({ transaction: 1, accountType: 1 }, { unique: true });
+ledgerEntrySchema.pre("validate", function (next) {
+  if (
+    (this.debit === 0 && this.credit === 0) ||
+    (this.debit > 0 && this.credit > 0)
+  ) {
+    return next(
+      new Error("LedgerEntry must have either debit or credit not both."),
+    );
+  }
+
+  next();
+});
 
 const LedGerEntry = model("LedgerEntry", ledgerEntrySchema);
 

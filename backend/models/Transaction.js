@@ -86,7 +86,6 @@ const transactionSchema = new Schema(
     idempotencyKey: {
       type: String,
       required: true,
-      unique: true,
       index: true,
     },
 
@@ -108,7 +107,6 @@ const transactionSchema = new Schema(
 
 // Compound indexes
 transactionSchema.index({ company: 1, partner: 1 });
-transactionSchema.index({ company: 1, date: -1 });
 transactionSchema.index({ idempotencyKey: 1, company: 1 }, { unique: true });
 
 const Transaction = model("Transaction", transactionSchema);

@@ -2,6 +2,7 @@ import {
   createTransactionService,
   payTransactionService,
 } from "../services/transaction.service.js";
+import Receipt from "../models/Receipt.js";
 
 // Controller to handle transaction creation
 export const createTransaction = async (req, res) => {
@@ -30,4 +31,13 @@ export const payTransaction = async (req, res) => {
     success: true,
     data: result,
   });
+};
+
+export const downloadReceipt = async (req, res) => {
+  const receipt = await Receipt.findById(req.params.id);
+  if (!receipt) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
+  res.download(receipt.pdfPath);
 };

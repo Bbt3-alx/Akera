@@ -10,6 +10,7 @@ import {
 import {
   createTransaction,
   payTransaction,
+  downloadReceipt,
 } from "../controllers/transaction.controller.js";
 import { catchAsync } from "../middlewares/errorHandler.js";
 import verifyToken from "../middlewares/verifyToken.js";
@@ -17,6 +18,7 @@ import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
 import express from "express";
 import { cache } from "../middlewares/cache.js";
 import { audit } from "../middlewares/audit.js";
+import { trialBalance } from "../controllers/accounting.controller.js";
 
 const router = express.Router();
 
@@ -144,7 +146,7 @@ router.post(
 );
 
 router.post("/pay/:transactionCode", catchAsync(payTransaction));
-
+router.get("/receipt/:id", downloadReceipt);
 // ROUTE TO RETRIEVE ALL THE TRANSACTION BELONG TO A COMPANY
 /**
  * @swagger
@@ -337,7 +339,7 @@ router.get("/mine", getPartnerTransactions);
  *                   type: string
  *                   example: "Error fetching transaction: ..."
  */
-router.get("/:id", getTransaction);
+router.get("/id/:id", getTransaction);
 
 // Get transaction by code
 router.get("/code/:transactionCode", getTransactionByCode);
@@ -539,4 +541,5 @@ router.put(
   restoreTransaction,
 );
 
+router.get("/trial-balance", catchAsync(trialBalance));
 export default router;
