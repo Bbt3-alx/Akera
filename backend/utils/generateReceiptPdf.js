@@ -3,37 +3,102 @@ import fs from "fs";
 import path from "path";
 import QRcode from "qrcode";
 
-const verificationUrl = `${process.env.BASE_URL}/verify/${receiptNumber}`;
-const qrImage = await QRcode.toDataURL(verificationUrl);
+export async function generateReceiptPdf({
+  receiptNumber,
+  snapshot,
+  company,
+  branding,
+  signatureHash,
+}
+) {
+  const receiptsDir = path.join(process.cwd(), "uploads", "receipts");
 
-export function generateReceiptPdf(receiptData) {
-  const fileName = `receipt-${receiptData.receiptNumber}.pdf`;
-  const dirPath = path.join("uploads", "receipts");
-  const filePath = path.join(dirPath, fileName);
-
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+  if(!fs.existsSync(receiptsDir)) {
+    fs.mkdirSync(receiptsDir, {recursive: true});
   }
 
-  const doc = new PDFDocument();
-  doc.pipe(fs.createWriteStream(filePath));
+  const fileName = `receipt-${receiptNumber}.pdf`;
+  const filePath = path.join(receiptsDir, fileName);
 
-  doc.fontSize(20).text("PAYMENT RECEIPT", { align: "center" });
+  const doc = new PDFDocument({
+    size: "A4",
+    margin: 50,
+  });
+
+  const stream = fs.createWriteStream(filePath);
+  doc.pipe(stream);
+
+  // QR verification
+  const verificationUrl = `${process.env.BASE_URL}/api/v1/receipts/verify/${receiptNumber}`;
+  const qrImage = await QRcode.toDataURL(verificationUrl);
+
+  // Header with company branding
+  if(branding?.logoUrl){
+    try {
+      doc.image(branding.logoUrl, 450, 20, {width: 100})
+    } catch (_) {}
+  }
+
+  doc
+    .fillColor(branding?.primaryColor || "#000")
+    .fontSize(22)
+    .text(company.name || "Company", {align: "center"});
+
   doc.moveDown();
 
+  doc
+    .fontSize(18)
+    .fillColor("#000")
+    .text("PAYMENT RECEIPT", { align: "center"});
+
+  doc.moveDown(2);
+
+  // Receipt details
   doc.fontSize(12);
-  doc.text(`Receipt No: ${receiptData.receiptNumber}`);
-  doc.text(`Transaction Code: ${receiptData.transactionCode}`);
-  doc.text(`Beneficiary: ${receiptData.beneficiaryName}`);
-  doc.text(
-    `Amount: ${receiptData.companyAmount} ${receiptData.companyCurrency}`,
-  );
-  doc.text(`Exchange Rate: ${receiptData.exchangeRate}`);
-  doc.text(`Processed At: ${receiptData.processedAt}`);
+
+  doc.text(`Receipt Number: ${receiptNumber}`);
+  doc.text(`Transaction Code: ${snapshot.transactionCode}`);
+  doc.text(`Beneficiary: ${snapshot.beneficiaryName}`);
+
   doc.moveDown();
-  doc.text(`Signature: ${receiptData.signatureHash}`);
+
+  doc.text(
+    `Amount: ${snapshot.companyAmount} ${snapshot.companyCurrency}`,
+  );
+  
+  doc.text(`Exchange Rate: ${snapshot.exchangeRate}`);
+
+  doc.text(`Processed At: ${new Date(snapshot.processedAt).toLocaleString()}`);
+
+  doc.moveDown();
+
+  // QR code
+  doc.image(qrImage, {
+    fit: [100, 100],
+    align: "center",
+  });
+
+  doc.moveDown(8);
+
+  // Signature
+  doc.fontSize(10).text(`Signature Hash: ${signatureHash}`);
+
+  doc.moveDown(8);
+
+  // Footer
+  doc
+    .fontSize(10)
+    .fillColor("#666")
+    .text(
+      branding?.footerText || "Generated securely by Akera System",
+      {align: "center"},
+    );
 
   doc.end();
 
-  return filePath;
+  return new Promise((resolve) => {
+    stream.on("finish", () => {
+      resolve(filePath)
+    })
+  });
 }

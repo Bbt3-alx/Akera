@@ -45,6 +45,11 @@ const receiptSchema = new Schema(
   { timestamps: true },
 );
 
+receiptSchema.index(
+  { company: 1, receiptNumber: 1 },
+  { unique: true }
+);
+
 const Receipt = model("Receipt", receiptSchema);
 
 export default Receipt;

@@ -48,17 +48,13 @@ const ledgerEntrySchema = new Schema(
   { timestamps: true },
 );
 
-ledgerEntrySchema.pre("validate", function (next) {
+ledgerEntrySchema.pre("validate", function () {
   if (
     (this.debit === 0 && this.credit === 0) ||
     (this.debit > 0 && this.credit > 0)
   ) {
-    return next(
-      new Error("LedgerEntry must have either debit or credit not both."),
-    );
+    throw new Error("LedgerEntry must have either debit or credit not both.");
   }
-
-  next();
 });
 
 const LedGerEntry = model("LedgerEntry", ledgerEntrySchema);
