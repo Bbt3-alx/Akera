@@ -10,8 +10,9 @@ import {
 import {
   createTransaction,
   payTransaction,
-  downloadReceipt,
+  cancelPendingTransaction,
 } from "../controllers/transaction.controller.js";
+import { downloadReceipt } from "../controllers/receipt.controller.js";
 import { catchAsync } from "../middlewares/errorHandler.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
@@ -529,9 +530,9 @@ router.put(
  *                   example: "Error deleting transaction: ..."
  */
 router.put(
-  "/:id/cancel",
-  audit("TRANSACTION_DELETE", "Transaction"),
-  deleteTransaction,
+  "/:transactionCode/cancel",
+  audit("TRANSACTION_CANCEL", "Transaction"),
+  catchAsync(cancelPendingTransaction),
 );
 
 // ROUTE TO RESTORE A TRANSACTION

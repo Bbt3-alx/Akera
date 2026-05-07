@@ -44,3 +44,12 @@ export const verifyReceipt = async (req, res) => {
         }
     })
 }
+
+export const downloadReceipt = async (req, res) => {
+  const receipt = await Receipt.findById(req.params.id);
+  if (!receipt) {
+    return res.status(404).json({ message: "Not found" });
+  }
+
+  res.download(receipt.pdfPath);
+};

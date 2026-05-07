@@ -30,6 +30,10 @@ const userSchema = new Schema(
     lastLogin: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
     //createdBy: { type: Schema.Types.ObjectId, ref: "User" }, // Reference to the manager who created the account
+    transactionPinHash: {
+      type: String,
+      select: false,
+    },
     resetPasswordToken: String,
     resetPasswordExpiresAt: Date,
     verificationToken: String,

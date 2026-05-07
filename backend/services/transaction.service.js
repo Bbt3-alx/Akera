@@ -211,19 +211,31 @@ export async function payTransactionService({
       const existing = await Transaction.findOne({
         transactionCode,
         company: companyId,
-        status: "processing",
       }).session(session);
 
-      if (!existing) {
+      if (existing?.status === "processing") {
         throw new ApiError(409, "Transaction in progress", "TX_IN_PROGRESS");
       }
 
-      const completed = await Transaction.findOne({
-        transactionCode,
-        company: companyId,
-        status: "completed",
-      }).session(session);
-      if (completed) return completed;
+      if (existing?.status === "canceling") {
+        throw new ApiError(
+          409,
+          "Transaction is been canceled",
+          "TX_CANCELING",
+        )
+      }
+
+      if (existing?.status === "canceled") {
+        throw new ApiError(
+          400,
+          "Canceled transactions cannot be paid",
+          "TX_CANCELED",
+        )
+      }
+
+      if (existing?.status === "completed") {
+        return existing;
+      }
 
       throw new ApiError(400, "Transaction not payable", "NOT_PAYABLE");
     }
@@ -296,5 +308,109 @@ export async function payTransactionService({
     });
 
     return { transaction, receipt };
+  });
+}
+
+export async function cancelPendingTransactionService({
+  companyId,
+  transactionCode,
+  managerId,
+  reason,
+}) {
+  return runTransaction(async (session) => {
+    // Verify manager role
+    const membership = await CompanyMembership.findOne({
+      user: managerId,
+      company: companyId,
+      role: "manager",
+      status: "active",
+    }).session(session);
+
+    if (!membership) {
+      throw new ApiError(
+        403,
+        "Only managers can cancel transactions",
+        "UNAUTHORIZED",
+      );
+    }
+
+    // Lock pending transaction
+    const transaction = await Transaction.findOneAndUpdate(
+      {
+        transactionCode,
+        company: companyId,
+        status: "pending",
+      },
+      {
+        $set: {
+          status: "canceling",
+        },
+      },
+      {
+        new: true,
+        session,
+      },
+    );
+
+    if (!transaction) {
+      throw new ApiError(
+        404,
+        "Transaction cannot be canceled",
+        "NOT_CANCELABLE",
+      );
+    }
+
+    // Recredit partner balance
+    const creditPartner = await CompanyMembership.updateOne(
+      {
+        _id: transaction.membership,
+      },
+      {
+        $inc: {
+          balance: transaction.partnerAmount,
+        },
+      },
+      { session },
+    );
+
+    if (creditPartner.modifiedCount === 0) {
+      throw new ApiError(
+        500,
+        "Failed to restore partner balance",
+        "BALANCE_RESTORE_FAILED",
+      );
+    }
+
+    // Reverse ledger
+    await writeJournalEntries({
+      companyId,
+      transactionId: transaction._id,
+      userId: managerId,
+      session,
+      entries: [
+        {
+          accountCode: ACCOUNTS.CLEARING,
+          currency: transaction.partnerCurrency,
+          debit: transaction.inputAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          currency: transaction.partnerCurrency,
+          debit: 0,
+          credit: transaction.partnerAmount,
+        },
+      ],
+    });
+
+    // Finalize cancellation
+    transaction.status = "canceled";
+    transaction.canceledBy = managerId;
+    transaction.canceledAt = new Date();
+    transaction.cancelReason = reason;
+
+    await transaction.save({ session });
+
+    return transaction;
   });
 }
