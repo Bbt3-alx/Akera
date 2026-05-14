@@ -78,7 +78,17 @@ const transactionSchema = new Schema(
 
     status: {
       type: String,
-      enum: ["pending", "processing", "completed", "canceled", "archived"],
+      enum: [
+        "pending",
+        "processing",
+        "completed",
+        "canceling",
+        "canceled",
+        "reversing",
+        "reversed",
+        "archived",
+        
+      ],
       default: "pending",
       index: true,
     },
@@ -93,9 +103,15 @@ const transactionSchema = new Schema(
     processedBy: { type: Schema.Types.ObjectId, ref: "User" },
     processedAt: { type: Date },
     updatedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    
     canceledAt: { type: Date, default: null, index: true },
     cancelReason: String,
     canceledBy: { type: Schema.Types.ObjectId, ref: "User" },
+    
+    reversedAt: Date,
+    reversedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    reversedReason: String,
+
     archived: { type: Boolean, default: false },
     restoredBy: { type: Schema.Types.ObjectId, ref: "User" },
   },

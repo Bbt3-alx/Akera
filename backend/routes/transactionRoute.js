@@ -11,6 +11,7 @@ import {
   createTransaction,
   payTransaction,
   cancelPendingTransaction,
+  reverseCompletedTransaction,
 } from "../controllers/transaction.controller.js";
 import { downloadReceipt } from "../controllers/receipt.controller.js";
 import { catchAsync } from "../middlewares/errorHandler.js";
@@ -20,6 +21,7 @@ import express from "express";
 import { cache } from "../middlewares/cache.js";
 import { audit } from "../middlewares/audit.js";
 import { trialBalance } from "../controllers/accounting.controller.js";
+import verifyTransactionPin from "../middlewares/verifyTransactionPin.js";
 
 const router = express.Router();
 
@@ -533,6 +535,16 @@ router.put(
   "/:transactionCode/cancel",
   audit("TRANSACTION_CANCEL", "Transaction"),
   catchAsync(cancelPendingTransaction),
+);
+
+// Route to reverse a completed transaction
+router.post(
+  "/:transactionCode/reverse",
+  audit("TRANSACTION_REVERSE", "Transaction"),
+  verifyToken,
+  resolveCompanyContext,
+  verifyTransactionPin,
+  catchAsync(reverseCompletedTransaction),
 );
 
 // ROUTE TO RESTORE A TRANSACTION

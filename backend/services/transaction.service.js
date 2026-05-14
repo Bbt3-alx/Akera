@@ -311,6 +311,7 @@ export async function payTransactionService({
   });
 }
 
+// Service to cancel a pending transaction
 export async function cancelPendingTransactionService({
   companyId,
   transactionCode,
@@ -391,7 +392,7 @@ export async function cancelPendingTransactionService({
         {
           accountCode: ACCOUNTS.CLEARING,
           currency: transaction.partnerCurrency,
-          debit: transaction.inputAmount,
+          debit: transaction.partnerAmount,
           credit: 0,
         },
         {
@@ -413,4 +414,180 @@ export async function cancelPendingTransactionService({
 
     return transaction;
   });
+}
+
+// Service to reverse a completed transaction
+export async function reverseCompletedTransactionService({
+  companyId,
+  transactionCode,
+  managerId,
+  reason,
+}) {
+  return runTransaction(async (session) => {
+
+    const membership = await CompanyMembership.findOne({
+      user: managerId,
+      company: companyId,
+      role: "manager",
+      status: "active",
+    }).session(session);
+
+    if(!membership) {
+      throw new ApiError(
+        403,
+        "Only managers can reverse transactions",
+        "UNAUTHORIZED",
+      )
+    }
+
+    const transaction = await Transaction.findOneAndUpdate(
+      {
+        transactionCode,
+        company: companyId,
+        status: "completed",
+      },
+      {
+        $set: {
+          status: "reversing",
+        },
+      },
+      {
+        new: true,
+        session,
+      }
+    );
+
+    if(!transaction) {
+      const existing = await Transaction.findOne({
+        transactionCode,
+        company: companyId,
+      }).session(session);
+
+      if(existing?.status === "reversing") {
+        throw new ApiError(
+        409,
+        "Transaction reversal in progress",
+        "TX_REVERSING",
+      );
+      }
+
+      if(existing?.status === "reversed") {
+        throw new ApiError(
+          400,
+          "Transaction already reversed",
+          "TX_ALREADY_REVERSED",
+        )
+      }
+
+      throw new ApiError(
+        400,
+        "Transaction not reversible",
+        "NOT_REVERSIBLE",
+      );
+    }
+
+    // Reverse partner balance
+    const restorePartner = await CompanyMembership.updateOne(
+      {
+        _id: transaction.membership,
+      },
+      {
+        $inc: {
+          balance: transaction.partnerAmount,
+        },
+      },
+      {session}
+    );
+
+    if (restorePartner.modifiedCount !== 1) {
+      throw new ApiError(
+        500,
+        "Failed to restore partner balance",
+        "BALANCE_RESTORE_FAILED",
+      );
+    }
+
+    // Restore company balance
+    const restoreCompany = await Company.updateOne(
+      {
+        _id: companyId,
+      },
+      {
+        $inc: {
+          balance: transaction.companyAmount,
+        },
+      },
+      { session }
+    )
+
+    if(restoreCompany.modifiedCount !== 1) {
+      throw new ApiError(
+        500,
+        "Failed to restore company balance",
+        "COMPANY_BALANCE_RESTORE_FAILED",
+      );
+    }
+
+    // Reverse accounting entries
+    await writeJournalEntries({
+      companyId,
+      transactionId: transaction._id,
+      userId: managerId,
+      session,
+      entries: [
+
+        // Reverse payment (GNF)
+        {
+          accountCode: ACCOUNTS.FX_POSITION,
+          currency: transaction.partnerCurrency,
+          debit: transaction.partnerAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.CLEARING,
+          currency: transaction.partnerCurrency,
+          debit: 0,
+          credit: transaction.partnerAmount,
+        },
+
+        // Reverse payment (FCFA)
+        {
+          accountCode: ACCOUNTS.COMPANY_CASH,
+          currency: transaction.companyCurrency,
+          debit: transaction.companyAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.FX_POSITION,
+          currency: transaction.companyCurrency,
+          debit: 0,
+          credit: transaction.companyAmount,
+        },
+
+        // reverse creation
+        {
+          accountCode: ACCOUNTS.CLEARING,
+          currency: transaction.partnerCurrency,
+          debit: transaction.partnerAmount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          currency: transaction.partnerCurrency,
+          debit: 0,
+          credit: transaction.partnerAmount,
+        },
+      ],
+    })
+
+    // Finalize reversal
+    transaction.status = "reversed";
+    transaction.reversedAt = new Date();
+    transaction.reversedBy = managerId;
+    transaction.reverseReason = reason;
+
+    await transaction.save({session});
+
+    return transaction;
+  })
 }

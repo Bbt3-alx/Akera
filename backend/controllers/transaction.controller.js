@@ -2,6 +2,7 @@ import {
   createTransactionService,
   payTransactionService,
   cancelPendingTransactionService,
+  reverseCompletedTransactionService,
 } from "../services/transaction.service.js";
 import Receipt from "../models/Receipt.js";
 import { runTransaction } from "../utils/dbTransaction.js";
@@ -58,3 +59,22 @@ export const cancelPendingTransaction = async (req, res) => {
     data: transaction,
   })
 }
+
+export const reverseCompletedTransaction = async (req, res) => {
+
+  const { companyId} = req.context;
+  const { transactionCode} = req.params;
+  const {reason} = req.body;
+
+  const transaction = await reverseCompletedTransactionService({
+    companyId,
+    transactionCode,
+    managerId: req.user.id,
+    reason,
+  });
+
+  return res.status(200).json({
+    success: true,
+    data: transaction,
+  });
+};

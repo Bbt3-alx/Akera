@@ -3,13 +3,13 @@ import LedgerEntry from "../models/LedgerEntry.js";
 export async function getAccountBalance({
   companyId,
   membershipId,
-  accountType,
+  accountCode,
   currency,
   session,
 }) {
   const match = {
     company: companyId,
-    accountType,
+    accountCode,
     currency,
   };
 

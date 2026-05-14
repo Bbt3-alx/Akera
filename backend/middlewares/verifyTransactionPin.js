@@ -1,8 +1,8 @@
 import User from "../models/User.js";
-import {comparePin} from "../utils/pin.js";
-import { ApiError } from "./errorHandler.js";
+import {comparePin} from "../utils/hashPin.js";
+import { ApiError, catchAsync } from "./errorHandler.js";
 
-export default async function verifyTransactionPin(
+async function verifyTransactionPin(
     req,
     res,
     next
@@ -44,3 +44,5 @@ export default async function verifyTransactionPin(
 
     next();
 }
+
+export default catchAsync(verifyTransactionPin);

@@ -86,6 +86,14 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+});
+
 // Error Handling
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
