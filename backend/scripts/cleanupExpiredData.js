@@ -17,7 +17,7 @@ export const hardDeleteExpiredRecords = async () => {
 
     // delete expired usd transaction
     const transactionsThreshold = new Date(
-      Date.now - RETENTION_PERIODES.USD_TRANSACTION
+      Date.now() - RETENTION_PERIODES.USD_TRANSACTION
     );
 
     const transactions = await DollarExchange.find({
@@ -31,7 +31,7 @@ export const hardDeleteExpiredRecords = async () => {
 
     // delete expire usd customer
     const customersThreshold = new Date(
-      Date.now - RETENTION_PERIODES.DELETED_CUSTOMER
+      Date.now() - RETENTION_PERIODES.DELETED_CUSTOMER
     );
 
     const customers = await UsdCustomer.find({

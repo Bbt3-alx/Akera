@@ -28,6 +28,8 @@ const companyMembershipSchema = new Schema(
       index: true,
     },
 
+    permissions: [{ type: String }],
+
     // Finance
     balance: {
       type: Number,

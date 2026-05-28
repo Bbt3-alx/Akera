@@ -1,39 +1,16 @@
 import { Schema, model } from "mongoose";
 
-//User Shcema
 const userSchema = new Schema(
   {
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    firstname: { type: String, required: true, trim: true },
+    lastname: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     password: { type: String, required: true },
-    company: { type: Schema.Types.ObjectId, ref: "Company" },
-    roles: [
-      {
-        type: String,
-        required: true,
-        enum: [
-          "super_admin",
-          "admin",
-          "accountant",
-          "employee",
-          "manager",
-          "partner",
-        ],
-        default: "partner",
-      },
-    ],
-    // balance: { type: Number, default: 0 }, //Used only for partners
-    // restrictions: {
-    //   transactionLimit: { type: Number }, // Maximun transaction amount
-    //   isRestricted: { type: Boolean, default: false }, //Restriction flag
-    // },
+    phone: { type: String, required: true },
+    isActive: { type: Boolean, default: true },
+    transactionPinHash: {type: String,select: false},
     lastLogin: { type: Date, default: Date.now },
     isVerified: { type: Boolean, default: false },
-    //createdBy: { type: Schema.Types.ObjectId, ref: "User" }, // Reference to the manager who created the account
-    transactionPinHash: {
-      type: String,
-      select: false,
-    },
     resetPasswordToken: String,
     resetPasswordExpiresAt: Date,
     verificationToken: String,
