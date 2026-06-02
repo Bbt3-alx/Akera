@@ -1,51 +1,59 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { ApiError } from "./errorHandler.js";
 
 const verifyToken = async (req, res, next) => {
-  // Retrieve the Authorization header
   const authHeader = req.headers["authorization"];
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({
-      success: false,
-      code: 401,
-      message: "Authorization header missing or malformed",
-    });
+    return next(
+      new ApiError(
+        401,
+        "Authorization header missing or malformed",
+        "AUTH_HEADER_INVALID",
+      ),
+    );
   }
 
-  // Extract the token
   const token = authHeader.split(" ")[1];
 
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      code: 401,
-      message: "No token provided, authorization denied",
-    });
+    return next(
+      new ApiError(
+        401,
+        "No token provided, authorization denied",
+        "TOKEN_MISSING",
+      ),
+    );
   }
 
   try {
-    // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.sub || decoded.id;
 
-    req.user = decoded; // Attach the user data to the request object (id and role)
-    const user = await User.findById(req.user.id);
-    if (!user) {
-      return res.status(403).json({
-        success: false,
-        code: 403,
-        message: "Invalid token. Unauthorized.",
-      });
+    if (!userId) {
+      return next(new ApiError(401, "Invalid token payload", "TOKEN_INVALID"));
     }
-    // Proceed to the next middleware
+
+    const user = await User.findById(userId).select("_id isActive");
+    if (!user) {
+      return next(
+        new ApiError(403, "Invalid token. Unauthorized.", "TOKEN_UNAUTHORIZED"),
+      );
+    }
+
+    if (user.isActive === false) {
+      return next(new ApiError(403, "User account is inactive", "USER_INACTIVE"));
+    }
+
+    req.user = {
+      id: user._id.toString(),
+    };
+
     next();
   } catch (error) {
     console.log("Error verifying token:", error.message);
-    return res.status(401).json({
-      success: false,
-      code: 401,
-      message: "Invalid or expired token",
-    });
+    return next(new ApiError(401, "Invalid or expired token", "TOKEN_INVALID"));
   }
 };
 

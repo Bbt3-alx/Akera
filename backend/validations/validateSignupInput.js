@@ -1,29 +1,17 @@
-const validateSignupInput = (email, password, name, roles) => {
-  const validRoles = ["partner", "manager", "admin"]; // Predefined valid roles
+import { ApiError } from "../middlewares/errorHandler.js";
 
-  try {
-    if (!email || !password || !name) {
-      throw new Error("Missing required fields.");
-    }
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      throw new Error("Invalid email format");
-    }
-
-    if (roles && Array.isArray(roles)) {
-      roles.forEach((role) => {
-        if (!validRoles.includes(role)) {
-          throw new Error(` ${role} is not a valid roles.`);
-        }
-      });
-    }
-
-    if (roles && roles.includes("admin")) {
-      throw new Error("Cannot assign admin role during signup.");
-    }
-  } catch (error) {
-    console.log(error.message);
-    throw new Error(error.message);
+const validateSignupInput = (email, password, profile = {}, next) => {
+  if (!email || !password || !profile.firstname || !profile.lastname || !profile.phone) {
+    next(new ApiError(422, "Missing required fields.", "VALIDATION_ERROR"));
+    return false;
   }
+
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    next(new ApiError(422, "Invalid email format", "VALIDATION_ERROR"));
+    return false;
+  }
+
+  return true;
 };
 
 export default validateSignupInput;

@@ -32,6 +32,7 @@ const resolveCompanyContext = async (req, res, next) => {
       company: membership.company,
       companyId: membership.company._id,
       role: membership.role,
+      permissions: membership.permissions || [],
       membershipId: membership._id,
     };
 
