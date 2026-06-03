@@ -15,7 +15,7 @@ const verifyToken = async (req, res, next) => {
     );
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = req.headers.authorization?.split(" ")[1];
 
   if (!token) {
     return next(
@@ -35,11 +35,24 @@ const verifyToken = async (req, res, next) => {
       return next(new ApiError(401, "Invalid token payload", "TOKEN_INVALID"));
     }
 
-    const user = await User.findById(userId).select("_id isActive");
+    const user = await User.findById(userId)
+      .select("_id isActive tokenVersion")
+      .lean();
+
     if (!user) {
       return next(
         new ApiError(403, "Invalid token. Unauthorized.", "TOKEN_UNAUTHORIZED"),
       );
+    }
+
+    if (decoded.tokenVersion !== user.tokenVersion) {
+      return next(
+        new ApiError(
+          401,
+          "Token has been revoked. Please log in again",
+          "TOKEN_REVOKED"
+        )
+      )
     }
 
     if (user.isActive === false) {
@@ -52,7 +65,9 @@ const verifyToken = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.log("Error verifying token:", error.message);
+    if(process.env.NODE_ENV === "development"){
+      console.error("Error verifying token:", error);
+    }
     return next(new ApiError(401, "Invalid or expired token", "TOKEN_INVALID"));
   }
 };

@@ -1,4 +1,5 @@
 import CompanyMembership from "../models/CompanyMembership.js";
+import { ApiError } from "./errorHandler.js";
 
 const resolveCompanyContext = async (req, res, next) => {
   try {
@@ -6,10 +7,13 @@ const resolveCompanyContext = async (req, res, next) => {
       req.headers["X-Company-Id"] || req.headers["x-company-id"];
 
     if (!companyId) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing X-Company-Id header",
-      });
+      return next(
+        new ApiError(
+          400,
+          "Company ID header (X-Company-Id) is required",
+          "COMPANY_ID_MISSING"
+        )
+      );
     }
 
     const membership = await CompanyMembership.findOne({
@@ -21,10 +25,13 @@ const resolveCompanyContext = async (req, res, next) => {
       .lean();
 
     if (!membership) {
-      return res.status(403).json({
-        success: false,
-        message: "You do not have access to this company",
-      });
+      return next(
+        new ApiError(
+          403,
+          "You don't have access to this company",
+          "COMPANY_ACCESS_DENIED"
+        )
+      );
     }
 
     // Active context
@@ -38,11 +45,16 @@ const resolveCompanyContext = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error("Resolve company context error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to resolve company context",
-    });
+    if(process.env.NODE_ENV === "development"){
+      console.error("Error resolving company context:", error);
+    }
+    return next(
+      new ApiError(
+        500,
+        "Failed to resolve company context",
+        "COMPANY_CONTEXT_FAILED"
+      )
+    );
   }
 };
 
