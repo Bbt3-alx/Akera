@@ -29,7 +29,7 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.sub || decoded.id;
+    const userId = decoded.sub;
 
     if (!userId) {
       return next(new ApiError(401, "Invalid token payload", "TOKEN_INVALID"));
@@ -47,7 +47,7 @@ const verifyToken = async (req, res, next) => {
     }
 
     req.user = {
-      id: user._id.toString(),
+      id: decoded.sub,
     };
 
     next();
