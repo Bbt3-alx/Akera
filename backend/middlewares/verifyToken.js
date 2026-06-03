@@ -28,15 +28,15 @@ const verifyToken = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.sub;
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = payload.sub;
 
     if (!userId) {
       return next(new ApiError(401, "Invalid token payload", "TOKEN_INVALID"));
     }
 
     const user = await User.findById(userId)
-      .select("_id isActive tokenVersion")
+      .select("_id email isActive tokenVersion")
       .lean();
 
     if (!user) {
@@ -45,14 +45,14 @@ const verifyToken = async (req, res, next) => {
       );
     }
 
-    if (decoded.tokenVersion !== user.tokenVersion) {
+    if (payload.tokenVersion !== user.tokenVersion) {
       return next(
         new ApiError(
           401,
           "Token has been revoked. Please log in again",
-          "TOKEN_REVOKED"
-        )
-      )
+          "TOKEN_REVOKED",
+        ),
+      );
     }
 
     if (user.isActive === false) {
@@ -60,12 +60,13 @@ const verifyToken = async (req, res, next) => {
     }
 
     req.user = {
-      id: decoded.sub,
+      id: payload.sub,
+      email: payload.email || user.email,
     };
 
     next();
   } catch (error) {
-    if(process.env.NODE_ENV === "development"){
+    if (process.env.NODE_ENV === "development") {
       console.error("Error verifying token:", error);
     }
     return next(new ApiError(401, "Invalid or expired token", "TOKEN_INVALID"));

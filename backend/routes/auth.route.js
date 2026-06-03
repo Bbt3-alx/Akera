@@ -4,6 +4,7 @@ import {
   signup,
   login,
   verifyEmail,
+  getMe,
   logout,
   forgotPassword,
   resetPassword,
@@ -244,6 +245,8 @@ router.post("/verify-email", verifyEmail);
  *                   example: "Server error"
  */
 router.post("/login", login);
+
+router.get("/me", verifyToken, getMe);
 
 /**
  * @swagger

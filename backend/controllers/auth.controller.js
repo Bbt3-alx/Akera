@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { configDotenv } from "dotenv";
 
 import User from "../models/User.js";
-import { ApiError } from "../middlewares/errorHandler.js";
+import { ApiError, catchAsync } from "../middlewares/errorHandler.js";
 import {
   sendWelcomeEmail,
   sendResetPasswordEmail,
@@ -29,7 +29,7 @@ export const signup = async (req, res, next) => {
       success: true,
       code: 201,
       message: "User created. Verify your email.",
-      ...authPayload,
+      data: authPayload,
     });
   } catch (error) {
     console.error("Signup error:", error);
@@ -99,7 +99,7 @@ export const login = async (req, res, next) => {
       success: true,
       code: 200,
       message: "Logged in successfully",
-      ...authPayload,
+      data: authPayload,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -110,6 +110,15 @@ export const login = async (req, res, next) => {
     );
   }
 };
+
+export const getMe = catchAsync(async (req, res) => {
+  const data = await getAuthenticatedUser(req.user.id);
+
+  res.status(200).json({
+    success: true,
+    data,
+  });
+});
 
 // Logout controller
 export const logout = (req, res) => {
@@ -252,7 +261,7 @@ export const verifyAuth = async (req, res, next) => {
     res.status(200).json({
       success: true,
       code: 200,
-      ...authPayload,
+      data: authPayload,
     });
   } catch (error) {
     console.error("Auth verification error:", error);

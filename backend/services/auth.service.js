@@ -1,6 +1,5 @@
 import bcrypt from "bcryptjs";
 
-import CompanyMembership from "../models/CompanyMembership.js";
 import User from "../models/User.js";
 import { ApiError } from "../middlewares/errorHandler.js";
 import {
@@ -9,6 +8,7 @@ import {
 } from "../serializers/auth.serializer.js";
 import { sendVerificationEmail } from "../mail/mails.js";
 import { generateAccessToken } from "../utils/generateToken.js";
+import { fetchActiveMemberships } from "./membership.service.js";
 
 const buildSignupProfile = ({
   firstName,
@@ -53,15 +53,6 @@ const validateSignupPayload = (email, password, profile) => {
   if (!/^\S+@\S+\.\S+$/.test(email)) {
     throw new ApiError(422, "Invalid email format", "VALIDATION_ERROR");
   }
-};
-
-const fetchActiveMemberships = async (userId) => {
-  return CompanyMembership.find({
-    user: userId,
-    status: "active",
-  })
-    .populate("company")
-    .lean();
 };
 
 export async function signupUser(payload = {}) {
@@ -121,7 +112,7 @@ export async function loginUser(payload = {}) {
   await user.save();
 
   const memberships = await fetchActiveMemberships(user._id);
-  const accessToken  = generateAccessToken(user);
+  const accessToken = generateAccessToken(user);
 
   return {
     accessToken,
@@ -139,7 +130,7 @@ export async function getAuthenticatedUser(userId) {
     throw new ApiError(404, "User not found", "USER_NOT_FOUND");
   }
 
-  const memberships = await fetchActiveMemberships(user._id);
+  const memberships = await fetchActiveMemberships(userId);
 
   return {
     user: serializeUser(user),
