@@ -1,0 +1,142 @@
+paths:
+  "/api/v1/shipments/ship/{id}":
+    post:
+      summary: Create a shipment from a buy operation
+      tags: [Shipping]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transport:
+                  type: number
+                  default: 150
+      responses:
+        "201":
+          description: Shipment created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  shipment:
+                    $ref: "#/components/schemas/ShippingOperation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/shipments":
+    get:
+      summary: List shipment history
+      tags: [Shipping]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Shipment history.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  history:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ShippingOperation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/shipments/{id}":
+    get:
+      summary: Get a shipment
+      tags: [Shipping]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Shipment details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  shipment:
+                    $ref: "#/components/schemas/ShippingOperation"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      summary: Update a shipment
+      tags: [Shipping]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+      responses:
+        "200":
+          description: Shipment updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/shipments/cancel/{id}":
+    delete:
+      summary: Delete or cancel a shipment
+      tags: [Shipping]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Shipment deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"

@@ -1,0 +1,309 @@
+paths:
+  "/api/v1/dollars/transactions":
+    post:
+      summary: Create a USD transaction
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsdTransaction"
+      responses:
+        "201":
+          description: USD transaction created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: "#/components/schemas/UsdTransaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      summary: List all USD transactions
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: USD transaction list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UsdTransaction"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/transactions/actives":
+    get:
+      summary: List active USD transactions
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active USD transaction list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UsdTransaction"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/transactions/{id}":
+    get:
+      summary: Get a USD transaction
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: USD transaction details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: "#/components/schemas/UsdTransaction"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/transactions/{id}/edit":
+    put:
+      summary: Update a USD transaction
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsdTransaction"
+      responses:
+        "200":
+          description: USD transaction updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/transactions/{id}/delete":
+    put:
+      summary: Soft delete a USD transaction
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: USD transaction soft deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/transactions/{id}/restore":
+    put:
+      summary: Restore a USD transaction
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: USD transaction restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/customers":
+    post:
+      summary: Create a USD customer
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsdCustomer"
+      responses:
+        "201":
+          description: USD customer created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  customer:
+                    $ref: "#/components/schemas/UsdCustomer"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      summary: List USD customers
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: USD customer list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  customers:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UsdCustomer"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/customers/{id}":
+    get:
+      summary: Get a USD customer
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: USD customer details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  customer:
+                    $ref: "#/components/schemas/UsdCustomer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/customers/{id}/edit":
+    put:
+      summary: Update a USD customer
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UsdCustomer"
+      responses:
+        "200":
+          description: USD customer updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/customers/{id}/delete":
+    put:
+      summary: Soft delete a USD customer
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: USD customer soft deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/dollars/customers/{id}/restore":
+    put:
+      summary: Restore a USD customer
+      tags: [Dollars]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: USD customer restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"

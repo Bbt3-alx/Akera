@@ -253,22 +253,3 @@ export const resetPassword = async (req, res, next) => {
     );
   }
 };
-
-export const verifyAuth = async (req, res, next) => {
-  try {
-    const authPayload = await getAuthenticatedUser(req.user.id);
-
-    res.status(200).json({
-      success: true,
-      code: 200,
-      data: authPayload,
-    });
-  } catch (error) {
-    console.error("Auth verification error:", error);
-    return next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(500, "Server error", "AUTH_VERIFICATION_FAILED"),
-    );
-  }
-};

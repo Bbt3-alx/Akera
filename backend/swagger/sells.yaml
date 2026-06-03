@@ -1,0 +1,125 @@
+paths:
+  "/api/v1/sells":
+    post:
+      summary: Create a sell operation
+      tags: [Sell Operations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [weight, rate, unit]
+              properties:
+                weight:
+                  type: number
+                rate:
+                  type: number
+                unit:
+                  type: string
+      responses:
+        "201":
+          description: Sell operation created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  savedSell:
+                    $ref: "#/components/schemas/SellOperation"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      summary: List sell operations
+      tags: [Sell Operations]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sell operation list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  sales:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SellOperation"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/sells/{id}":
+    get:
+      summary: Get a sell operation
+      tags: [Sell Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Sell operation details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  sellOperation:
+                    $ref: "#/components/schemas/SellOperation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      summary: Update a sell operation
+      tags: [Sell Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SellOperation"
+      responses:
+        "200":
+          description: Sell operation updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    delete:
+      summary: Delete a sell operation
+      tags: [Sell Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Sell operation deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"

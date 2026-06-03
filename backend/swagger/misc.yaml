@@ -1,0 +1,166 @@
+paths:
+  "/api/v1/dashboard":
+    get:
+      summary: Get dashboard data
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard data.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/receipts/verify/{receiptNumber}":
+    get:
+      summary: Verify a receipt by receipt number
+      tags: [Receipts]
+      security: []
+      parameters:
+        - name: receiptNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipt verification result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/company/branding":
+    get:
+      summary: Get active company branding
+      tags: [Branding]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      responses:
+        "200":
+          description: Company branding.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  branding:
+                    $ref: "#/components/schemas/CompanyBranding"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    put:
+      summary: Update active company branding
+      tags: [Branding]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanyBranding"
+      responses:
+        "200":
+          description: Company branding updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/security/setup-transaction-pin":
+    post:
+      summary: Set up or replace the current user's transaction PIN
+      tags: [Security]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transactionPin]
+              properties:
+                transactionPin:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Transaction PIN configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/users/admin":
+    get:
+      summary: Legacy admin role check
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Plain text role-check response.
+  "/api/v1/users/manager":
+    get:
+      summary: Legacy manager role check
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Plain text role-check response.
+  "/api/v1/users/user":
+    get:
+      summary: Legacy user role check
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Plain text role-check response.
+  "/api/v1/users/partner":
+    get:
+      summary: Legacy partner role check
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Plain text role-check response.

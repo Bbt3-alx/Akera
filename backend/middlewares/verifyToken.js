@@ -3,9 +3,9 @@ import User from "../models/User.js";
 import { ApiError } from "./errorHandler.js";
 
 const verifyToken = async (req, res, next) => {
-  const authHeader = req.headers["authorization"];
+  const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader?.startsWith("Bearer ")) {
     return next(
       new ApiError(
         401,
@@ -15,7 +15,7 @@ const verifyToken = async (req, res, next) => {
     );
   }
 
-  const token = req.headers.authorization?.split(" ")[1];
+  const token = authHeader.split(" ")[1];
 
   if (!token) {
     return next(
@@ -61,7 +61,7 @@ const verifyToken = async (req, res, next) => {
 
     req.user = {
       id: payload.sub,
-      email: payload.email || user.email,
+      email: user.email,
     };
 
     next();

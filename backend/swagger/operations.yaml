@@ -1,0 +1,168 @@
+paths:
+  "/api/v1/operations":
+    post:
+      summary: Create a buy operation
+      tags: [Buy Operations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gold, partnerId, currency]
+              properties:
+                gold:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Gold"
+                partnerId:
+                  type: string
+                paymentStatus:
+                  type: string
+                amountPaid:
+                  type: number
+                currency:
+                  type: string
+                  enum: [FCFA, GNF, USD]
+      responses:
+        "201":
+          description: Buy operation created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  BuyOperationDetails:
+                    $ref: "#/components/schemas/BuyOperation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      summary: List buy operations
+      tags: [Buy Operations]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Buy operation list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  buyOperations:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BuyOperation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/operations/{id}":
+    get:
+      summary: Get a buy operation
+      tags: [Buy Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Buy operation details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  operation:
+                    $ref: "#/components/schemas/BuyOperation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/operations/{id}/edit":
+    put:
+      summary: Update a buy operation
+      tags: [Buy Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BuyOperation"
+      responses:
+        "200":
+          description: Buy operation updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/operations/{id}/delete":
+    put:
+      summary: Soft delete a buy operation
+      tags: [Buy Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Buy operation soft deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/operations/{id}/restore":
+    put:
+      summary: Restore a buy operation
+      tags: [Buy Operations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Buy operation restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"

@@ -1,0 +1,440 @@
+tags:
+  - name: Auth
+    description: Authentication and current-user endpoints.
+  - name: Companies
+    description: Company profile and company management endpoints.
+  - name: Partners
+    description: Partner management endpoints.
+  - name: Transactions
+    description: Transaction lifecycle and accounting endpoints.
+  - name: Buy Operations
+    description: Gold buy operation endpoints.
+  - name: Sell Operations
+    description: Gold sell operation endpoints.
+  - name: Shipping
+    description: Shipping operation endpoints.
+  - name: Payments
+    description: Payment and receipt endpoints.
+  - name: Dollars
+    description: USD customer and transaction endpoints.
+  - name: Dashboard
+    description: Dashboard analytics endpoints.
+  - name: Receipts
+    description: Public receipt verification endpoints.
+  - name: Branding
+    description: Company branding endpoints.
+  - name: Security
+    description: Account security endpoints.
+  - name: Users
+    description: Legacy role-check endpoints.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    CompanyIdHeader:
+      name: x-company-id
+      in: header
+      required: true
+      description: Active company ID selected by the authenticated user.
+      schema:
+        type: string
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    TransactionCodePath:
+      name: transactionCode
+      in: path
+      required: true
+      schema:
+        type: string
+    PaymentIdPath:
+      name: paymentId
+      in: path
+      required: true
+      schema:
+        type: string
+    OperationIdPath:
+      name: operationId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing, malformed, expired, or revoked authentication token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Authenticated user is not allowed to perform this action.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Resource already exists or conflicts with current state.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+        errorCode:
+          type: string
+
+    MessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        firstName:
+          type: string
+        lastName:
+          type: string
+        name:
+          type: string
+        isVerified:
+          type: boolean
+
+    Membership:
+      type: object
+      properties:
+        membershipId:
+          type: string
+        companyId:
+          type: string
+        companyName:
+          type: string
+        role:
+          type: string
+          enum: [manager, employee, partner]
+        permissions:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [active, invited, suspended]
+
+    AuthData:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/Membership"
+
+    LoginData:
+      allOf:
+        - $ref: "#/components/schemas/AuthData"
+        - type: object
+          properties:
+            accessToken:
+              type: string
+
+    AuthDataResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: "#/components/schemas/AuthData"
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/LoginData"
+
+    SignupRequest:
+      type: object
+      required: [email, password, firstName, lastName, phone]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        name:
+          type: string
+          description: Optional full name fallback.
+        phone:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    Company:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        contact:
+          type: string
+        balance:
+          type: number
+        manager:
+          type: string
+
+    Partner:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+        balance:
+          type: number
+        status:
+          type: string
+
+    Gold:
+      type: object
+      properties:
+        base:
+          type: number
+        weight:
+          type: number
+        w_weight:
+          type: number
+        density:
+          type: number
+        karat:
+          type: number
+        value:
+          type: number
+        situation:
+          type: string
+
+    BuyOperation:
+      type: object
+      properties:
+        id:
+          type: string
+        gold:
+          type: array
+          items:
+            $ref: "#/components/schemas/Gold"
+        partner:
+          type: string
+        company:
+          type: string
+        currency:
+          type: string
+          enum: [FCFA, GNF, USD]
+        amount:
+          type: number
+        paymentStatus:
+          type: string
+        status:
+          type: string
+
+    SellOperation:
+      type: object
+      properties:
+        id:
+          type: string
+        rate:
+          type: number
+        weight:
+          type: number
+        unit:
+          type: string
+        amount:
+          type: number
+        company:
+          type: string
+        status:
+          type: string
+
+    ShippingOperation:
+      type: object
+      properties:
+        id:
+          type: string
+        buyOperationId:
+          type: string
+        transport:
+          type: number
+        fees:
+          type: number
+        status:
+          type: string
+        shippedAt:
+          type: string
+          format: date-time
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+        operation:
+          type: string
+        amount:
+          type: number
+        totalAmount:
+          type: number
+        remain:
+          type: number
+        status:
+          type: string
+        method:
+          type: string
+        partner:
+          type: string
+        company:
+          type: string
+
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        transactionCode:
+          type: string
+        amount:
+          type: number
+        description:
+          type: string
+        status:
+          type: string
+        partner:
+          type: string
+        company:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    UsdCustomer:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+
+    UsdTransaction:
+      type: object
+      properties:
+        id:
+          type: string
+        customer:
+          type: string
+        amount:
+          type: number
+        rate:
+          type: number
+        total:
+          type: number
+        status:
+          type: string
+
+    CompanyBranding:
+      type: object
+      properties:
+        company:
+          type: string
+        logoUrl:
+          type: string
+        primaryColor:
+          type: string
+        secondaryColor:
+          type: string
+        receiptFooter:
+          type: string

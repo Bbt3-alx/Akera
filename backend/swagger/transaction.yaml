@@ -1,0 +1,320 @@
+paths:
+  "/api/v1/transactions":
+    post:
+      summary: Create a transaction
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, description, partnerId]
+              properties:
+                amount:
+                  type: number
+                description:
+                  type: string
+                partnerId:
+                  type: string
+                idempotencyKey:
+                  type: string
+      responses:
+        "201":
+          description: Transaction created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: "#/components/schemas/Transaction"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      summary: List transactions for the active company
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      responses:
+        "200":
+          description: Transaction list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Transaction"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/pay/{transactionCode}":
+    post:
+      summary: Pay a pending transaction
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/TransactionCodePath"
+      responses:
+        "200":
+          description: Transaction paid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/receipt/{id}":
+    get:
+      summary: Download a transaction receipt
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Receipt PDF or receipt payload.
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/mine":
+    get:
+      summary: List transactions initiated by the current partner
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      responses:
+        "200":
+          description: Partner transaction list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transactions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Transaction"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/id/{id}":
+    get:
+      summary: Get a transaction by ID
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Transaction details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: "#/components/schemas/Transaction"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/code/{transactionCode}":
+    get:
+      summary: Get a transaction by transaction code
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/TransactionCodePath"
+      responses:
+        "200":
+          description: Transaction details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  transaction:
+                    $ref: "#/components/schemas/Transaction"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/{id}/edit":
+    put:
+      summary: Update a transaction
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Transaction updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/{transactionCode}/cancel":
+    put:
+      summary: Cancel a pending transaction
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/TransactionCodePath"
+      responses:
+        "200":
+          description: Transaction cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/{transactionCode}/reverse":
+    post:
+      summary: Reverse a completed transaction
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/TransactionCodePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transactionPin]
+              properties:
+                transactionPin:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Transaction reversed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/{id}/restore":
+    put:
+      summary: Restore a cancelled or deleted transaction
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Transaction restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/transactions/trial-balance":
+    get:
+      summary: Generate trial balance for the active company
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      responses:
+        "200":
+          description: Trial balance.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "500":
+          $ref: "#/components/responses/ServerError"

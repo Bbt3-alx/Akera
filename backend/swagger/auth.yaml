@@ -1,0 +1,202 @@
+paths:
+  "/api/v1/auth/signup":
+    post:
+      summary: Create a user account
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created and pending email verification.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                  data:
+                    $ref: "#/components/schemas/AuthData"
+        "422":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/auth/verify-email":
+    post:
+      summary: Verify a user's email address
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
+                  example: "123456"
+      responses:
+        "200":
+          description: Email verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  user:
+                    $ref: "#/components/schemas/AuthUser"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/auth/login":
+    post:
+      summary: Log in and receive an access token
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/auth/me":
+    get:
+      summary: Get the current authenticated user and active memberships
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current auth context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthDataResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/auth/logout":
+    post:
+      summary: Log out the current user
+      tags: [Auth]
+      security: []
+      responses:
+        "200":
+          description: Logged out.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  "/api/v1/auth/forgot-password":
+    post:
+      summary: Request a password reset link
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Reset email response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "422":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/auth/reset-password/{token}":
+    post:
+      summary: Reset a password using a reset token
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        "200":
+          description: Password reset.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/ServerError"

@@ -1,0 +1,196 @@
+paths:
+  "/api/v1/partners/new":
+    post:
+      summary: Create a partner
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone]
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                balance:
+                  type: number
+      responses:
+        "201":
+          description: Partner created.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  partner:
+                    $ref: "#/components/schemas/Partner"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/partners":
+    get:
+      summary: List partners
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Partner list.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  partners:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Partner"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/partners/{id}":
+    get:
+      summary: Get a partner
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Partner details.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  partner:
+                    $ref: "#/components/schemas/Partner"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/partners/{id}/update":
+    put:
+      summary: Update a partner
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Partner"
+      responses:
+        "200":
+          description: Partner updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  partner:
+                    $ref: "#/components/schemas/Partner"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/partners/{id}/balance":
+    get:
+      summary: Get a partner balance
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Partner balance.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  balance:
+                    type: number
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/partners/{id}/remove":
+    put:
+      summary: Soft remove a partner from the active company
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Partner removed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/partners/{id}/restore":
+    put:
+      summary: Restore a removed partner
+      tags: [Partners]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdPath"
+      responses:
+        "200":
+          description: Partner restored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
