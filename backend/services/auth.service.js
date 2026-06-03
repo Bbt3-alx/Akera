@@ -16,14 +16,14 @@ const buildSignupProfile = ({
   name,
   phone,
 }) => {
-  const trimmedFirstname = (firstName)?.trim();
-  const trimmedLastname = (lastName)?.trim();
+  const trimmedFirstName = (firstName)?.trim();
+  const trimmedLastName = (lastName)?.trim();
   const trimmedName = name?.trim();
 
-  if (trimmedFirstname && trimmedLastname) {
+  if (trimmedFirstName && trimmedLastName) {
     return {
-      firstName: trimmedFirstname,
-      lastName: trimmedLastname,
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
       phone,
     };
   }
@@ -77,20 +77,20 @@ export async function signupUser(payload = {}) {
 
   const hashedPassword = await bcrypt.hash(payload.password, 10);
   const verificationToken = Math.floor(
-    100000 + Math.random() * 90000,
+    100000 + Math.random() * 900000,
   ).toString();
 
   const user = await User.create({
     email,
     password: hashedPassword,
-    firstName: profile.firstname,
-    lastName: profile.lastname,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
     phone: profile.phone,
     verificationToken,
     verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
   });
 
-  if (process.env.VITE_NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production") {
     await sendVerificationEmail(user.email, verificationToken);
   }
 
@@ -121,10 +121,10 @@ export async function loginUser(payload = {}) {
   await user.save();
 
   const memberships = await fetchActiveMemberships(user._id);
-  const token = generateAccessToken(user);
+  const accessToken  = generateAccessToken(user);
 
   return {
-    token,
+    accessToken,
     user: serializeUser(user),
     memberships: memberships.map(serializeMembership),
   };
