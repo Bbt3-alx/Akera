@@ -1,16 +1,16 @@
+import { MEMBERSHIP_STATUS } from "../constants/membershipStatus.js";
 import CompanyMembership from "../models/CompanyMembership.js";
 import { ApiError } from "./errorHandler.js";
 
 const resolveCompanyContext = async (req, res, next) => {
   try {
-    const companyId =
-      req.headers["X-Company-Id"] || req.headers["x-company-id"];
+    const companyId = req.headers["x-company-id"];
 
     if (!companyId) {
       return next(
         new ApiError(
           400,
-          "Company ID header (X-Company-Id) is required",
+          "Company ID header (x-company-id) is required",
           "COMPANY_ID_MISSING"
         )
       );
@@ -19,10 +19,8 @@ const resolveCompanyContext = async (req, res, next) => {
     const membership = await CompanyMembership.findOne({
       user: req.user.id,
       company: companyId,
-      status: "active",
-    })
-      .populate("company")
-      .lean();
+      status: MEMBERSHIP_STATUS.ACTIVE,
+    }).lean();
 
     if (!membership) {
       return next(
@@ -34,20 +32,21 @@ const resolveCompanyContext = async (req, res, next) => {
       );
     }
 
-    // Active context
     req.context = {
-      company: membership.company,
-      companyId: membership.company._id,
+      companyId: membership.company,
+      membershipId: membership._id,
       role: membership.role,
       permissions: membership.permissions || [],
-      membershipId: membership._id,
     };
 
     next();
+
   } catch (error) {
+
     if(process.env.NODE_ENV === "development"){
       console.error("Error resolving company context:", error);
     }
+
     return next(
       new ApiError(
         500,
