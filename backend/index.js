@@ -7,7 +7,7 @@ import { connectDB } from "./config/connectDB.js";
 import cookieParser from "cookie-parser";
 import path from "path";
 import { CORS_OPTIONS, RATE_LIMIT_OPTIONS } from "./config/config.js";
-import authRoutes from "./routes/authRoute.js";
+import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/userRoute.js";
 import companyRoutes from "./routes/companyRoute.js";
 import partnerRoutes from "./routes/partnerRoute.js";

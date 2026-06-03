@@ -8,7 +8,7 @@ import {
   forgotPassword,
   resetPassword,
   verifyAuth,
-} from "../controllers/authControllers.js";
+} from "../controllers/auth.controller.js";
 
 const router = Router();
 
