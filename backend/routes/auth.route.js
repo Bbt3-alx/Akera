@@ -1,5 +1,6 @@
 import { Router } from "express";
 import verifyToken from "../middlewares/verifyToken.js";
+import { catchAsync } from "../middlewares/errorHandler.js";
 import {
   signup,
   login,
@@ -12,18 +13,18 @@ import {
 
 const router = Router();
 
-router.post("/signup", signup);
+router.post("/signup", catchAsync(signup));
 
-router.post("/verify-email", verifyEmail);
+router.post("/verify-email", catchAsync(verifyEmail));
 
-router.post("/login", login);
+router.post("/login", catchAsync(login));
 
-router.get("/me", verifyToken, getMe);
+router.get("/me", verifyToken, catchAsync(getMe));
 
 router.post("/logout", logout);
 
-router.post("/forgot-password", forgotPassword);
+router.post("/forgot-password", catchAsync(forgotPassword));
 
-router.post("/reset-password/:token", resetPassword);
+router.post("/reset-password/:token", catchAsync(resetPassword));
 
 export default router;

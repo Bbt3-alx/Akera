@@ -1,4 +1,6 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import mongoose from "mongoose";
 
 import User from "../models/User.js";
 import { ApiError } from "../middlewares/errorHandler.js";
@@ -6,7 +8,12 @@ import {
   serializeMembership,
   serializeUser,
 } from "../serializers/auth.serializer.js";
-import { sendVerificationEmail } from "../mail/mails.js";
+import {
+  sendResetPasswordEmail,
+  sendResetSuccessEmail,
+  sendVerificationEmail,
+  sendWelcomeEmail,
+} from "../mail/mails.js";
 import { generateAccessToken } from "../utils/generateToken.js";
 import { fetchActiveMemberships } from "./membership.service.js";
 
@@ -135,5 +142,140 @@ export async function getAuthenticatedUser(userId) {
   return {
     user: serializeUser(user),
     memberships: memberships.map(serializeMembership),
+  };
+}
+
+export async function verifyEmail(payload = {}) {
+  const { code } = payload;
+
+  if (!code) {
+    throw new ApiError(422, "Verification code is required", "VALIDATION_ERROR");
+  }
+
+  const user = await User.findOne({
+    verificationToken: code,
+    verificationTokenExpiresAt: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new ApiError(
+      400,
+      "Invalid or expired verification code.",
+      "VERIFICATION_CODE_INVALID",
+    );
+  }
+
+  user.isVerified = true;
+  user.verificationToken = undefined;
+  user.verificationTokenExpiresAt = undefined;
+  await user.save();
+
+  await sendWelcomeEmail(user.email, `${user.firstName} ${user.lastName}`);
+
+  return {
+    token: generateAccessToken(user),
+    user: serializeUser(user),
+  };
+}
+
+export async function forgotPassword(payload = {}) {
+  const email = normalizeEmail(payload.email);
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    throw new ApiError(422, "Invalid email format.", "VALIDATION_ERROR");
+  }
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return {
+      message: "If the email exists, a reset link will be sent",
+    };
+  }
+
+  const resetPasswordToken = crypto.randomBytes(20).toString("hex");
+  const resetPasswordExpiresAt = Date.now() + 3600000;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    user.resetPasswordToken = resetPasswordToken;
+    user.resetPasswordExpiresAt = resetPasswordExpiresAt;
+    await user.save({ session });
+
+    await sendResetPasswordEmail(
+      user.email,
+      `${process.env.CLIENT_URL}/reset-password/${resetPasswordToken}`,
+    );
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+
+  return {
+    message: "Reset link sent if email exists",
+  };
+}
+
+export async function resetPassword(token, payload = {}) {
+  const { password } = payload;
+
+  if (!token) {
+    throw new ApiError(400, "Reset token is required", "RESET_TOKEN_MISSING");
+  }
+
+  if (!password || password.length < 8) {
+    throw new ApiError(
+      422,
+      "Password must be 8+ characters",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  const user = await User.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpiresAt: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new ApiError(400, "Invalid or expired token", "RESET_TOKEN_INVALID");
+  }
+
+  const isSamePassword = await bcrypt.compare(password, user.password);
+  if (isSamePassword) {
+    throw new ApiError(
+      422,
+      "New password must differ from old.",
+      "PASSWORD_REUSED",
+    );
+  }
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    user.password = await bcrypt.hash(password, 12);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpiresAt = undefined;
+    user.tokenVersion += 1;
+    await user.save({ session });
+
+    await sendResetSuccessEmail(user.email);
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+
+  return {
+    message: "Password reset successfully",
   };
 }

@@ -1,132 +1,61 @@
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
-import { configDotenv } from "dotenv";
-
-import User from "../models/User.js";
-import { ApiError, catchAsync } from "../middlewares/errorHandler.js";
 import {
-  sendWelcomeEmail,
-  sendResetPasswordEmail,
-  sendResetSuccessEmail,
-} from "../mail/mails.js";
-import mongoose from "mongoose";
-import {
+  forgotPassword as forgotPasswordService,
   getAuthenticatedUser,
   loginUser,
+  resetPassword as resetPasswordService,
   signupUser,
+  verifyEmail as verifyEmailService,
 } from "../services/auth.service.js";
-import { serializeUser } from "../serializers/auth.serializer.js";
-import { generateAccessToken } from "../utils/generateToken.js";
 
-configDotenv();
+export const signup = async (req, res) => {
+  const authPayload = await signupUser(req.body);
 
-// Signup
-export const signup = async (req, res, next) => {
-  try {
-    const authPayload = await signupUser(req.body);
-
-    res.status(201).json({
-      success: true,
-      code: 201,
-      message: "User created. Verify your email.",
-      data: authPayload,
-    });
-  } catch (error) {
-    console.error("Signup error:", error);
-    return next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(500, "Internal server error", "SIGNUP_FAILED"),
-    );
-  }
+  res.status(201).json({
+    success: true,
+    code: 201,
+    message: "User created. Verify your email.",
+    data: authPayload,
+  });
 };
 
-// Email verification
-export const verifyEmail = async (req, res, next) => {
-  // verify the user email
-  const { code } = req.body;
+export const verifyEmail = async (req, res) => {
+  const authPayload = await verifyEmailService(req.body);
 
-  try {
-    const user = await User.findOne({
-      verificationToken: code,
-      verificationTokenExpiresAt: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      return next(
-        new ApiError(
-          400,
-          "Invalid or expired verification code.",
-          "VERIFICATION_CODE_INVALID",
-        ),
-      );
-    }
-
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationTokenExpiresAt = undefined;
-    await user.save();
-
-    // Send welcome email
-    await sendWelcomeEmail(user.email, `${user.firstName} ${user.lastName}`);
-
-    // Generate token only after verification
-    const token = generateAccessToken(user);
-
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: "Email verified!",
-      token,
-      user: serializeUser(user),
-    });
-  } catch (error) {
-    console.error("Email verification error:", error);
-    return next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(500, "Server error", "EMAIL_VERIFICATION_FAILED"),
-    );
-  }
+  res.status(200).json({
+    success: true,
+    code: 200,
+    message: "Email verified!",
+    data: authPayload,
+  });
 };
 
-// Login controller
-export const login = async (req, res, next) => {
-  try {
-    const authPayload = await loginUser(req.body);
+export const login = async (req, res) => {
+  const authPayload = await loginUser(req.body);
 
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: "Logged in successfully",
-      data: authPayload,
-    });
-  } catch (error) {
-    console.error("Login error:", error);
-    return next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(500, "Internal server error", "LOGIN_FAILED"),
-    );
-  }
+  res.status(200).json({
+    success: true,
+    code: 200,
+    message: "Logged in successfully",
+    data: authPayload,
+  });
 };
 
-export const getMe = catchAsync(async (req, res) => {
+export const getMe = async (req, res) => {
   const data = await getAuthenticatedUser(req.user.id);
 
   res.status(200).json({
     success: true,
     data,
   });
-});
+};
 
-// Logout controller
 export const logout = (req, res) => {
   res.clearCookie("token", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
   });
+
   res.status(200).json({
     success: true,
     code: 200,
@@ -134,122 +63,23 @@ export const logout = (req, res) => {
   });
 };
 
-export const forgotPassword = async (req, res, next) => {
-  const { email } = req.body;
-  try {
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return next(new ApiError(422, "Invalid email format.", "VALIDATION_ERROR"));
-    }
+export const forgotPassword = async (req, res) => {
+  const result = await forgotPasswordService(req.body);
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(200).json({
-        success: true,
-        code: 200,
-        message: "If the email exists, a reset link will be sent",
-      });
-    }
-
-    const pwdResetToken = crypto.randomBytes(20).toString("hex");
-    const resetPwdExp = Date.now() + 3600000; // 1 hour
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      user.resetPasswordToken = pwdResetToken;
-      user.resetPasswordExpiresAt = resetPwdExp;
-
-      user.save({ session });
-
-      // Send the reset email
-      await sendResetPasswordEmail(
-        user.email,
-        `${process.env.CLIENT_URL}/reset-password/${pwdResetToken}`
-      );
-      await session.commitTransaction();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
-
-    res.status(200).json({
-      success: true,
-      code: 200,
-      message: "Reset link sent if email exists",
-    });
-  } catch (error) {
-    console.error("Forgot password error:", error);
-    return next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(500, "Server error", "FORGOT_PASSWORD_FAILED"),
-    );
-  }
+  res.status(200).json({
+    success: true,
+    code: 200,
+    message: result.message,
+  });
 };
 
-export const resetPassword = async (req, res, next) => {
-  const { token } = req.params;
-  const { password } = req.body;
-  try {
-    // Validate password strenght
-    if (password.length < 8) {
-      return next(
-        new ApiError(422, "Password must be 8+ characters", "VALIDATION_ERROR"),
-      );
-    }
-    const user = await User.findOne({
-      resetPasswordToken: token,
-      resetPasswordExpiresAt: { $gt: Date.now() },
-    });
-    // Check if the token is valide
-    if (!user) {
-      return next(new ApiError(400, "Invalid or expired token", "RESET_TOKEN_INVALID"));
-    }
+export const resetPassword = async (req, res) => {
+  const result = await resetPasswordService(req.params.token, req.body);
 
-    //Check if the new password must old
-    const isSamePassword = await bcrypt.compare(password, user.password);
-    if (isSamePassword) {
-      return next(
-        new ApiError(
-          422,
-          "New password must differ from old.",
-          "PASSWORD_REUSED",
-        ),
-      );
-    }
-    const session = await mongoose.startSession();
-    session.startTransaction();
-    try {
-      // Update the password and invalidate the token
-      user.password = await bcrypt.hash(password, 12);
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpiresAt = undefined;
-      user.tokenVersion += 1; // Invalidate existing sessions
-      await user.save({ session });
-
-      await sendResetSuccessEmail(user.email);
-
-      await session.commitTransaction();
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
-
-    res
-      .status(200)
-      .json({ satus: true, code: 200, message: "Password reset successfully" });
-  } catch (error) {
-    console.error("Password reset error:", error);
-    return next(
-      error instanceof ApiError
-        ? error
-        : new ApiError(500, "Server error", "RESET_PASSWORD_FAILED"),
-    );
-  }
+  res.status(200).json({
+    success: true,
+    code: 200,
+    message: result.message,
+    data: result.data,
+  });
 };
