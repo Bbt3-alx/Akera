@@ -1,6 +1,5 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import mongoose from "mongoose";
 
 import User from "../models/User.js";
 import { ApiError } from "../middlewares/errorHandler.js";
@@ -15,6 +14,7 @@ import {
   sendWelcomeEmail,
 } from "../mail/mails.js";
 import { generateAccessToken } from "../utils/generateToken.js";
+import { runTransaction } from "../utils/dbTransaction.js";
 import { fetchActiveMemberships } from "./membership.service.js";
 
 const buildSignupProfile = ({
@@ -152,23 +152,27 @@ export async function verifyEmail(payload = {}) {
     throw new ApiError(422, "Verification code is required", "VALIDATION_ERROR");
   }
 
-  const user = await User.findOne({
-    verificationToken: code,
-    verificationTokenExpiresAt: { $gt: Date.now() },
+  const user = await runTransaction(async (session) => {
+    const foundUser = await User.findOne({
+      verificationToken: code,
+      verificationTokenExpiresAt: { $gt: Date.now() },
+    }).session(session);
+
+    if (!foundUser) {
+      throw new ApiError(
+        400,
+        "Invalid or expired verification code.",
+        "VERIFICATION_CODE_INVALID",
+      );
+    }
+
+    foundUser.isVerified = true;
+    foundUser.verificationToken = undefined;
+    foundUser.verificationTokenExpiresAt = undefined;
+    await foundUser.save({ session });
+
+    return foundUser;
   });
-
-  if (!user) {
-    throw new ApiError(
-      400,
-      "Invalid or expired verification code.",
-      "VERIFICATION_CODE_INVALID",
-    );
-  }
-
-  user.isVerified = true;
-  user.verificationToken = undefined;
-  user.verificationTokenExpiresAt = undefined;
-  await user.save();
 
   await sendWelcomeEmail(user.email, `${user.firstName} ${user.lastName}`);
 
@@ -193,13 +197,10 @@ export async function forgotPassword(payload = {}) {
     };
   }
 
-  const resetPasswordToken = crypto.randomBytes(20).toString("hex");
-  const resetPasswordExpiresAt = Date.now() + 3600000;
+  return runTransaction(async (session) => {
+    const resetPasswordToken = crypto.randomBytes(20).toString("hex");
+    const resetPasswordExpiresAt = Date.now() + 3600000;
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
     user.resetPasswordToken = resetPasswordToken;
     user.resetPasswordExpiresAt = resetPasswordExpiresAt;
     await user.save({ session });
@@ -209,17 +210,10 @@ export async function forgotPassword(payload = {}) {
       `${process.env.CLIENT_URL}/reset-password/${resetPasswordToken}`,
     );
 
-    await session.commitTransaction();
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-
-  return {
-    message: "Reset link sent if email exists",
-  };
+    return {
+      message: "Reset link sent if email exists",
+    };
+  });
 }
 
 export async function resetPassword(token, payload = {}) {
@@ -255,10 +249,7 @@ export async function resetPassword(token, payload = {}) {
     );
   }
 
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
+  return runTransaction(async (session) => {
     user.password = await bcrypt.hash(password, 12);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiresAt = undefined;
@@ -267,15 +258,8 @@ export async function resetPassword(token, payload = {}) {
 
     await sendResetSuccessEmail(user.email);
 
-    await session.commitTransaction();
-  } catch (error) {
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-
-  return {
-    message: "Password reset successfully",
-  };
+    return {
+      message: "Password reset successfully",
+    };
+  });
 }
