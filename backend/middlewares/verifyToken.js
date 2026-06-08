@@ -2,10 +2,19 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { ApiError } from "./errorHandler.js";
 
-const verifyToken = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
+const extractBearerToken = (authHeader) => {
+  if (!authHeader) {
+    return null;
+  }
 
-  if (!authHeader?.startsWith("Bearer ")) {
+  const match = authHeader.trim().match(/^Bearer\s+(.+)$/i);
+  return match?.[1]?.trim() || null;
+};
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.get?.("authorization") || req.headers.authorization;
+
+  if (!authHeader || !/^Bearer\b/i.test(authHeader.trim())) {
     return next(
       new ApiError(
         401,
@@ -15,7 +24,7 @@ const verifyToken = async (req, res, next) => {
     );
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = extractBearerToken(authHeader);
 
   if (!token) {
     return next(

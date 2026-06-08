@@ -26,9 +26,20 @@ function Login() {
               }),
             });
 
+            const authData = data.data || data;
+            const token = authData.accessToken || authData.token;
+
+            if (!token) {
+              throw new Error("Token manquant dans la reponse de login.");
+            }
+
             // Sauvegarder le token dans le stockage local
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("user", JSON.stringify(data.user));
+            localStorage.setItem("token", token);
+            localStorage.setItem("user", JSON.stringify(authData.user));
+            localStorage.setItem(
+              "memberships",
+              JSON.stringify(authData.memberships || []),
+            );
 
             navigate("/dashboard");
           } catch (erreur) {
