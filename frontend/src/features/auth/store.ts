@@ -16,7 +16,7 @@ type AuthState = {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  accessToken: null,
+  accessToken: getStorageItem(ACCESS_TOKEN_STORAGE_KEY),
   setAccessToken: (token) => {
     setStorageItem(ACCESS_TOKEN_STORAGE_KEY, token)
     set({ accessToken: token })

@@ -16,7 +16,7 @@ type CompaniesState = {
 }
 
 export const useCompaniesStore = create<CompaniesState>((set) => ({
-  activeCompanyId: null,
+  activeCompanyId: getStorageItem(ACTIVE_COMPANY_STORAGE_KEY),
   setActiveCompanyId: (companyId) => {
     setStorageItem(ACTIVE_COMPANY_STORAGE_KEY, companyId)
     set({ activeCompanyId: companyId })
