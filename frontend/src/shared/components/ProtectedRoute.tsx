@@ -8,9 +8,13 @@ import { AppApiError } from '../api/types.ts'
 
 type ProtectedRouteProps = {
   children: ReactNode
+  requireCompany?: boolean
 }
 
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requireCompany = true,
+}: ProtectedRouteProps) {
   const accessToken = useAuthStore((state) => state.accessToken)
   const hydrateAccessToken = useAuthStore((state) => state.hydrateAccessToken)
   const clearAccessToken = useAuthStore((state) => state.clearAccessToken)
@@ -32,7 +36,6 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     if (!activeCompanyId) {
       hydrateActiveCompanyId()
     }
-
   }, [
     accessToken,
     activeCompanyId,
@@ -55,7 +58,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />
   }
 
-  if (meQuery.data?.memberships.length && !activeCompanyId) {
+  if (requireCompany && !activeCompanyId) {
     return <Navigate to="/select-company" replace />
   }
 

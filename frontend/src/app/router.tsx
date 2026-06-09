@@ -18,7 +18,11 @@ export const router = createBrowserRouter([
   },
   {
     path: '/select-company',
-    element: <CompanySelectPage />,
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <CompanySelectPage />
+      </ProtectedRoute>
+    ),
   },
   {
     path: '/app',
