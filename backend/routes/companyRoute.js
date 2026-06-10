@@ -23,7 +23,6 @@ const router = express.Router();
 router.post(
   "/",
   verifyToken,
-  authorizeRoles("admin", "manager"),
   companyCreationLimiter,
   createCompany
 );

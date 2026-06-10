@@ -1,117 +1,24 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import Company from "../models/Company.js";
 import BuyOperation from "../models/BuyOperation.js";
-import User from "../models/User.js";
-import Partner from "../models/Partner.js";
-import { validatePhone, validateEmail } from "../utils/validators.js";
 import Transaction from "../models/Transaction.js";
 import checkUserAuthorization from "../utils/checkUserAuthorization.js";
+import { createCompanyForUser } from "../services/company.service.js";
 
-export const createCompany = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+export const createCompany = async (req, res, next) => {
   try {
-    const {
-      name,
-      address,
-      contact,
-      balance,
-      currency,
-      partners = [],
-    } = req.body;
-
-    // Validation
-    const errors = [];
-    if (!name?.trim()) errors.push("Name is required.");
-    if (!address?.trim()) errors.push("Address is required.");
-    if (!validatePhone(contact) && !validateEmail(contact)) {
-      errors.push("Invalid contact - must be valid phone or email");
-    }
-
-    if (errors.length > 0) {
-      return res.status(400).json({ success: false, code: 400, errors });
-    }
-    // Check existing company
-    const existingCompany = await Company.findOne({
-      $or: [{ name }, { contact }],
-    }).session(session);
-    if (existingCompany) {
-      await session.abortTransaction();
-      return res.status(409).json({
-        success: false,
-        code: 409,
-        message: "Company with this name or contact already exists.",
-      });
-    }
-
-    // Create company
-    const newCompany = new Company({
-      name,
-      address,
-      contact,
-      balance,
-      manager: req.user.id,
-      currency,
-    });
-    const savedCompany = await newCompany.save({ session });
-
-    // Process partners
-    const partnerOperations = partners.map(async (partnerData) => {
-      const existingPartner = await Partner.findOne({
-        $or: [{ phone: partnerData.phone }, { email: partnerData.email }],
-      }).session(session);
-
-      if (existingPartner) {
-        // Prevent duplication company links
-        if (!existingPartner.companies.includes(savedCompany._id)) {
-          existingPartner.companies.push(newCompany._id);
-          await existingPartner.save({ session });
-        }
-        return existingPartner._id; // Return the existing partner's ID
-      }
-      const newPartner = new Partner({
-        ...partnerData,
-        createdBy: req.user.id,
-        companies: [newCompany._id],
-      });
-
-      const savedPartner = await newPartner.save({ session });
-      return savedPartner._id; // Return the newly created partner's ID
+    const result = await createCompanyForUser({
+      userId: req.user.id,
+      payload: req.body,
     });
 
-    const partnerIDs = await Promise.all(partnerOperations);
-    savedCompany.partners = partnerIDs; // Update with all partners IDs
-    await savedCompany.save({ session });
-
-    // Link company to user
-    await User.findByIdAndUpdate(
-      req.user.id,
-      {
-        company: savedCompany._id,
-      },
-      { session, new: true }
-    );
-
-    await session.commitTransaction();
-
-    // Sanitize response
-    const companyResponse = savedCompany.toObject();
-    delete companyResponse.__v;
-
-    res.status(201).json({ success: true, code: 201, data: companyResponse });
+    res.status(201).json({
+      success: true,
+      code: 201,
+      data: result,
+    });
   } catch (error) {
-    await session.abortTransaction();
-    console.log("Company creation error: ", error);
-    return res.status(500).json({
-      success: false,
-      code: 500,
-      message:
-        process.env.VITE_NODE_ENV === "development"
-          ? error.message
-          : "Failed to create company",
-    });
-  } finally {
-    session.endSession();
+    next(error);
   }
 };
 
