@@ -115,8 +115,9 @@ export async function loginUser(payload = {}) {
     throw new ApiError(403, "Verify your email first", "EMAIL_NOT_VERIFIED");
   }
 
-  user.lastLogin = new Date();
-  await user.save();
+  const lastLogin = new Date();
+  await User.updateOne({ _id: user._id }, { $set: { lastLogin } });
+  user.lastLogin = lastLogin;
 
   const memberships = await fetchActiveMemberships(user._id);
   const accessToken = generateAccessToken(user);
