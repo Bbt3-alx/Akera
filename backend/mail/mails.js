@@ -6,6 +6,11 @@ import {
 } from "./emailTemplates.js";
 
 export const sendVerificationEmail = async (email, verificationToken) => {
+  if (process.env.EMAIL_DELIVERY_MODE === "console") {
+    console.log(`[DEV EMAIL] Verification code for ${email}: ${verificationToken}`);
+    return;
+  }
+
   const recipient = [{ email }];
 
   try {
