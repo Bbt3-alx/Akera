@@ -35,10 +35,15 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: (
-          <section>
-            <h1 className="text-2xl font-semibold text-slate-950">
-              App Placeholder
+          <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-medium text-slate-500">Dashboard</p>
+            <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+              Welcome to Akera
             </h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Your company workspace is ready. Dashboard metrics will appear
+              here later.
+            </p>
           </section>
         ),
       },
