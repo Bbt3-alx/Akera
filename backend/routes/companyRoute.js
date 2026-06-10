@@ -14,6 +14,7 @@ import { audit } from "../middlewares/audit.js";
 import { companyCreationLimiter } from "../middlewares/rateLimit.js";
 import authorizeRoles from "../middlewares/roleAuthorization.js";
 import verifyToken from "../middlewares/verifyToken.js";
+import { requireVerifiedUser } from "../middlewares/requireVerifiedUser.js";
 import { softDeleteCompany } from "../controllers/createCompany.js";
 import { searchCompany } from "../utils/searchAutoCompletion.js";
 
@@ -23,6 +24,7 @@ const router = express.Router();
 router.post(
   "/",
   verifyToken,
+  requireVerifiedUser,
   companyCreationLimiter,
   createCompany
 );

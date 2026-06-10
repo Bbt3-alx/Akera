@@ -67,10 +67,8 @@ paths:
                     example: 200
                   message:
                     type: string
-                  token:
-                    type: string
-                  user:
-                    $ref: "#/components/schemas/AuthUser"
+                  data:
+                    $ref: "#/components/schemas/LoginData"
         "400":
           $ref: "#/components/responses/BadRequest"
         "500":

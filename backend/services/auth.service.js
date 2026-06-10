@@ -17,6 +17,8 @@ import { generateAccessToken } from "../utils/generateToken.js";
 import { runTransaction } from "../utils/dbTransaction.js";
 import { fetchActiveMemberships } from "./membership.service.js";
 
+const VERIFICATION_TOKEN_TTL_MS = 15 * 60 * 1000;
+
 const buildSignupProfile = ({
   firstName,
   lastName,
@@ -85,7 +87,7 @@ export async function signupUser(payload = {}) {
     lastName: profile.lastName,
     phone: profile.phone,
     verificationToken,
-    verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+    verificationTokenExpiresAt: Date.now() + VERIFICATION_TOKEN_TTL_MS,
   });
 
   if (process.env.NODE_ENV === "production") {
@@ -177,9 +179,12 @@ export async function verifyEmail(payload = {}) {
 
   await sendWelcomeEmail(user.email, `${user.firstName} ${user.lastName}`);
 
+  const memberships = await fetchActiveMemberships(user._id);
+
   return {
-    token: generateAccessToken(user),
+    accessToken: generateAccessToken(user),
     user: serializeUser(user),
+    memberships: memberships.map(serializeMembership),
   };
 }
 
