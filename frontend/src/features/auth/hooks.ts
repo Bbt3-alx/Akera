@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { getMe, login, register, verifyEmail } from './api.ts'
+import {
+  getMe,
+  login,
+  register,
+  resendVerification,
+  verifyEmail,
+} from './api.ts'
 import { useAuthStore } from './store.ts'
 
 export const AUTH_ME_QUERY_KEY = ['auth', 'me'] as const
@@ -44,5 +50,11 @@ export function useVerifyEmail() {
       setAccessToken(authPayload.accessToken)
       await queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY })
     },
+  })
+}
+
+export function useResendVerification() {
+  return useMutation({
+    mutationFn: resendVerification,
   })
 }

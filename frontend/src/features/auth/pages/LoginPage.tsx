@@ -54,18 +54,20 @@ export function LoginPage() {
 
       if (authPayload.memberships.length === 1 && membership) {
         setActiveCompanyId(membership.companyId)
-        navigate('/app')
+        navigate('/app', { replace: true })
         return
       }
 
       clearActiveCompanyId()
-      navigate('/select-company')
+      navigate('/select-company', { replace: true })
     } catch (error) {
       if (
         error instanceof AppApiError &&
         error.errorCode === 'EMAIL_NOT_VERIFIED'
       ) {
-        navigate(`/verify-email?email=${encodeURIComponent(email)}`)
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
+          replace: true,
+        })
       }
     }
   })

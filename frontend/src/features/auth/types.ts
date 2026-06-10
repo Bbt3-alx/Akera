@@ -46,3 +46,11 @@ export type RegisterPayload = {
 export type VerifyEmailPayload = {
   code: string
 }
+
+export type ResendVerificationPayload = {
+  email: string
+}
+
+export type ResendVerificationResponse = {
+  message: string
+}

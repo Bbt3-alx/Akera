@@ -53,7 +53,9 @@ export function RegisterPage() {
       phone: values.phone?.trim() || undefined,
     })
 
-    navigate(`/verify-email?email=${encodeURIComponent(email)}`)
+    navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
+      replace: true,
+    })
   })
 
   return (

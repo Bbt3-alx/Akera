@@ -8,19 +8,32 @@ import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage
 import { TransactionsPage } from '../features/transactions/pages/TransactionsPage.tsx'
 import { AppLayout } from '../shared/components/AppLayout.tsx'
 import { ProtectedRoute } from '../shared/components/ProtectedRoute.tsx'
+import { PublicAuthRoute } from '../shared/components/PublicAuthRoute.tsx'
 
 export const router = createBrowserRouter([
   {
     path: '/login',
-    element: <LoginPage />,
+    element: (
+      <PublicAuthRoute>
+        <LoginPage />
+      </PublicAuthRoute>
+    ),
   },
   {
     path: '/register',
-    element: <RegisterPage />,
+    element: (
+      <PublicAuthRoute>
+        <RegisterPage />
+      </PublicAuthRoute>
+    ),
   },
   {
     path: '/verify-email',
-    element: <VerifyEmailPage />,
+    element: (
+      <PublicAuthRoute>
+        <VerifyEmailPage />
+      </PublicAuthRoute>
+    ),
   },
   {
     path: '/select-company',

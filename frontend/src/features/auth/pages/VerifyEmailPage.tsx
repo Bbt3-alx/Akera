@@ -1,11 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { AppApiError } from '../../../shared/api/types.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
-import { useVerifyEmail } from '../hooks.ts'
+import { useResendVerification, useVerifyEmail } from '../hooks.ts'
 
 const verifyEmailSchema = z.object({
   code: z
@@ -18,8 +19,10 @@ type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>
 export function VerifyEmailPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const email = searchParams.get('email')
+  const email = searchParams.get('email')?.trim() || ''
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
   const verifyEmailMutation = useVerifyEmail()
+  const resendVerificationMutation = useResendVerification()
   const setActiveCompanyId = useCompaniesStore(
     (state) => state.setActiveCompanyId,
   )
@@ -37,6 +40,7 @@ export function VerifyEmailPage() {
     },
   })
   const errorMessage = getErrorMessage(verifyEmailMutation.error)
+  const resendErrorMessage = getErrorMessage(resendVerificationMutation.error)
 
   const onSubmit = handleSubmit(async (values) => {
     const authPayload = await verifyEmailMutation.mutateAsync({
@@ -54,6 +58,20 @@ export function VerifyEmailPage() {
     navigate('/select-company', { replace: true })
   })
 
+  async function handleResendCode() {
+    if (!email) {
+      return
+    }
+
+    try {
+      setResendMessage(null)
+      const response = await resendVerificationMutation.mutateAsync({ email })
+      setResendMessage(response.message)
+    } catch {
+      // The mutation state renders the normalized backend error.
+    }
+  }
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
       <section className="w-full max-w-sm rounded border border-slate-200 bg-white p-6 shadow-sm">
@@ -61,6 +79,12 @@ export function VerifyEmailPage() {
         <p className="mt-2 text-sm text-slate-500">
           Enter the 6-digit code sent to {email || 'your email'}.
         </p>
+        {!email ? (
+          <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Open this page from your registration or login flow to resend a
+            verification code.
+          </p>
+        ) : null}
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>
@@ -101,6 +125,31 @@ export function VerifyEmailPage() {
               : 'Verify email'}
           </button>
         </form>
+
+        <div className="mt-4 space-y-3">
+          <button
+            className="w-full rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            disabled={!email || resendVerificationMutation.isPending}
+            onClick={handleResendCode}
+            type="button"
+          >
+            {resendVerificationMutation.isPending
+              ? 'Sending...'
+              : 'Resend code'}
+          </button>
+
+          {resendMessage ? (
+            <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              {resendMessage}
+            </p>
+          ) : null}
+
+          {resendErrorMessage ? (
+            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {resendErrorMessage}
+            </p>
+          ) : null}
+        </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Already verified?{' '}

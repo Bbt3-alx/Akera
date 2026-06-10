@@ -1,12 +1,26 @@
-import { AppApiError, type ApiResponse } from '../../shared/api/types.ts'
+import {
+  AppApiError,
+  type ApiErrorResponse,
+  type ApiResponse,
+} from '../../shared/api/types.ts'
 import { http } from '../../shared/api/http.ts'
 import type {
   AuthPayload,
   LoginPayload,
   RegisterPayload,
+  ResendVerificationPayload,
+  ResendVerificationResponse,
   SignupResponse,
   VerifyEmailPayload,
 } from './types.ts'
+
+type ResendVerificationApiResponse =
+  | {
+      success: true
+      code?: number
+      message: string
+    }
+  | ApiErrorResponse
 
 export async function login(payload: LoginPayload): Promise<AuthPayload> {
   const response = await http.post<
@@ -49,6 +63,27 @@ export async function verifyEmail(
   >('/auth/verify-email', payload)
 
   return unwrapAuthResponse(response)
+}
+
+export async function resendVerification(
+  payload: ResendVerificationPayload,
+): Promise<ResendVerificationResponse> {
+  const response = await http.post<
+    ResendVerificationApiResponse,
+    ResendVerificationApiResponse,
+    ResendVerificationPayload
+  >('/auth/resend-verification', payload)
+
+  if (response.success) {
+    return { message: response.message }
+  }
+
+  throw new AppApiError({
+    message: response.message,
+    statusCode: response.code ?? 0,
+    errorCode: response.errorCode,
+    details: response.details,
+  })
 }
 
 function unwrapAuthResponse(response: ApiResponse<AuthPayload>): AuthPayload {
