@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -14,8 +14,13 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>
 
+type LoginLocationState = {
+  message?: string
+}
+
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const loginMutation = useLogin()
   const setActiveCompanyId = useCompaniesStore(
     (state) => state.setActiveCompanyId,
@@ -35,6 +40,7 @@ export function LoginPage() {
     },
   })
   const errorMessage = getErrorMessage(loginMutation.error)
+  const loginMessage = (location.state as LoginLocationState | null)?.message
 
   const onSubmit = handleSubmit(async (values) => {
     const authPayload = await loginMutation.mutateAsync(values)
@@ -57,6 +63,12 @@ export function LoginPage() {
         <p className="mt-2 text-sm text-slate-500">
           Sign in to continue to Akera.
         </p>
+
+        {loginMessage ? (
+          <p className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {loginMessage}
+          </p>
+        ) : null}
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>

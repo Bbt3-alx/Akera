@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 import { RegisterPage } from '../features/auth/pages/RegisterPage.tsx'
 import { LoginPage } from '../features/auth/pages/LoginPage.tsx'
+import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
 import { TransactionsPage } from '../features/transactions/pages/TransactionsPage.tsx'
 import { AppLayout } from '../shared/components/AppLayout.tsx'
@@ -21,6 +22,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute requireCompany={false}>
         <CompanySelectPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/create-company',
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <CreateCompanyPage />
       </ProtectedRoute>
     ),
   },
