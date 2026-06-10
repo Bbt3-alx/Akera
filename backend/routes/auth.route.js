@@ -5,6 +5,7 @@ import {
   signup,
   login,
   verifyEmail,
+  resendVerification,
   getMe,
   logout,
   forgotPassword,
@@ -16,6 +17,8 @@ const router = Router();
 router.post("/signup", catchAsync(signup));
 
 router.post("/verify-email", catchAsync(verifyEmail));
+
+router.post("/resend-verification", catchAsync(resendVerification));
 
 router.post("/login", catchAsync(login));
 

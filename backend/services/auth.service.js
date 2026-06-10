@@ -18,6 +18,8 @@ import { runTransaction } from "../utils/dbTransaction.js";
 import { fetchActiveMemberships } from "./membership.service.js";
 
 const VERIFICATION_TOKEN_TTL_MS = 15 * 60 * 1000;
+const RESEND_VERIFICATION_MESSAGE =
+  "If an unverified account exists, a new verification code has been sent.";
 
 const buildSignupProfile = ({
   firstName,
@@ -46,7 +48,13 @@ const buildSignupProfile = ({
   };
 };
 
-const normalizeEmail = (email) => email?.trim().toLowerCase();
+const normalizeEmail = (email) =>
+  typeof email === "string" ? email.trim().toLowerCase() : undefined;
+
+const isValidEmail = (email) => /^\S+@\S+\.\S+$/.test(email);
+
+const generateVerificationCode = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
 
 const validateSignupPayload = (email, password, profile) => {
   if (
@@ -59,7 +67,7 @@ const validateSignupPayload = (email, password, profile) => {
     throw new ApiError(422, "Missing required fields.", "VALIDATION_ERROR");
   }
 
-  if (!/^\S+@\S+\.\S+$/.test(email)) {
+  if (!isValidEmail(email)) {
     throw new ApiError(422, "Invalid email format", "VALIDATION_ERROR");
   }
 };
@@ -76,9 +84,7 @@ export async function signupUser(payload = {}) {
   }
 
   const hashedPassword = await bcrypt.hash(payload.password, 10);
-  const verificationToken = Math.floor(
-    100000 + Math.random() * 900000,
-  ).toString();
+  const verificationToken = generateVerificationCode();
 
   const user = await User.create({
     email,
@@ -185,6 +191,35 @@ export async function verifyEmail(payload = {}) {
     accessToken: generateAccessToken(user),
     user: serializeUser(user),
     memberships: memberships.map(serializeMembership),
+  };
+}
+
+export async function resendVerificationEmail(payload = {}) {
+  const email = normalizeEmail(payload.email);
+
+  if (!isValidEmail(email)) {
+    return {
+      message: RESEND_VERIFICATION_MESSAGE,
+    };
+  }
+
+  const user = await User.findOne({ email });
+  if (!user || user.isVerified) {
+    return {
+      message: RESEND_VERIFICATION_MESSAGE,
+    };
+  }
+
+  const verificationToken = generateVerificationCode();
+
+  user.verificationToken = verificationToken;
+  user.verificationTokenExpiresAt = Date.now() + VERIFICATION_TOKEN_TTL_MS;
+  await user.save();
+
+  await sendVerificationEmail(user.email, verificationToken);
+
+  return {
+    message: RESEND_VERIFICATION_MESSAGE,
   };
 }
 

@@ -74,6 +74,42 @@ paths:
         "500":
           $ref: "#/components/responses/ServerError"
 
+  "/api/v1/auth/resend-verification":
+    post:
+      summary: Resend an email verification code
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Neutral response returned whether or not an unverified account exists.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: If an unverified account exists, a new verification code has been sent.
+        "500":
+          $ref: "#/components/responses/ServerError"
+
   "/api/v1/auth/login":
     post:
       summary: Log in and receive an access token
