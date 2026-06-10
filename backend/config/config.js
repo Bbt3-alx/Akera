@@ -7,8 +7,13 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
 export const CORS_OPTIONS = {
   origin: allowedOrigins,
   credentials: true,
-  methods: ["GET", "PUT", "POST", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-company-id",
+    "idempotency-key",
+  ],
 };
 
 export const RATE_LIMIT_OPTIONS = {
