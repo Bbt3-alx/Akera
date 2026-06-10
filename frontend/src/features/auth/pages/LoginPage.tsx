@@ -39,21 +39,35 @@ export function LoginPage() {
       password: '',
     },
   })
-  const errorMessage = getErrorMessage(loginMutation.error)
+  const errorMessage = getLoginErrorMessage(loginMutation.error)
   const loginMessage = (location.state as LoginLocationState | null)?.message
 
   const onSubmit = handleSubmit(async (values) => {
-    const authPayload = await loginMutation.mutateAsync(values)
-    const [membership] = authPayload.memberships
+    const email = values.email.trim()
 
-    if (authPayload.memberships.length === 1 && membership) {
-      setActiveCompanyId(membership.companyId)
-      navigate('/app')
-      return
+    try {
+      const authPayload = await loginMutation.mutateAsync({
+        email,
+        password: values.password,
+      })
+      const [membership] = authPayload.memberships
+
+      if (authPayload.memberships.length === 1 && membership) {
+        setActiveCompanyId(membership.companyId)
+        navigate('/app')
+        return
+      }
+
+      clearActiveCompanyId()
+      navigate('/select-company')
+    } catch (error) {
+      if (
+        error instanceof AppApiError &&
+        error.errorCode === 'EMAIL_NOT_VERIFIED'
+      ) {
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`)
+      }
     }
-
-    clearActiveCompanyId()
-    navigate('/select-company')
   })
 
   return (
@@ -139,8 +153,15 @@ export function LoginPage() {
   )
 }
 
-function getErrorMessage(error: unknown): string | null {
+function getLoginErrorMessage(error: unknown): string | null {
   if (!error) {
+    return null
+  }
+
+  if (
+    error instanceof AppApiError &&
+    error.errorCode === 'EMAIL_NOT_VERIFIED'
+  ) {
     return null
   }
 

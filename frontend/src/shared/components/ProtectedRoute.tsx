@@ -27,6 +27,8 @@ export function ProtectedRoute({
   )
   const meQuery = useMe()
   const isUnauthorized = isUnauthorizedError(meQuery.error)
+  const unverifiedEmail =
+    meQuery.data?.user.isVerified === false ? meQuery.data.user.email : null
 
   useEffect(() => {
     if (!accessToken) {
@@ -50,12 +52,27 @@ export function ProtectedRoute({
     }
   }, [clearAccessToken, clearActiveCompanyId, isUnauthorized])
 
+  useEffect(() => {
+    if (unverifiedEmail && activeCompanyId) {
+      clearActiveCompanyId()
+    }
+  }, [activeCompanyId, clearActiveCompanyId, unverifiedEmail])
+
   if (accessToken && meQuery.isLoading) {
     return <LoadingScreen />
   }
 
   if (!accessToken || isUnauthorized) {
     return <Navigate to="/login" replace />
+  }
+
+  if (unverifiedEmail) {
+    return (
+      <Navigate
+        replace
+        to={`/verify-email?email=${encodeURIComponent(unverifiedEmail)}`}
+      />
+    )
   }
 
   if (requireCompany && !activeCompanyId) {

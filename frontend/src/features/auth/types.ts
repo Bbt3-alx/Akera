@@ -25,6 +25,11 @@ export type AuthPayload = {
   memberships: Membership[]
 }
 
+export type SignupResponse = {
+  user: AuthUser
+  memberships: Membership[]
+}
+
 export type LoginPayload = {
   email: string
   password: string
@@ -36,4 +41,8 @@ export type RegisterPayload = {
   email: string
   password: string
   phone?: string
+}
+
+export type VerifyEmailPayload = {
+  code: string
 }

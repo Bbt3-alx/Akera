@@ -4,7 +4,6 @@ import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
 import { z } from 'zod'
 
 import { AppApiError } from '../../../shared/api/types.ts'
-import { useCompaniesStore } from '../../companies/store.ts'
 import { useRegister } from '../hooks.ts'
 
 const registerSchema = z
@@ -26,12 +25,6 @@ type RegisterFormValues = z.infer<typeof registerSchema>
 export function RegisterPage() {
   const navigate = useNavigate()
   const registerMutation = useRegister()
-  const setActiveCompanyId = useCompaniesStore(
-    (state) => state.setActiveCompanyId,
-  )
-  const clearActiveCompanyId = useCompaniesStore(
-    (state) => state.clearActiveCompanyId,
-  )
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -50,30 +43,17 @@ export function RegisterPage() {
   const errorMessage = getErrorMessage(registerMutation.error)
 
   const onSubmit = handleSubmit(async (values) => {
-    const authPayload = await registerMutation.mutateAsync({
+    const email = values.email.trim()
+
+    await registerMutation.mutateAsync({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
-      email: values.email.trim(),
+      email,
       password: values.password,
       phone: values.phone?.trim() || undefined,
     })
-    const [membership] = authPayload.memberships
 
-    if (!authPayload.accessToken) {
-      navigate('/login', {
-        state: { message: 'Account created. Please log in to continue.' },
-      })
-      return
-    }
-
-    if (authPayload.memberships.length === 1 && membership) {
-      setActiveCompanyId(membership.companyId)
-      navigate('/app')
-      return
-    }
-
-    clearActiveCompanyId()
-    navigate('/select-company')
+    navigate(`/verify-email?email=${encodeURIComponent(email)}`)
   })
 
   return (

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { getMe, login, register } from './api.ts'
+import { getMe, login, register, verifyEmail } from './api.ts'
 import { useAuthStore } from './store.ts'
 
 export const AUTH_ME_QUERY_KEY = ['auth', 'me'] as const
@@ -29,16 +29,19 @@ export function useMe() {
 }
 
 export function useRegister() {
+  return useMutation({
+    mutationFn: register,
+  })
+}
+
+export function useVerifyEmail() {
   const queryClient = useQueryClient()
   const setAccessToken = useAuthStore((state) => state.setAccessToken)
 
   return useMutation({
-    mutationFn: register,
+    mutationFn: verifyEmail,
     onSuccess: async (authPayload) => {
-      if (authPayload.accessToken) {
-        setAccessToken(authPayload.accessToken)
-      }
-
+      setAccessToken(authPayload.accessToken)
       await queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY })
     },
   })
