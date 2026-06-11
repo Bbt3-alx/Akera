@@ -5,12 +5,23 @@ import {
   reverseCompletedTransactionService,
 } from "../services/transaction.service.js";
 import Receipt from "../models/Receipt.js";
-import { runTransaction } from "../utils/dbTransaction.js";
-import CompanyMembership from "../models/CompanyMembership.js";
-import { ApiError } from "../middlewares/errorHandler.js";
 import Transaction from "../models/Transaction.js";
-import { writeJournalEntries } from "../services/ledger.service.js";
-import { ACCOUNTS } from "../constants/accounts.js";
+import { serializeTransaction } from "../serializers/transaction.serializer.js";
+import { serializeReceipt } from "../serializers/receipt.serializer.js";
+
+const transactionPartnerPopulate = {
+  path: "membership",
+  select: "user",
+  populate: {
+    path: "user",
+    select: "firstName lastName name email",
+  },
+};
+
+const transactionCreatedByPopulate = {
+  path: "createdBy",
+  select: "firstName lastName name email",
+};
 
 // Controller to handle transaction creation
 export const createTransaction = async (req, res) => {
@@ -35,9 +46,14 @@ export const payTransaction = async (req, res) => {
     managerId: req.user.id,
   });
 
+  const data = await serializePaymentResult({
+    result,
+    companyId: req.context.companyId,
+  });
+
   res.json({
     success: true,
-    data: result,
+    data,
   });
 };
 
@@ -78,3 +94,49 @@ export const reverseCompletedTransaction = async (req, res) => {
     data: transaction,
   });
 };
+
+async function serializePaymentResult({ result, companyId }) {
+  const transaction = result?.transaction ?? result;
+  const receipt =
+    result?.receipt ?? (await findReceiptForTransaction(transaction, companyId));
+  const serializableTransaction = await findSerializableTransaction(
+    transaction,
+    companyId,
+  );
+
+  return {
+    transaction: serializeTransaction(serializableTransaction),
+    receipt: serializeReceipt(receipt),
+  };
+}
+
+async function findSerializableTransaction(transaction, companyId) {
+  const transactionId = transaction?._id ?? transaction?.id;
+
+  if (!transactionId) {
+    return transaction;
+  }
+
+  const populatedTransaction = await Transaction.findOne({
+    _id: transactionId,
+    company: companyId,
+  })
+    .populate(transactionPartnerPopulate)
+    .populate(transactionCreatedByPopulate)
+    .lean();
+
+  return populatedTransaction ?? transaction.toObject?.() ?? transaction;
+}
+
+async function findReceiptForTransaction(transaction, companyId) {
+  const transactionId = transaction?._id ?? transaction?.id;
+
+  if (!transactionId) {
+    return null;
+  }
+
+  return Receipt.findOne({
+    transaction: transactionId,
+    company: companyId,
+  }).lean();
+}

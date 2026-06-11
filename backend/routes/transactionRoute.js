@@ -36,7 +36,11 @@ router.post(
   catchAsync(createTransaction),
 );
 
-router.post("/pay/:transactionCode", catchAsync(payTransaction));
+router.post(
+  "/pay/:transactionCode",
+  audit("TRANSACTION_PAY", "Transaction"),
+  catchAsync(payTransaction),
+);
 router.get("/receipt/:id", downloadReceipt);
 // ROUTE TO RETRIEVE ALL THE TRANSACTION BELONG TO A COMPANY
 router.get("/", getTransactions);

@@ -1,5 +1,6 @@
 import Receipt from '../models/Receipt.js';
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 
 function generateSignature(snapshot) {
     return crypto
@@ -46,9 +47,17 @@ export const verifyReceipt = async (req, res) => {
 }
 
 export const downloadReceipt = async (req, res) => {
-  const receipt = await Receipt.findById(req.params.id);
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+    return res.status(404).json({ success: false, message: "Not found" });
+  }
+
+  const receipt = await Receipt.findOne({
+    _id: req.params.id,
+    company: req.context.companyId,
+  });
+
   if (!receipt) {
-    return res.status(404).json({ message: "Not found" });
+    return res.status(404).json({ success: false, message: "Not found" });
   }
 
   res.download(receipt.pdfPath);
