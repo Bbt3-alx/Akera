@@ -6,6 +6,7 @@ import {
 } from "../services/transaction.service.js";
 import Receipt from "../models/Receipt.js";
 import Transaction from "../models/Transaction.js";
+import { ApiError } from "../middlewares/errorHandler.js";
 import { serializeTransaction } from "../serializers/transaction.serializer.js";
 import { serializeReceipt } from "../serializers/receipt.serializer.js";
 
@@ -59,9 +60,9 @@ export const payTransaction = async (req, res) => {
 
 // Controller to handle transaction cancellation
 export const cancelPendingTransaction = async (req, res) => {
-  const {companyId} = req.context;
-  const {transactionCode} = req.params;
-  const {reason} = req.body;
+  const { companyId } = req.context;
+  const { transactionCode } = req.params;
+  const reason = normalizeCancelReason(req.body?.reason);
 
   const transaction = await cancelPendingTransactionService({
     companyId,
@@ -70,11 +71,16 @@ export const cancelPendingTransaction = async (req, res) => {
     reason,
   });
 
+  const data = await serializeCancelResult({
+    transaction,
+    companyId,
+  });
+
   res.status(200).json({
     success: true,
-    data: transaction,
-  })
-}
+    data,
+  });
+};
 
 export const reverseCompletedTransaction = async (req, res) => {
 
@@ -110,6 +116,17 @@ async function serializePaymentResult({ result, companyId }) {
   };
 }
 
+async function serializeCancelResult({ transaction, companyId }) {
+  const serializableTransaction = await findSerializableTransaction(
+    transaction,
+    companyId,
+  );
+
+  return {
+    transaction: serializeTransaction(serializableTransaction),
+  };
+}
+
 async function findSerializableTransaction(transaction, companyId) {
   const transactionId = transaction?._id ?? transaction?.id;
 
@@ -139,4 +156,34 @@ async function findReceiptForTransaction(transaction, companyId) {
     transaction: transactionId,
     company: companyId,
   }).lean();
+}
+
+export function normalizeCancelReason(reason) {
+  if (reason === undefined) {
+    return undefined;
+  }
+
+  if (typeof reason !== "string") {
+    throw new ApiError(
+      400,
+      "Cancel reason must be a string",
+      "INVALID_CANCEL_REASON",
+    );
+  }
+
+  const trimmedReason = reason.trim();
+
+  if (!trimmedReason) {
+    return undefined;
+  }
+
+  if (trimmedReason.length > 300) {
+    throw new ApiError(
+      400,
+      "Cancel reason must be 300 characters or fewer",
+      "INVALID_CANCEL_REASON",
+    );
+  }
+
+  return trimmedReason;
 }
