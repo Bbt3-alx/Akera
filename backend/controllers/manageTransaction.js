@@ -8,6 +8,19 @@ import { ApiError } from "../middlewares/errorHandler.js";
 import Partner from "../models/Partner.js";
 import { convert } from "../utils/convertAmount.js";
 import { generateTransactionCode } from "../utils/generateTransactionCode.js";
+import {
+  serializeTransaction,
+  serializeTransactions,
+} from "../serializers/transaction.serializer.js";
+
+const transactionPartnerPopulate = {
+  path: "membership",
+  select: "user",
+  populate: {
+    path: "user",
+    select: "firstName lastName name email",
+  },
+};
 
 // Get Transactions with Pagination and Filtering
 export const getTransactions = async (req, res) => {
@@ -31,6 +44,7 @@ export const getTransactions = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(Number(limit))
+        .populate(transactionPartnerPopulate)
         .lean(),
       Transaction.countDocuments(filter),
     ]);
@@ -44,7 +58,7 @@ export const getTransactions = async (req, res) => {
         total,
         totalPages: Math.ceil(total / limit),
       },
-      data: transactions,
+      data: serializeTransactions(transactions),
     });
   } catch (error) {
     console.error("Get transactions error:", error);
@@ -119,7 +133,9 @@ export const getTransaction = async (req, res) => {
       baseFilter.initiatedBy = req.user.id;
     }
 
-    const transaction = await Transaction.findOne(baseFilter).lean();
+    const transaction = await Transaction.findOne(baseFilter)
+      .populate(transactionPartnerPopulate)
+      .lean();
 
     if (!transaction) {
       return res.status(404).json({
@@ -127,7 +143,11 @@ export const getTransaction = async (req, res) => {
         message: "Transaction not found",
       });
     }
-    res.status(200).json({ success: true, code: 200, data: transaction });
+    res.status(200).json({
+      success: true,
+      code: 200,
+      data: serializeTransaction(transaction),
+    });
   } catch (error) {
     console.error("Get transaction error:", error);
     return res.status(500).json({
@@ -275,14 +295,16 @@ export const getTransactionByCode = async (req, res) => {
   const transaction = await Transaction.findOne({
     transactionCode: req.params.transactionCode,
     company: companyId,
-  }).lean();
+  })
+    .populate(transactionPartnerPopulate)
+    .lean();
   if (!transaction) {
     return res.status(404).json({
       success: false,
       message: "Transaction not found",
     });
   }
-  res.status(200).json({ success: true, data: transaction });
+  res.status(200).json({ success: true, data: serializeTransaction(transaction) });
 };
 
 // Soft Delete a transaction
