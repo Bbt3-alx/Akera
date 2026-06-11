@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -120,16 +121,19 @@ export function TransactionSearchPage() {
                   {data.transactionCode}
                 </h2>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <StatusBadge status={data.status} />
-                <Link
-                  className="inline-flex h-9 items-center justify-center rounded bg-slate-950 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
-                  to={`/app/transactions/${encodeURIComponent(
-                    data.transactionCode,
-                  )}`}
-                >
-                  View details
-                </Link>
+              <div className="flex flex-col gap-2 sm:items-end">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <StatusBadge status={data.status} />
+                  <Link
+                    className="inline-flex h-9 items-center justify-center rounded bg-slate-950 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
+                    to={`/app/transactions/${encodeURIComponent(
+                      data.transactionCode,
+                    )}`}
+                  >
+                    View details
+                  </Link>
+                </div>
+                <PayTransactionButton transaction={data} />
               </div>
             </div>
           </div>

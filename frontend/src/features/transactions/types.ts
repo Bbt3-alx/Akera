@@ -45,32 +45,15 @@ export type Transaction = {
   updatedAt: string
 }
 
-export type TransactionReceiptSnapshot = Pick<
-  Transaction,
-  | 'transactionCode'
-  | 'beneficiaryName'
-  | 'inputAmount'
-  | 'inputCurrency'
-  | 'companyAmount'
-  | 'companyCurrency'
-  | 'partnerAmount'
-  | 'partnerCurrency'
-  | 'exchangeRate'
-  | 'processedAt'
->
-
 export type TransactionReceipt = {
-  _id: string
-  id?: string
+  id: string
+  receiptNumber: string
   transaction: string
   company: string
-  receiptNumber: string
-  snapshot: TransactionReceiptSnapshot
-  signatureHash: string
-  pdfPath: string
-  generatedBy: string
+  amount: number
+  currency: TransactionCurrency
   createdAt: string
-  updatedAt: string
+  downloadUrl: string
 }
 
 export type TransactionsPagination = {
@@ -101,7 +84,7 @@ export type CreateTransactionPayload = {
 
 export type PayTransactionResponse = {
   transaction: Transaction
-  receipt?: TransactionReceipt
+  receipt?: TransactionReceipt | null
 }
 
 export type CancelTransactionPayload = {

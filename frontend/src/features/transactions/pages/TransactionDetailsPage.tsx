@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -83,7 +84,10 @@ export function TransactionDetailsPage() {
                   {data.transactionCode}
                 </h2>
               </div>
-              <StatusBadge status={data.status} />
+              <div className="flex flex-col gap-3 sm:items-end">
+                <StatusBadge status={data.status} />
+                <PayTransactionButton transaction={data} />
+              </div>
             </div>
           </div>
 

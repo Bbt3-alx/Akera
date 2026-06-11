@@ -152,9 +152,9 @@ function normalizePayTransactionResponse(
   if ('transaction' in data) {
     return {
       transaction: data.transaction,
-      receipt: data.receipt,
+      receipt: data.receipt ?? null,
     }
   }
 
-  return { transaction: data }
+  return { transaction: data, receipt: null }
 }
