@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
+import mongoose from "mongoose";
 
 import {
   serializeTransaction,
@@ -99,13 +100,72 @@ describe("transaction serializer", () => {
     expect(serialized.partner).not.toHaveProperty("transactionPinHash");
   });
 
-  it("returns null partner info when membership user is not populated", () => {
+  it("falls back to createdBy when membership user is not populated", () => {
     const serialized = serializeTransaction({
       _id: "tx-2",
       membership: "membership-2",
+      createdBy: {
+        _id: "creator-1",
+        firstName: "Legacy",
+        lastName: "Partner",
+        email: "legacy@example.com",
+        password: "secret",
+        verificationToken: "verify-token",
+        resetPasswordToken: "reset-token",
+        transactionPinHash: "pin-hash",
+      },
     });
 
     expect(serialized.membership).toBe("membership-2");
+    expect(serialized.createdBy).toBe("creator-1");
+    expect(serialized.partner).toEqual({
+      membershipId: "membership-2",
+      userId: "creator-1",
+      name: "Legacy Partner",
+      email: "legacy@example.com",
+    });
+    expect(serialized.partner).not.toHaveProperty("password");
+    expect(serialized.partner).not.toHaveProperty("verificationToken");
+    expect(serialized.partner).not.toHaveProperty("resetPasswordToken");
+    expect(serialized.partner).not.toHaveProperty("transactionPinHash");
+  });
+
+  it("returns null partner info when neither membership user nor createdBy is populated", () => {
+    const serialized = serializeTransaction({
+      _id: "tx-3",
+      membership: "membership-3",
+      createdBy: "creator-3",
+    });
+
+    expect(serialized.membership).toBe("membership-3");
+    expect(serialized.createdBy).toBe("creator-3");
+    expect(serialized.partner).toBeNull();
+  });
+
+  it("serializes Mongoose ObjectId values without recursing", () => {
+    const transactionId = new mongoose.Types.ObjectId(
+      "64f000000000000000000001",
+    );
+    const companyId = new mongoose.Types.ObjectId("64f000000000000000000002");
+    const membershipId = new mongoose.Types.ObjectId(
+      "64f000000000000000000003",
+    );
+    const createdById = new mongoose.Types.ObjectId(
+      "64f000000000000000000004",
+    );
+
+    const serialized = serializeTransaction({
+      _id: transactionId,
+      company: companyId,
+      membership: membershipId,
+      createdBy: createdById,
+    });
+
+    expect(serialized._id).toBe(transactionId.toString());
+    expect(serialized.id).toBe(transactionId.toString());
+    expect(serialized.company).toBe(companyId.toString());
+    expect(serialized.membership).toBe(membershipId.toString());
+    expect(serialized.createdBy).toBe(createdById.toString());
     expect(serialized.partner).toBeNull();
   });
 

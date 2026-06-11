@@ -22,6 +22,11 @@ const transactionPartnerPopulate = {
   },
 };
 
+const transactionCreatedByPopulate = {
+  path: "createdBy",
+  select: "firstName lastName name email",
+};
+
 // Get Transactions with Pagination and Filtering
 export const getTransactions = async (req, res) => {
   try {
@@ -45,6 +50,7 @@ export const getTransactions = async (req, res) => {
         .skip((page - 1) * limit)
         .limit(Number(limit))
         .populate(transactionPartnerPopulate)
+        .populate(transactionCreatedByPopulate)
         .lean(),
       Transaction.countDocuments(filter),
     ]);
@@ -135,6 +141,7 @@ export const getTransaction = async (req, res) => {
 
     const transaction = await Transaction.findOne(baseFilter)
       .populate(transactionPartnerPopulate)
+      .populate(transactionCreatedByPopulate)
       .lean();
 
     if (!transaction) {
@@ -297,6 +304,7 @@ export const getTransactionByCode = async (req, res) => {
     company: companyId,
   })
     .populate(transactionPartnerPopulate)
+    .populate(transactionCreatedByPopulate)
     .lean();
   if (!transaction) {
     return res.status(404).json({

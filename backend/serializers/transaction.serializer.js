@@ -57,7 +57,7 @@ export function serializeTransaction(transaction) {
     serialized.id = serialized._id;
   }
 
-  serialized.partner = serializePartner(transaction.membership);
+  serialized.partner = serializePartner(transaction);
 
   return serialized;
 }
@@ -66,17 +66,26 @@ export function serializeTransactions(transactions) {
   return transactions.map((transaction) => serializeTransaction(transaction));
 }
 
-function serializePartner(membership) {
-  if (!isObject(membership) || !isObject(membership.user)) {
+function serializePartner(transaction) {
+  const membership = transaction.membership;
+  const membershipUser = isPopulatedObject(membership) &&
+    isPopulatedObject(membership.user)
+    ? membership.user
+    : null;
+  const fallbackUser = isPopulatedObject(transaction.createdBy)
+    ? transaction.createdBy
+    : null;
+  const user = membershipUser ?? fallbackUser;
+
+  if (!user) {
     return null;
   }
 
-  const user = membership.user;
-  const email = user.email;
+  const email = user.email ?? null;
   const name = getPartnerName(user);
 
   return {
-    membershipId: serializeId(membership),
+    membershipId: serializeId(membership) ?? null,
     userId: serializeId(user),
     name,
     email,
@@ -99,9 +108,22 @@ function serializeId(value) {
     return value;
   }
 
+  if (typeof value.toHexString === "function") {
+    return value.toHexString();
+  }
+
   if (isObject(value)) {
     const id = value._id ?? value.id;
-    return id === undefined ? value : serializeId(id);
+
+    if (id === undefined) {
+      return value;
+    }
+
+    if (id === value) {
+      return value.toString();
+    }
+
+    return serializeId(id);
   }
 
   if (typeof value.toString === "function") {
@@ -113,4 +135,8 @@ function serializeId(value) {
 
 function isObject(value) {
   return typeof value === "object" && value !== null;
+}
+
+function isPopulatedObject(value) {
+  return isObject(value) && typeof value.toHexString !== "function";
 }
