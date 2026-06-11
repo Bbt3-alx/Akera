@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import { useTransactions } from '../hooks.ts'
 import type {
@@ -54,6 +55,13 @@ export function TransactionsPage() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Link
+            className="inline-flex h-10 items-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            to="/app/transactions/search"
+          >
+            Search by code
+          </Link>
+
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Status
             <select

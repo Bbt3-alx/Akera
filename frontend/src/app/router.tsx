@@ -5,6 +5,7 @@ import { LoginPage } from '../features/auth/pages/LoginPage.tsx'
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
+import { TransactionSearchPage } from '../features/transactions/pages/TransactionSearchPage.tsx'
 import { TransactionsPage } from '../features/transactions/pages/TransactionsPage.tsx'
 import { AppLayout } from '../shared/components/AppLayout.tsx'
 import { ProtectedRoute } from '../shared/components/ProtectedRoute.tsx'
@@ -77,6 +78,10 @@ export const router = createBrowserRouter([
       {
         path: 'transactions',
         element: <TransactionsPage />,
+      },
+      {
+        path: 'transactions/search',
+        element: <TransactionSearchPage />,
       },
     ],
   },
