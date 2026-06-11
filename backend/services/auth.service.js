@@ -61,8 +61,7 @@ const validateSignupPayload = (email, password, profile) => {
     !email ||
     !password ||
     !profile.firstName ||
-    !profile.lastName ||
-    !profile.phone
+    !profile.lastName
   ) {
     throw new ApiError(422, "Missing required fields.", "VALIDATION_ERROR");
   }

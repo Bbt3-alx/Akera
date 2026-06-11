@@ -1,7 +1,7 @@
 import { ApiError } from "../middlewares/errorHandler.js";
 
 const validateSignupInput = (email, password, profile = {}, next) => {
-  if (!email || !password || !profile.firstname || !profile.lastname || !profile.phone) {
+  if (!email || !password || !profile.firstname || !profile.lastname) {
     next(new ApiError(422, "Missing required fields.", "VALIDATION_ERROR"));
     return false;
   }

@@ -4,6 +4,7 @@ import {
   PASSWORD_RESET_SUCCESS_TEMPLATE,
   PASSWORD_RESET_REQUEST_TEMPLATE,
 } from "./emailTemplates.js";
+import {ApiError} from "../middlewares/errorHandler.js";
 
 export const sendVerificationEmail = async (email, verificationToken) => {
   if (process.env.EMAIL_DELIVERY_MODE === "console") {
@@ -28,11 +29,16 @@ export const sendVerificationEmail = async (email, verificationToken) => {
     console.log("Email sent successfully!", response);
   } catch (error) {
     console.log(`Error sending verification email: ${error}`);
-    throw new Error(`Error sending verification email: ${error}`);
+    throw new ApiError(500, "Error sending verification email", "EMAIL_SEND_ERROR");
   }
 };
 
 export const sendWelcomeEmail = async (email, username) => {
+  if (process.env.EMAIL_DELIVERY_MODE === "console") {
+  console.log("DEV welcome message:", "Welcome to Akera, " + username + "! We're excited to have you on board.");
+  return;
+}
+
   const recipient = [{ email }];
 
   try {
@@ -58,6 +64,11 @@ export const sendWelcomeEmail = async (email, username) => {
 };
 
 export const sendResetPasswordEmail = async (email, resetUrl) => {
+  if (process.env.EMAIL_DELIVERY_MODE === "console") {
+    console.log(`[DEV EMAIL] Password reset link for ${email}: ${resetUrl}`);
+    return;
+  }
+
   const recipient = [{ email }];
 
   try {
@@ -71,11 +82,16 @@ export const sendResetPasswordEmail = async (email, resetUrl) => {
     console.log("Reset pwd email sent successfully:", response);
   } catch (error) {
     console.log(`Error something went wrong: ${error}`);
-    res.status(400).josn({ status: false, message: error.message });
+    throw new ApiError(500, "Error sending password reset email", "EMAIL_SEND_ERROR");
   }
 };
 
 export const sendResetSuccessEmail = async (email) => {
+  if (process.env.EMAIL_DELIVERY_MODE === "console") {
+    console.log(`[DEV EMAIL] Password reset successful for ${email}`);
+    return;
+  }
+
   const recipient = [{ email }];
 
   try {
@@ -89,6 +105,6 @@ export const sendResetSuccessEmail = async (email) => {
     console.log("Password reset successfully:", response);
   } catch (error) {
     console.log(`Error sending password update confirmation email`);
-    res.status(400).josn({ status: false, message: error.message });
+    throw new ApiError(500, "Error sending password reset confirmation email", "EMAIL_SEND_ERROR");
   }
 };
