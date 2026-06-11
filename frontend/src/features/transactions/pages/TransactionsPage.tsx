@@ -122,11 +122,12 @@ export function TransactionsPage() {
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Code</th>
+                  <th className="px-4 py-3">Partner</th>
                   <th className="px-4 py-3">Beneficiary</th>
-                  <th className="px-4 py-3">Input</th>
-                  <th className="px-4 py-3">Company amount</th>
+                  <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Created</th>
+                  <th className="px-4 py-3">Created at</th>
+                  <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -135,14 +136,11 @@ export function TransactionsPage() {
                     <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-950">
                       {transaction.transactionCode}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                      {transaction.partner?.name || 'Unknown partner'}
+                    </td>
                     <td className="px-4 py-3 text-slate-700">
                       {transaction.beneficiaryName}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                      {formatAmount(
-                        transaction.inputAmount,
-                        transaction.inputCurrency,
-                      )}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                       {formatAmount(
@@ -162,6 +160,16 @@ export function TransactionsPage() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-600">
                       {formatDate(transaction.createdAt)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <Link
+                        className="inline-flex h-8 items-center rounded border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                        to={`/app/transactions/${encodeURIComponent(
+                          transaction.transactionCode,
+                        )}`}
+                      >
+                        View
+                      </Link>
                     </td>
                   </tr>
                 ))}

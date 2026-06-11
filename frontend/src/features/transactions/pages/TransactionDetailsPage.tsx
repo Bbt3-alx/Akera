@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import type { FormEvent, ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Link, useParams } from 'react-router-dom'
 
 import { useTransactionByCode } from '../hooks.ts'
 import type {
@@ -19,40 +18,24 @@ const STATUS_STYLES: Record<TransactionStatus, string> = {
   archived: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
 }
 
-export function TransactionSearchPage() {
-  const [transactionCode, setTransactionCode] = useState('')
-  const [submittedCode, setSubmittedCode] = useState<string>()
-  const { data, error, isError, isFetching, refetch } =
-    useTransactionByCode(submittedCode)
-  const canSubmit = transactionCode.trim().length > 0 && !isFetching
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
-    const nextCode = transactionCode.trim()
-
-    if (!nextCode) {
-      setSubmittedCode(undefined)
-      return
-    }
-
-    if (nextCode === submittedCode) {
-      void refetch()
-      return
-    }
-
-    setSubmittedCode(nextCode)
-  }
+export function TransactionDetailsPage() {
+  const { transactionCode } = useParams<{ transactionCode: string }>()
+  const decodedTransactionCode = transactionCode
+    ? decodeURIComponent(transactionCode)
+    : undefined
+  const { data, error, isError, isLoading } = useTransactionByCode(
+    decodedTransactionCode,
+  )
 
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-950">
-            Search transaction
+            Transaction details
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Enter a transaction code to look up its current company record.
+            Review the full transaction record for this company.
           </p>
         </div>
 
@@ -64,77 +47,52 @@ export function TransactionSearchPage() {
         </Link>
       </div>
 
-      <form
-        className="rounded border border-slate-200 bg-white p-4 shadow-sm"
-        onSubmit={handleSubmit}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
-            Transaction code
-            <input
-              className="h-10 rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-              onChange={(event) => setTransactionCode(event.target.value)}
-              placeholder="AKR-000001"
-              type="text"
-              value={transactionCode}
-            />
-          </label>
-
-          <button
-            className="h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!canSubmit}
-            type="submit"
-          >
-            {isFetching ? 'Searching' : 'Search'}
-          </button>
-        </div>
-      </form>
-
-      {!submittedCode ? (
-        <StateMessage title="No search yet">
-          Submit a transaction code to view its details.
+      {!decodedTransactionCode ? (
+        <StateMessage title="Missing transaction code">
+          This route does not include a transaction code.
         </StateMessage>
       ) : null}
 
-      {submittedCode && isFetching && !data ? (
-        <StateMessage title="Searching transaction">
-          Looking up {submittedCode}.
+      {decodedTransactionCode && isLoading ? (
+        <StateMessage title="Loading transaction">
+          Fetching {decodedTransactionCode}.
         </StateMessage>
       ) : null}
 
-      {submittedCode && isError ? (
-        <StateMessage title="Unable to find transaction">
+      {decodedTransactionCode && isError ? (
+        <StateMessage title="Unable to load transaction">
           {getErrorMessage(error)}
+        </StateMessage>
+      ) : null}
+
+      {decodedTransactionCode && !isLoading && !isError && !data ? (
+        <StateMessage title="Transaction not found">
+          No transaction was returned for {decodedTransactionCode}.
         </StateMessage>
       ) : null}
 
       {data && !isError ? (
         <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-4 py-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="border-b border-slate-200 px-4 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase text-slate-500">
-                  Result
+                  Transaction
                 </p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-950">
+                <h2 className="mt-1 text-xl font-semibold text-slate-950">
                   {data.transactionCode}
                 </h2>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <StatusBadge status={data.status} />
-                <Link
-                  className="inline-flex h-9 items-center justify-center rounded bg-slate-950 px-3 text-sm font-medium text-white transition hover:bg-slate-800"
-                  to={`/app/transactions/${encodeURIComponent(
-                    data.transactionCode,
-                  )}`}
-                >
-                  View details
-                </Link>
-              </div>
+              <StatusBadge status={data.status} />
             </div>
           </div>
 
           <dl className="grid gap-px bg-slate-100 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <DetailItem label="Partner" value={getPartnerName(data.partner)} />
+            <DetailItem
+              label="Partner email"
+              value={data.partner?.email || 'Not available'}
+            />
             <DetailItem label="Beneficiary" value={data.beneficiaryName} />
             <DetailItem
               label="Input amount"
@@ -148,8 +106,37 @@ export function TransactionSearchPage() {
               label="Company amount"
               value={formatAmount(data.companyAmount, data.companyCurrency)}
             />
-            <DetailItem label="Created" value={formatDate(data.createdAt)} />
-            <DetailItem label="Status" value={data.status} />
+            {typeof data.exchangeRate === 'number' ? (
+              <DetailItem
+                label="Exchange rate"
+                value={formatNumber(data.exchangeRate)}
+              />
+            ) : null}
+            <DetailItem label="Created at" value={formatDate(data.createdAt)} />
+            {data.processedAt ? (
+              <DetailItem
+                label="Processed at"
+                value={formatDate(data.processedAt)}
+              />
+            ) : null}
+            {data.canceledAt ? (
+              <DetailItem
+                label="Canceled at"
+                value={formatDate(data.canceledAt)}
+              />
+            ) : null}
+            {data.cancelReason ? (
+              <DetailItem label="Cancel reason" value={data.cancelReason} />
+            ) : null}
+            {data.reversedAt ? (
+              <DetailItem
+                label="Reversed at"
+                value={formatDate(data.reversedAt)}
+              />
+            ) : null}
+            {data.reversedReason ? (
+              <DetailItem label="Reversal reason" value={data.reversedReason} />
+            ) : null}
             {data.description ? (
               <DetailItem
                 className="sm:col-span-2 lg:col-span-3"
@@ -157,6 +144,11 @@ export function TransactionSearchPage() {
                 value={data.description}
               />
             ) : null}
+            <DetailItem
+              className="sm:col-span-2 lg:col-span-3"
+              label="Transaction ID"
+              value={data.id || data._id}
+            />
           </dl>
         </div>
       ) : null}
@@ -174,7 +166,7 @@ function DetailItem({ className, label, value }: DetailItemProps) {
   return (
     <div className={['bg-white p-4', className].filter(Boolean).join(' ')}>
       <dt className="text-xs font-medium uppercase text-slate-500">{label}</dt>
-      <dd className="mt-1 font-medium text-slate-950">{value}</dd>
+      <dd className="mt-1 break-words font-medium text-slate-950">{value}</dd>
     </div>
   )
 }
@@ -206,10 +198,20 @@ function StatusBadge({ status }: { status: TransactionStatus }) {
   )
 }
 
+function getPartnerName(partner?: { name: string } | null) {
+  return partner?.name || 'Unknown partner'
+}
+
 function formatAmount(amount: number, currency: TransactionCurrency) {
   return `${new Intl.NumberFormat(undefined, {
     maximumFractionDigits: 2,
   }).format(amount)} ${currency}`
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 6,
+  }).format(value)
 }
 
 function formatDate(value: string) {
@@ -228,5 +230,5 @@ function formatDate(value: string) {
 function getErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
-    : 'Check the transaction code and try again.'
+    : 'Check your connection and try again.'
 }

@@ -16,6 +16,12 @@ export type Transaction = {
   transactionCode: string
   company: string
   membership: string
+  partner?: {
+    membershipId: string
+    userId: string
+    name: string
+    email: string
+  } | null
   inputAmount: number
   inputCurrency: TransactionCurrency
   partnerAmount: number
