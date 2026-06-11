@@ -9,6 +9,7 @@ import { useCompaniesStore } from '../companies/store.ts'
 import {
   cancelTransaction,
   createTransaction,
+  downloadReceipt,
   getTransactionByCode,
   listTransactions,
   payTransaction,
@@ -92,6 +93,12 @@ export function usePayTransaction() {
         response.transaction.transactionCode || transactionCode,
       )
     },
+  })
+}
+
+export function useDownloadReceipt() {
+  return useMutation({
+    mutationFn: downloadReceipt,
   })
 }
 

@@ -74,6 +74,15 @@ export async function payTransaction(
   return normalizePayTransactionResponse(unwrapApiResponse(response))
 }
 
+export async function downloadReceipt(receiptId: string): Promise<Blob> {
+  return http.get<Blob, Blob>(
+    `/transactions/receipt/${encodeURIComponent(receiptId)}`,
+    {
+      responseType: 'blob',
+    },
+  )
+}
+
 export async function cancelTransaction(
   transactionCode: string,
   payload?: CancelTransactionPayload,

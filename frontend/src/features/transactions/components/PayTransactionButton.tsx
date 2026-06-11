@@ -2,8 +2,12 @@ import { useId, useState } from 'react'
 
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
-import { usePayTransaction } from '../hooks.ts'
-import type { Transaction, TransactionCurrency } from '../types.ts'
+import { useDownloadReceipt, usePayTransaction } from '../hooks.ts'
+import type {
+  Transaction,
+  TransactionCurrency,
+  TransactionReceipt,
+} from '../types.ts'
 
 type PayTransactionButtonProps = {
   transaction: Transaction
@@ -14,8 +18,11 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const { data: me, isLoading: isMeLoading } = useMe()
   const payTransaction = usePayTransaction()
+  const downloadReceipt = useDownloadReceipt()
   const [isConfirming, setIsConfirming] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [successfulReceipt, setSuccessfulReceipt] =
+    useState<TransactionReceipt | null>(null)
 
   const activeMembership = me?.memberships.find(
     (membership) => membership.companyId === activeCompanyId,
@@ -40,12 +47,15 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
 
   function handleOpenConfirmation() {
     payTransaction.reset()
+    downloadReceipt.reset()
     setSuccessMessage(null)
+    setSuccessfulReceipt(null)
     setIsConfirming(true)
   }
 
   function handleCancel() {
     payTransaction.reset()
+    downloadReceipt.reset()
     setIsConfirming(false)
   }
 
@@ -54,25 +64,46 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
 
     payTransaction.mutate(transaction.transactionCode, {
       onSuccess: (response) => {
-        const receiptText = response.receipt?.receiptNumber
-          ? ` Receipt ${response.receipt.receiptNumber} generated.`
-          : ''
-
         setIsConfirming(false)
-        setSuccessMessage(`Payment completed.${receiptText}`)
+        setSuccessfulReceipt(response.receipt ?? null)
+        setSuccessMessage('Payment completed.')
+      },
+    })
+  }
+
+  function handleDownloadReceipt() {
+    if (!successfulReceipt) {
+      return
+    }
+
+    downloadReceipt.mutate(successfulReceipt.id, {
+      onSuccess: (blob) => {
+        const receiptNumber = sanitizeFilename(successfulReceipt.receiptNumber)
+
+        saveBlob(blob, `receipt-${receiptNumber}.pdf`)
       },
     })
   }
 
   const isPaymentPending = payTransaction.isPending
+  const isDownloadPending = downloadReceipt.isPending
   const canPay = isManager && !isCheckingAccess && !isPaymentPending
-  const errorMessage = payTransaction.isError
-    ? getErrorMessage(payTransaction.error)
+  const paymentErrorMessage = payTransaction.isError
+    ? getErrorMessage(
+        payTransaction.error,
+        'Payment failed. Try again or contact support.',
+      )
+    : null
+  const downloadErrorMessage = downloadReceipt.isError
+    ? getErrorMessage(
+        downloadReceipt.error,
+        'Receipt download failed. Try again.',
+      )
     : null
 
   return (
     <div className="space-y-2 text-left sm:text-right">
-      {transaction.status === 'pending' ? (
+      {transaction.status === 'pending' && !successMessage ? (
         <button
           className="inline-flex h-9 items-center justify-center rounded bg-emerald-700 px-3 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={!canPay}
@@ -115,9 +146,9 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
             />
           </dl>
 
-          {errorMessage ? (
+          {paymentErrorMessage ? (
             <p className="mt-3 rounded border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700">
-              {errorMessage}
+              {paymentErrorMessage}
             </p>
           ) : null}
 
@@ -143,9 +174,34 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
       ) : null}
 
       {successMessage ? (
-        <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 sm:text-left">
-          {successMessage}
-        </p>
+        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 sm:text-left">
+          <p className="font-medium">{successMessage}</p>
+
+          {successfulReceipt ? (
+            <div className="mt-2 space-y-2">
+              <p>
+                Receipt{' '}
+                <span className="font-semibold">
+                  {successfulReceipt.receiptNumber}
+                </span>{' '}
+                generated.
+              </p>
+              <button
+                className="inline-flex h-9 items-center justify-center rounded border border-emerald-300 bg-white px-3 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isDownloadPending}
+                onClick={handleDownloadReceipt}
+                type="button"
+              >
+                {isDownloadPending ? 'Downloading' : 'Download receipt'}
+              </button>
+              {downloadErrorMessage ? (
+                <p className="rounded border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700">
+                  {downloadErrorMessage}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   )
@@ -173,8 +229,23 @@ function formatAmount(amount: number, currency: TransactionCurrency) {
   }).format(amount)} ${currency}`
 }
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : 'Payment failed. Try again or contact support.'
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+  return error instanceof Error ? error.message : fallbackMessage
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+
+  anchor.href = objectUrl
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+}
+
+function sanitizeFilename(value: string) {
+  return value.replace(/[^a-z0-9._-]/gi, '-')
 }
