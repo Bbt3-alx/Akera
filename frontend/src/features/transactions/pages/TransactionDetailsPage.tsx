@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { CancelTransactionButton } from '../components/CancelTransactionButton.tsx'
 import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
+import { ReverseTransactionButton } from '../components/ReverseTransactionButton.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -90,6 +91,7 @@ export function TransactionDetailsPage() {
                 <div className="flex flex-col gap-2 sm:items-end">
                   <PayTransactionButton transaction={data} />
                   <CancelTransactionButton transaction={data} />
+                  <ReverseTransactionButton transaction={data} />
                 </div>
               </div>
             </div>

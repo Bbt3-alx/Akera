@@ -103,3 +103,7 @@ export type ReverseTransactionPayload = {
   transactionPin: string
   reason?: string
 }
+
+export type ReverseTransactionResponse = {
+  transaction: Transaction
+}
