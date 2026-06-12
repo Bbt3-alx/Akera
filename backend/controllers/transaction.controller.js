@@ -125,8 +125,7 @@ export const reverseCompletedTransaction = async (req, res) => {
 
   const { companyId} = req.context;
   const { transactionCode} = req.params;
-  const {reason} = req.body;
-  const sanitizedReason = sanitizeAuditReason(reason);
+  const reason = normalizeReverseReason(req.body?.reason);
 
   const transaction = await reverseCompletedTransactionService({
     companyId,
@@ -135,18 +134,23 @@ export const reverseCompletedTransaction = async (req, res) => {
     reason,
   });
 
+  const data = await serializeReverseResult({
+    transaction,
+    companyId,
+  });
+
   res.locals.audit = {
     targetId: transaction._id,
     targetCode: transaction.transactionCode,
     metadata: {
       status: transaction.status,
-      reason: sanitizedReason,
+      reason,
     },
   };
 
   return res.status(200).json({
     success: true,
-    data: transaction,
+    data,
   });
 };
 
@@ -175,6 +179,15 @@ async function serializeCreateResult({ transaction, companyId }) {
 }
 
 async function serializeCancelResult({ transaction, companyId }) {
+  const serializableTransaction = await findSerializableTransaction(
+    transaction,
+    companyId,
+  );
+
+  return serializeTransactionMutationResult(serializableTransaction);
+}
+
+async function serializeReverseResult({ transaction, companyId }) {
   const serializableTransaction = await findSerializableTransaction(
     transaction,
     companyId,
@@ -221,6 +234,22 @@ async function findReceiptForTransaction(transaction, companyId) {
 }
 
 export function normalizeCancelReason(reason) {
+  return normalizeOptionalReason({
+    errorCode: "INVALID_CANCEL_REASON",
+    label: "Cancel reason",
+    reason,
+  });
+}
+
+export function normalizeReverseReason(reason) {
+  return normalizeOptionalReason({
+    errorCode: "INVALID_REVERSE_REASON",
+    label: "Reverse reason",
+    reason,
+  });
+}
+
+function normalizeOptionalReason({ errorCode, label, reason }) {
   if (reason === undefined) {
     return undefined;
   }
@@ -228,8 +257,8 @@ export function normalizeCancelReason(reason) {
   if (typeof reason !== "string") {
     throw new ApiError(
       400,
-      "Cancel reason must be a string",
-      "INVALID_CANCEL_REASON",
+      `${label} must be a string`,
+      errorCode,
     );
   }
 
@@ -242,20 +271,10 @@ export function normalizeCancelReason(reason) {
   if (trimmedReason.length > 300) {
     throw new ApiError(
       400,
-      "Cancel reason must be 300 characters or fewer",
-      "INVALID_CANCEL_REASON",
+      `${label} must be 300 characters or fewer`,
+      errorCode,
     );
   }
 
   return trimmedReason;
-}
-
-function sanitizeAuditReason(reason) {
-  if (typeof reason !== "string") {
-    return undefined;
-  }
-
-  const trimmedReason = reason.trim();
-
-  return trimmedReason || undefined;
 }

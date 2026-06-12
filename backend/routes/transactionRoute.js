@@ -72,8 +72,6 @@ router.put(
 router.post(
   "/:transactionCode/reverse",
   audit("TRANSACTION_REVERSE", "Transaction"),
-  verifyToken,
-  resolveCompanyContext,
   verifyTransactionPin,
   catchAsync(reverseCompletedTransaction),
 );

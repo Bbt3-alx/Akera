@@ -580,14 +580,30 @@ export async function reverseCompletedTransactionService({
       ],
     })
 
-    // Finalize reversal
-    transaction.status = "reversed";
-    transaction.reversedAt = new Date();
-    transaction.reversedBy = managerId;
-    transaction.reverseReason = reason;
-
-    await transaction.save({session});
+    await finalizeReversedTransaction({
+      managerId,
+      reason,
+      session,
+      transaction,
+    });
 
     return transaction;
   })
+}
+
+export async function finalizeReversedTransaction({
+  managerId,
+  now = new Date(),
+  reason,
+  session,
+  transaction,
+}) {
+  transaction.status = "reversed";
+  transaction.reversedAt = now;
+  transaction.reversedBy = managerId;
+  transaction.reversedReason = reason;
+
+  await transaction.save({ session });
+
+  return transaction;
 }
