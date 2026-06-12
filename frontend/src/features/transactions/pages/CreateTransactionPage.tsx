@@ -7,6 +7,9 @@ import { z } from 'zod'
 
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
+import { useCurrentExchangeRate } from '../../exchangeRates/hooks.ts'
+import type { CompanyExchangeRate } from '../../exchangeRates/types.ts'
+import { AppApiError } from '../../../shared/api/types.ts'
 import { useCreateTransaction } from '../hooks.ts'
 import type {
   CreateTransactionPayload,
@@ -45,6 +48,9 @@ const DEFAULT_FORM_VALUES = {
   description: '',
 }
 
+const EXCHANGE_RATE_NOT_CONFIGURED_MESSAGE =
+  'Exchange rate is not configured for this company. Ask a manager to configure it.'
+
 export function CreateTransactionPage() {
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const meQuery = useMe()
@@ -58,7 +64,16 @@ export function CreateTransactionPage() {
   )
   const canCreateTransaction =
     activeMembership?.role === 'partner' && activeMembership.status === 'active'
+  const exchangeRateQuery = useCurrentExchangeRate(canCreateTransaction)
+  const currentExchangeRate = exchangeRateQuery.data ?? null
   const isCheckingAccess = Boolean(activeCompanyId) && meQuery.isLoading
+  const isCheckingExchangeRate =
+    canCreateTransaction && exchangeRateQuery.isLoading
+  const isExchangeRateMissing =
+    canCreateTransaction &&
+    !isCheckingExchangeRate &&
+    !exchangeRateQuery.isError &&
+    currentExchangeRate === null
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -70,8 +85,14 @@ export function CreateTransactionPage() {
   })
   const errorMessage = getErrorMessage(createTransactionMutation.error)
   const isPending = isSubmitting || createTransactionMutation.isPending
+  const isSubmitDisabled =
+    isPending || isCheckingExchangeRate || isExchangeRateMissing
 
   const onSubmit = handleSubmit(async (values) => {
+    if (isExchangeRateMissing || isCheckingExchangeRate) {
+      return
+    }
+
     const payload = toCreateTransactionRequest(values)
     const fingerprint = getSubmissionFingerprint(payload)
     const nextSubmissionIdentity =
@@ -139,104 +160,186 @@ export function CreateTransactionPage() {
       ) : null}
 
       {!isCheckingAccess && !meQuery.isError && canCreateTransaction ? (
-        <form
-          className="max-w-2xl rounded border border-slate-200 bg-white p-4 shadow-sm"
-          onSubmit={onSubmit}
-        >
-          <div className="space-y-4">
-            <FormField
-              error={errors.inputAmount?.message}
-              label="Input amount"
-              registration={register('inputAmount', {
-                setValueAs: toOptionalNumber,
-              })}
-              type="number"
-            />
+        <>
+          <ExchangeRateCard
+            exchangeRate={currentExchangeRate}
+            isError={exchangeRateQuery.isError}
+            isFetching={exchangeRateQuery.isFetching}
+            isLoading={exchangeRateQuery.isLoading}
+            onRefresh={() => void exchangeRateQuery.refetch()}
+          />
 
-            <div>
-              <label
-                className="block text-sm font-medium text-slate-700"
-                htmlFor="inputCurrency"
-              >
-                Input currency
-              </label>
-              <select
-                className="mt-1 h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-                id="inputCurrency"
-                {...register('inputCurrency')}
-              >
-                {CURRENCIES.map((currency) => (
-                  <option key={currency} value={currency}>
-                    {currency}
-                  </option>
-                ))}
-              </select>
-              {errors.inputCurrency ? (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.inputCurrency.message}
-                </p>
-              ) : null}
-            </div>
-
-            <FormField
-              error={errors.beneficiaryName?.message}
-              label="Beneficiary name"
-              registration={register('beneficiaryName')}
-            />
-
-            <div>
-              <label
-                className="block text-sm font-medium text-slate-700"
-                htmlFor="description"
-              >
-                Description
-              </label>
-              <textarea
-                className="mt-1 min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-                id="description"
-                maxLength={255}
-                {...register('description')}
+          <form
+            className="max-w-2xl rounded border border-slate-200 bg-white p-4 shadow-sm"
+            onSubmit={onSubmit}
+          >
+            <div className="space-y-4">
+              <FormField
+                error={errors.inputAmount?.message}
+                label="Input amount"
+                registration={register('inputAmount', {
+                  setValueAs: toOptionalNumber,
+                })}
+                type="number"
               />
-              {errors.description ? (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.description.message}
-                </p>
-              ) : null}
-            </div>
-          </div>
 
-          {errorMessage ? (
-            <p className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {errorMessage}
+              <div>
+                <label
+                  className="block text-sm font-medium text-slate-700"
+                  htmlFor="inputCurrency"
+                >
+                  Input currency
+                </label>
+                <select
+                  className="mt-1 h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                  id="inputCurrency"
+                  {...register('inputCurrency')}
+                >
+                  {CURRENCIES.map((currency) => (
+                    <option key={currency} value={currency}>
+                      {currency}
+                    </option>
+                  ))}
+                </select>
+                {errors.inputCurrency ? (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.inputCurrency.message}
+                  </p>
+                ) : null}
+              </div>
+
+              <FormField
+                error={errors.beneficiaryName?.message}
+                label="Beneficiary name"
+                registration={register('beneficiaryName')}
+              />
+
+              <div>
+                <label
+                  className="block text-sm font-medium text-slate-700"
+                  htmlFor="description"
+                >
+                  Description
+                </label>
+                <textarea
+                  className="mt-1 min-h-24 w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+                  id="description"
+                  maxLength={255}
+                  {...register('description')}
+                />
+                {errors.description ? (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.description.message}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            {isExchangeRateMissing ? (
+              <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {EXCHANGE_RATE_NOT_CONFIGURED_MESSAGE}
+              </p>
+            ) : null}
+
+            {errorMessage ? (
+              <p className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {errorMessage}
+              </p>
+            ) : null}
+
+            {createdTransaction ? (
+              <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+                <p className="font-medium">
+                  Transaction {createdTransaction.transactionCode} created.
+                </p>
+                <Link
+                  className="mt-2 inline-flex h-9 items-center rounded bg-emerald-700 px-3 text-sm font-medium text-white transition hover:bg-emerald-800"
+                  to={`/app/transactions/${encodeURIComponent(
+                    createdTransaction.transactionCode,
+                  )}`}
+                >
+                  View details
+                </Link>
+              </div>
+            ) : null}
+
+            <button
+              className="mt-6 h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitDisabled}
+              type="submit"
+            >
+              {isPending ? 'Creating' : 'Create transaction'}
+            </button>
+          </form>
+        </>
+      ) : null}
+    </section>
+  )
+}
+
+type ExchangeRateCardProps = {
+  exchangeRate: CompanyExchangeRate | null
+  isError: boolean
+  isFetching: boolean
+  isLoading: boolean
+  onRefresh: () => void
+}
+
+function ExchangeRateCard({
+  exchangeRate,
+  isError,
+  isFetching,
+  isLoading,
+  onRefresh,
+}: ExchangeRateCardProps) {
+  return (
+    <div className="max-w-2xl rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-500">
+            Current company rate
+          </p>
+
+          {isLoading ? (
+            <p className="mt-2 text-sm text-slate-600">
+              Loading current exchange rate.
             </p>
           ) : null}
 
-          {createdTransaction ? (
-            <div className="mt-4 rounded border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-              <p className="font-medium">
-                Transaction {createdTransaction.transactionCode} created.
-              </p>
-              <Link
-                className="mt-2 inline-flex h-9 items-center rounded bg-emerald-700 px-3 text-sm font-medium text-white transition hover:bg-emerald-800"
-                to={`/app/transactions/${encodeURIComponent(
-                  createdTransaction.transactionCode,
-                )}`}
-              >
-                View details
-              </Link>
-            </div>
+          {isError ? (
+            <p className="mt-2 text-sm text-red-700">
+              Unable to load the current exchange rate.
+            </p>
           ) : null}
 
-          <button
-            className="mt-6 h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isPending}
-            type="submit"
-          >
-            {isPending ? 'Creating' : 'Create transaction'}
-          </button>
-        </form>
-      ) : null}
-    </section>
+          {!isLoading && !isError && exchangeRate ? (
+            <>
+              <p className="mt-2 text-xl font-semibold text-slate-950">
+                5000 FCFA = {formatNumber(exchangeRate.rate)} GNF
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Last updated: {formatDate(exchangeRate.updatedAt)}
+              </p>
+            </>
+          ) : null}
+
+          {!isLoading && !isError && !exchangeRate ? (
+            <p className="mt-2 text-sm text-amber-800">
+              {EXCHANGE_RATE_NOT_CONFIGURED_MESSAGE}
+            </p>
+          ) : null}
+        </div>
+
+        <button
+          className="h-9 rounded border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isFetching}
+          onClick={onRefresh}
+          type="button"
+        >
+          {isFetching ? 'Refreshing' : 'Refresh rate'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -344,9 +447,35 @@ function getErrorMessage(error: unknown): string | null {
     return null
   }
 
+  if (
+    error instanceof AppApiError &&
+    error.errorCode === 'EXCHANGE_RATE_NOT_CONFIGURED'
+  ) {
+    return EXCHANGE_RATE_NOT_CONFIGURED_MESSAGE
+  }
+
   if (error instanceof Error) {
     return error.message
   }
 
   return 'Unable to create transaction. Please try again.'
+}
+
+function formatNumber(value: number) {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function formatDate(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
 }

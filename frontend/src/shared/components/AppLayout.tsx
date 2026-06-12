@@ -29,7 +29,7 @@ export function AppLayout() {
       membership.companyId === activeCompanyId &&
       membership.status === 'active',
   )
-  const canManageInvitations = activeMembership?.role === 'manager'
+  const canManageCompanySettings = activeMembership?.role === 'manager'
 
   function handleLogout() {
     clearAccessToken()
@@ -53,9 +53,14 @@ export function AppLayout() {
             Dashboard
           </SidebarLink>
           <SidebarLink to="/app/transactions">Transactions</SidebarLink>
-          {canManageInvitations ? (
+          {canManageCompanySettings ? (
             <SidebarLink to="/app/company/invitations">
               Invitations
+            </SidebarLink>
+          ) : null}
+          {canManageCompanySettings ? (
+            <SidebarLink to="/app/company/exchange-rate">
+              Exchange rate
             </SidebarLink>
           ) : null}
         </nav>
@@ -71,9 +76,14 @@ export function AppLayout() {
                   Dashboard
                 </TopbarLink>
                 <TopbarLink to="/app/transactions">Transactions</TopbarLink>
-                {canManageInvitations ? (
+                {canManageCompanySettings ? (
                   <TopbarLink to="/app/company/invitations">
                     Invitations
+                  </TopbarLink>
+                ) : null}
+                {canManageCompanySettings ? (
+                  <TopbarLink to="/app/company/exchange-rate">
+                    Exchange rate
                   </TopbarLink>
                 ) : null}
               </nav>
