@@ -91,7 +91,7 @@ export const getPartnerTransactions = async (req, res) => {
 
     const filter = {
       company: companyId,
-      initiatedBy: req.user.id,
+      createdBy: req.user.id,
       ...(status && { status }),
     };
 
@@ -100,6 +100,8 @@ export const getPartnerTransactions = async (req, res) => {
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(Number(limit))
+        .populate(transactionPartnerPopulate)
+        .populate(transactionCreatedByPopulate)
         .lean(),
       Transaction.countDocuments(filter),
     ]);
@@ -112,7 +114,7 @@ export const getPartnerTransactions = async (req, res) => {
         total,
         totalPages: Math.ceil(total / limit),
       },
-      data: transactions,
+      data: serializeTransactions(transactions),
     });
   } catch (error) {
     console.error("Get partner transactions error:", error);
@@ -136,7 +138,7 @@ export const getTransaction = async (req, res) => {
     };
 
     if (role === "partner") {
-      baseFilter.initiatedBy = req.user.id;
+      baseFilter.createdBy = req.user.id;
     }
 
     const transaction = await Transaction.findOne(baseFilter)

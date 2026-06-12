@@ -26,16 +26,21 @@ const transactionCreatedByPopulate = {
 
 // Controller to handle transaction creation
 export const createTransaction = async (req, res) => {
-  const result = await createTransactionService({
+  const transaction = await createTransactionService({
     companyId: req.context.companyId,
     membershipId: req.context.membershipId,
     userId: req.user.id,
     payload: req.body,
   });
 
+  const data = await serializeCreateResult({
+    transaction,
+    companyId: req.context.companyId,
+  });
+
   res.status(201).json({
     success: true,
-    data: result,
+    data,
   });
 };
 
@@ -116,14 +121,27 @@ async function serializePaymentResult({ result, companyId }) {
   };
 }
 
+async function serializeCreateResult({ transaction, companyId }) {
+  const serializableTransaction = await findSerializableTransaction(
+    transaction,
+    companyId,
+  );
+
+  return serializeTransactionMutationResult(serializableTransaction);
+}
+
 async function serializeCancelResult({ transaction, companyId }) {
   const serializableTransaction = await findSerializableTransaction(
     transaction,
     companyId,
   );
 
+  return serializeTransactionMutationResult(serializableTransaction);
+}
+
+export function serializeTransactionMutationResult(transaction) {
   return {
-    transaction: serializeTransaction(serializableTransaction),
+    transaction: serializeTransaction(transaction),
   };
 }
 
