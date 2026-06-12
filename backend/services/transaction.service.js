@@ -54,19 +54,9 @@ export async function createTransactionService({
       );
     }
 
-    const existing = await Transaction.findOne({
-      idempotencyKey,
-      company: companyId,
-    }).session(session);
-    if (existing) return existing;
-
-    const company = await Company.findById(companyId).session(session);
-
-    if (!company)
-      throw new ApiError(404, "Company not found", "COMPANY_NOT_FOUND");
-
     const membership = await CompanyMembership.findOne({
       _id: membershipId,
+      user: userId,
       company: companyId,
       role: "partner",
       status: "active",
@@ -79,6 +69,18 @@ export async function createTransactionService({
         "PARTNER_ACCOUNT_NOT_FOUND",
       );
     }
+
+    const existing = await Transaction.findOne({
+      idempotencyKey,
+      company: companyId,
+      createdBy: userId,
+      membership: membership._id,
+    }).session(session);
+    if (existing) return existing;
+
+    const company = await Company.findById(companyId).session(session);
+    if (!company)
+      throw new ApiError(404, "Company not found", "COMPANY_NOT_FOUND");
 
     // Retrieve exchange rate
     const rateDoc = await CompanyExchangeRate.findOne({

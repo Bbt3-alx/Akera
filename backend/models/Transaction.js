@@ -124,7 +124,10 @@ const transactionSchema = new Schema(
 
 // Compound indexes
 transactionSchema.index({ company: 1, partner: 1 });
-transactionSchema.index({ idempotencyKey: 1, company: 1 }, { unique: true });
+transactionSchema.index(
+  { idempotencyKey: 1, company: 1, createdBy: 1, membership: 1 },
+  { unique: true },
+);
 
 const Transaction = model("Transaction", transactionSchema);
 export default Transaction;
