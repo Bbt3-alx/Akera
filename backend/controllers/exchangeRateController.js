@@ -1,30 +1,32 @@
-import CompanyExchangeRate from "../models/CompanyExchangeRate.js";
+import {
+  getCurrentCompanyExchangeRate,
+  upsertCompanyExchangeRate,
+} from "../services/companyExchangeRate.service.js";
+import { serializeCompanyExchangeRate } from "../serializers/companyExchangeRate.serializer.js";
 
-export const setExchangeRate = async (req, res) => {
-  const { role, companyId } = req.context;
+export const getExchangeRate = async (req, res) => {
+  const exchangeRate = await getCurrentCompanyExchangeRate({
+    companyId: req.context.companyId,
+  });
 
-  if (role !== "manager") {
-    return res.status(403).json({ message: "Manager only" });
-  }
-
-  const { rate } = req.body;
-  if (!rate || rate <= 0) {
-    return res.status(400).json({ message: "Invalid rate" });
-  }
-
-  const exchangeRate = await CompanyExchangeRate.findOneAndUpdate(
-    {
-      company: companyId,
-    },
-    {
-      rate,
-      setBy: req.user.id,
-      effectiveFrom: new Date(),
-    },
-    {
-      upsert: true,
-      new: true,
-    },
-  );
-  res.json({ success: true, data: exchangeRate });
+  res.status(200).json({
+    success: true,
+    data: serializeCompanyExchangeRate(exchangeRate),
+  });
 };
+
+export const updateExchangeRate = async (req, res) => {
+  const exchangeRate = await upsertCompanyExchangeRate({
+    companyId: req.context.companyId,
+    userId: req.user.id,
+    role: req.context.role,
+    payload: req.body,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeCompanyExchangeRate(exchangeRate),
+  });
+};
+
+export const setExchangeRate = updateExchangeRate;
