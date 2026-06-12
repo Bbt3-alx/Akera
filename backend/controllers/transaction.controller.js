@@ -38,6 +38,17 @@ export const createTransaction = async (req, res) => {
     companyId: req.context.companyId,
   });
 
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      inputAmount: transaction.inputAmount,
+      inputCurrency: transaction.inputCurrency,
+      beneficiaryName: transaction.beneficiaryName,
+    },
+  };
+
   res.status(201).json({
     success: true,
     data,
@@ -56,6 +67,20 @@ export const payTransaction = async (req, res) => {
     result,
     companyId: req.context.companyId,
   });
+  const transaction = result?.transaction ?? result;
+  const receipt = result?.receipt;
+
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      companyAmount: transaction.companyAmount,
+      companyCurrency: transaction.companyCurrency,
+      receiptId: receipt?._id,
+      receiptNumber: receipt?.receiptNumber,
+    },
+  };
 
   res.json({
     success: true,
@@ -81,6 +106,15 @@ export const cancelPendingTransaction = async (req, res) => {
     companyId,
   });
 
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      reason,
+    },
+  };
+
   res.status(200).json({
     success: true,
     data,
@@ -92,6 +126,7 @@ export const reverseCompletedTransaction = async (req, res) => {
   const { companyId} = req.context;
   const { transactionCode} = req.params;
   const {reason} = req.body;
+  const sanitizedReason = sanitizeAuditReason(reason);
 
   const transaction = await reverseCompletedTransactionService({
     companyId,
@@ -99,6 +134,15 @@ export const reverseCompletedTransaction = async (req, res) => {
     managerId: req.user.id,
     reason,
   });
+
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      reason: sanitizedReason,
+    },
+  };
 
   return res.status(200).json({
     success: true,
@@ -204,4 +248,14 @@ export function normalizeCancelReason(reason) {
   }
 
   return trimmedReason;
+}
+
+function sanitizeAuditReason(reason) {
+  if (typeof reason !== "string") {
+    return undefined;
+  }
+
+  const trimmedReason = reason.trim();
+
+  return trimmedReason || undefined;
 }
