@@ -7,6 +7,7 @@ import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
 import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInvitationsPage.tsx'
+import { MyInvitationsPage } from '../features/invitations/pages/MyInvitationsPage.tsx'
 import { CreateTransactionPage } from '../features/transactions/pages/CreateTransactionPage.tsx'
 import { TransactionDetailsPage } from '../features/transactions/pages/TransactionDetailsPage.tsx'
 import { TransactionSearchPage } from '../features/transactions/pages/TransactionSearchPage.tsx'
@@ -94,6 +95,10 @@ export const router = createBrowserRouter([
       {
         path: 'transactions/:transactionCode',
         element: <TransactionDetailsPage />,
+      },
+      {
+        path: 'invitations',
+        element: <MyInvitationsPage />,
       },
       {
         path: 'company/invitations',

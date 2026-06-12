@@ -5,11 +5,13 @@ import { useMe } from '../../features/auth/hooks.ts'
 import { useAuthStore } from '../../features/auth/store.ts'
 import { CompanySwitcher } from '../../features/companies/components/CompanySwitcher.tsx'
 import { useCompaniesStore } from '../../features/companies/store.ts'
+import { useMyInvitations } from '../../features/invitations/hooks.ts'
 
 export function AppLayout() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data } = useMe()
+  const myInvitationsQuery = useMyInvitations()
   const clearAccessToken = useAuthStore((state) => state.clearAccessToken)
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const clearActiveCompanyId = useCompaniesStore(
@@ -30,6 +32,10 @@ export function AppLayout() {
       membership.status === 'active',
   )
   const canManageCompanySettings = activeMembership?.role === 'manager'
+  const pendingInvitationCount =
+    myInvitationsQuery.data?.filter(
+      (invitation) => invitation.status === 'pending',
+    ).length ?? 0
 
   function handleLogout() {
     clearAccessToken()
@@ -53,9 +59,12 @@ export function AppLayout() {
             Dashboard
           </SidebarLink>
           <SidebarLink to="/app/transactions">Transactions</SidebarLink>
+          <SidebarLink to="/app/invitations">
+            <NavLabel count={pendingInvitationCount}>Invitations</NavLabel>
+          </SidebarLink>
           {canManageCompanySettings ? (
             <SidebarLink to="/app/company/invitations">
-              Invitations
+              Company invites
             </SidebarLink>
           ) : null}
           {canManageCompanySettings ? (
@@ -76,9 +85,14 @@ export function AppLayout() {
                   Dashboard
                 </TopbarLink>
                 <TopbarLink to="/app/transactions">Transactions</TopbarLink>
+                <TopbarLink to="/app/invitations">
+                  <NavLabel count={pendingInvitationCount}>
+                    Invitations
+                  </NavLabel>
+                </TopbarLink>
                 {canManageCompanySettings ? (
                   <TopbarLink to="/app/company/invitations">
-                    Invitations
+                    Company invites
                   </TopbarLink>
                 ) : null}
                 {canManageCompanySettings ? (
@@ -121,6 +135,24 @@ type AppNavLinkProps = {
   children: React.ReactNode
   end?: boolean
   to: string
+}
+
+type NavLabelProps = {
+  children: React.ReactNode
+  count?: number
+}
+
+function NavLabel({ children, count = 0 }: NavLabelProps) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span>{children}</span>
+      {count > 0 ? (
+        <span className="inline-flex min-w-5 justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
+          {count}
+        </span>
+      ) : null}
+    </span>
+  )
 }
 
 function SidebarLink({ children, end, to }: AppNavLinkProps) {

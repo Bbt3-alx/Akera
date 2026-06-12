@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
+import { TransactionCodeDisplay } from '../components/TransactionCodeDisplay.tsx'
 import { useTransactions } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -51,6 +52,8 @@ export function TransactionsPage() {
       membership.status === 'active',
   )
   const isCheckingAccess = Boolean(activeCompanyId) && isMeLoading
+  const isPartnerView = activeMembership?.role === 'partner'
+  const activeCompanyName = activeMembership?.companyName ?? 'Current company'
   const canCreateTransaction = activeMembership?.role === 'partner'
   const canSearchTransactions =
     activeMembership?.role === 'manager' ||
@@ -163,7 +166,9 @@ export function TransactionsPage() {
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Code</th>
-                  <th className="px-4 py-3">Partner</th>
+                  <th className="px-4 py-3">
+                    {isPartnerView ? 'Company' : 'Partner'}
+                  </th>
                   <th className="px-4 py-3">Beneficiary</th>
                   <th className="px-4 py-3">Amount</th>
                   <th className="px-4 py-3">Status</th>
@@ -175,10 +180,15 @@ export function TransactionsPage() {
                 {transactions.map((transaction) => (
                   <tr key={transaction._id} className="hover:bg-slate-50">
                     <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-950">
-                      {transaction.transactionCode}
+                      <TransactionCodeDisplay
+                        className="font-medium"
+                        code={transaction.transactionCode}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                      {transaction.partner?.name || 'Unknown partner'}
+                      {isPartnerView
+                        ? activeCompanyName
+                        : transaction.partner?.name || 'Unknown partner'}
                     </td>
                     <td className="px-4 py-3 text-slate-700">
                       {transaction.beneficiaryName}

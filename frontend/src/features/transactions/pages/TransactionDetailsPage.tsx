@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { useMe } from '../../auth/hooks.ts'
+import { useCompaniesStore } from '../../companies/store.ts'
 import { CancelTransactionButton } from '../components/CancelTransactionButton.tsx'
 import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { ReverseTransactionButton } from '../components/ReverseTransactionButton.tsx'
+import { TransactionCodeDisplay } from '../components/TransactionCodeDisplay.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -23,12 +26,21 @@ const STATUS_STYLES: Record<TransactionStatus, string> = {
 
 export function TransactionDetailsPage() {
   const { transactionCode } = useParams<{ transactionCode: string }>()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+  const { data: me } = useMe()
   const decodedTransactionCode = transactionCode
     ? decodeURIComponent(transactionCode)
     : undefined
   const { data, error, isError, isLoading } = useTransactionByCode(
     decodedTransactionCode,
   )
+  const activeMembership = me?.memberships.find(
+    (membership) =>
+      membership.companyId === activeCompanyId &&
+      membership.status === 'active',
+  )
+  const isPartnerView = activeMembership?.role === 'partner'
+  const activeCompanyName = activeMembership?.companyName ?? 'Current company'
 
   return (
     <section className="space-y-6">
@@ -83,7 +95,7 @@ export function TransactionDetailsPage() {
                   Transaction
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-slate-950">
-                  {data.transactionCode}
+                  <TransactionCodeDisplay code={data.transactionCode} />
                 </h2>
               </div>
               <div className="flex flex-col gap-3 sm:items-end">
@@ -98,12 +110,23 @@ export function TransactionDetailsPage() {
           </div>
 
           <dl className="grid gap-px bg-slate-100 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <DetailItem label="Partner" value={getPartnerName(data.partner)} />
             <DetailItem
-              label="Partner email"
-              value={data.partner?.email || 'Not available'}
+              label={isPartnerView ? 'Company' : 'Partner'}
+              value={
+                isPartnerView ? activeCompanyName : getPartnerName(data.partner)
+              }
             />
+            {!isPartnerView ? (
+              <DetailItem
+                label="Partner email"
+                value={data.partner?.email || 'Not available'}
+              />
+            ) : null}
             <DetailItem label="Beneficiary" value={data.beneficiaryName} />
+            <DetailItem
+              label="Transaction code"
+              value={data.transactionCode}
+            />
             <DetailItem
               label="Input amount"
               value={formatAmount(data.inputAmount, data.inputCurrency)}

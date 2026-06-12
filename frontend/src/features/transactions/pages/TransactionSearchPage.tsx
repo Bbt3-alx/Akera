@@ -8,6 +8,7 @@ import { useCompaniesStore } from '../../companies/store.ts'
 import { CancelTransactionButton } from '../components/CancelTransactionButton.tsx'
 import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { ReverseTransactionButton } from '../components/ReverseTransactionButton.tsx'
+import { TransactionCodeDisplay } from '../components/TransactionCodeDisplay.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -32,11 +33,14 @@ export function TransactionSearchPage() {
   const meQuery = useMe()
   const { data, error, isError, isFetching, refetch } =
     useTransactionByCode(submittedCode)
-  const activeRole = meQuery.data?.memberships.find(
+  const activeMembership = meQuery.data?.memberships.find(
     (membership) =>
       membership.companyId === activeCompanyId &&
       membership.status === 'active',
-  )?.role
+  )
+  const activeRole = activeMembership?.role
+  const isPartnerView = activeRole === 'partner'
+  const activeCompanyName = activeMembership?.companyName ?? 'Current company'
   const isCheckingAccess = Boolean(activeCompanyId) && meQuery.isLoading
   const canSearchTransactions = isTransactionSearchRole(activeRole)
   const canSubmit =
@@ -156,7 +160,7 @@ export function TransactionSearchPage() {
                   Result
                 </p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-950">
-                  {data.transactionCode}
+                  <TransactionCodeDisplay code={data.transactionCode} />
                 </h2>
               </div>
               <div className="flex flex-col gap-2 sm:items-end">
@@ -181,7 +185,17 @@ export function TransactionSearchPage() {
           </div>
 
           <dl className="grid gap-px bg-slate-100 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <DetailItem
+              label={isPartnerView ? 'Company' : 'Partner'}
+              value={
+                isPartnerView ? activeCompanyName : getPartnerName(data.partner)
+              }
+            />
             <DetailItem label="Beneficiary" value={data.beneficiaryName} />
+            <DetailItem
+              label="Transaction code"
+              value={data.transactionCode}
+            />
             <DetailItem
               label="Input amount"
               value={formatAmount(data.inputAmount, data.inputCurrency)}
@@ -279,4 +293,8 @@ function getErrorMessage(error: unknown) {
 
 function isTransactionSearchRole(role: AuthRole | undefined) {
   return role === 'manager' || role === 'employee' || role === 'partner'
+}
+
+function getPartnerName(partner?: { name: string } | null) {
+  return partner?.name || 'Unknown partner'
 }
