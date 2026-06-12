@@ -5,6 +5,7 @@ import { LoginPage } from '../features/auth/pages/LoginPage.tsx'
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
+import { CreateTransactionPage } from '../features/transactions/pages/CreateTransactionPage.tsx'
 import { TransactionDetailsPage } from '../features/transactions/pages/TransactionDetailsPage.tsx'
 import { TransactionSearchPage } from '../features/transactions/pages/TransactionSearchPage.tsx'
 import { TransactionsPage } from '../features/transactions/pages/TransactionsPage.tsx'
@@ -83,6 +84,10 @@ export const router = createBrowserRouter([
       {
         path: 'transactions/search',
         element: <TransactionSearchPage />,
+      },
+      {
+        path: 'transactions/new',
+        element: <CreateTransactionPage />,
       },
       {
         path: 'transactions/:transactionCode',

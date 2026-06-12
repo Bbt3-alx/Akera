@@ -82,6 +82,10 @@ export type CreateTransactionPayload = {
   idempotencyKey: string
 }
 
+export type CreateTransactionResponse = {
+  transaction: Transaction
+}
+
 export type PayTransactionResponse = {
   transaction: Transaction
   receipt?: TransactionReceipt | null

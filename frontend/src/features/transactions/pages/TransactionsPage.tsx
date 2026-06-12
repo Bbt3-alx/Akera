@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useMe } from '../../auth/hooks.ts'
+import { useCompaniesStore } from '../../companies/store.ts'
 import { useTransactions } from '../hooks.ts'
 import type {
   TransactionCurrency,
@@ -33,6 +35,8 @@ type StatusFilter = (typeof STATUS_FILTERS)[number]['value']
 export function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const status = statusFilter === 'all' ? undefined : statusFilter
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+  const { data: me } = useMe()
   const { data, error, isError, isFetching, isLoading, refetch } =
     useTransactions({
       page: 1,
@@ -41,6 +45,11 @@ export function TransactionsPage() {
     })
   const transactions = data?.data ?? []
   const totalTransactions = data?.pagination?.total
+  const activeMembership = me?.memberships.find(
+    (membership) => membership.companyId === activeCompanyId,
+  )
+  const canCreateTransaction =
+    activeMembership?.role === 'partner' && activeMembership.status === 'active'
 
   return (
     <section className="space-y-6">
@@ -55,6 +64,15 @@ export function TransactionsPage() {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {canCreateTransaction ? (
+            <Link
+              className="inline-flex h-10 items-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+              to="/app/transactions/new"
+            >
+              New transaction
+            </Link>
+          ) : null}
+
           <Link
             className="inline-flex h-10 items-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
             to="/app/transactions/search"

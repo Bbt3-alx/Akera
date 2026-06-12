@@ -8,6 +8,7 @@ import type {
   CancelTransactionResponse,
   CancelTransactionPayload,
   CreateTransactionPayload,
+  CreateTransactionResponse,
   ListTransactionsParams,
   ListTransactionsResponse,
   PayTransactionResponse,
@@ -32,6 +33,8 @@ type ListTransactionsApiResponse =
 type PayTransactionApiData = PayTransactionResponse | Transaction
 
 type CancelTransactionApiData = CancelTransactionResponse | Transaction
+
+type CreateTransactionApiData = CreateTransactionResponse | Transaction
 
 export async function listTransactions(
   params?: ListTransactionsParams,
@@ -58,12 +61,12 @@ export async function createTransaction(
   payload: CreateTransactionPayload,
 ): Promise<Transaction> {
   const response = await http.post<
-    ApiResponse<Transaction>,
-    ApiResponse<Transaction>,
+    ApiResponse<CreateTransactionApiData>,
+    ApiResponse<CreateTransactionApiData>,
     CreateTransactionPayload
   >('/transactions', payload)
 
-  return unwrapApiResponse(response)
+  return normalizeCreateTransactionResponse(unwrapApiResponse(response))
 }
 
 export async function payTransaction(
@@ -169,6 +172,16 @@ function normalizePayTransactionResponse(
   }
 
   return { transaction: data, receipt: null }
+}
+
+function normalizeCreateTransactionResponse(
+  data: CreateTransactionApiData,
+): Transaction {
+  if ('transaction' in data) {
+    return data.transaction
+  }
+
+  return data
 }
 
 function normalizeCancelTransactionResponse(
