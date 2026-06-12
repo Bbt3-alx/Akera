@@ -2,6 +2,9 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useMe } from '../../auth/hooks.ts'
+import type { AuthRole } from '../../auth/types.ts'
+import { useCompaniesStore } from '../../companies/store.ts'
 import { CancelTransactionButton } from '../components/CancelTransactionButton.tsx'
 import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { ReverseTransactionButton } from '../components/ReverseTransactionButton.tsx'
@@ -25,12 +28,30 @@ const STATUS_STYLES: Record<TransactionStatus, string> = {
 export function TransactionSearchPage() {
   const [transactionCode, setTransactionCode] = useState('')
   const [submittedCode, setSubmittedCode] = useState<string>()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+  const meQuery = useMe()
   const { data, error, isError, isFetching, refetch } =
     useTransactionByCode(submittedCode)
-  const canSubmit = transactionCode.trim().length > 0 && !isFetching
+  const activeRole = meQuery.data?.memberships.find(
+    (membership) =>
+      membership.companyId === activeCompanyId &&
+      membership.status === 'active',
+  )?.role
+  const isCheckingAccess = Boolean(activeCompanyId) && meQuery.isLoading
+  const canSearchTransactions = isTransactionSearchRole(activeRole)
+  const canSubmit =
+    canSearchTransactions && transactionCode.trim().length > 0 && !isFetching
+  const searchDescription =
+    activeRole === 'partner'
+      ? 'Enter one of your transaction codes to look up its current record.'
+      : 'Enter a transaction code to look up its current company record.'
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (!canSearchTransactions) {
+      return
+    }
 
     const nextCode = transactionCode.trim()
 
@@ -55,7 +76,7 @@ export function TransactionSearchPage() {
             Search transaction
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Enter a transaction code to look up its current company record.
+            {searchDescription}
           </p>
         </div>
 
@@ -67,33 +88,48 @@ export function TransactionSearchPage() {
         </Link>
       </div>
 
-      <form
-        className="rounded border border-slate-200 bg-white p-4 shadow-sm"
-        onSubmit={handleSubmit}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
-            Transaction code
-            <input
-              className="h-10 rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
-              onChange={(event) => setTransactionCode(event.target.value)}
-              placeholder="AKR-000001"
-              type="text"
-              value={transactionCode}
-            />
-          </label>
+      {isCheckingAccess ? (
+        <StateMessage title="Checking access">
+          Confirming your selected company membership.
+        </StateMessage>
+      ) : null}
 
-          <button
-            className="h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!canSubmit}
-            type="submit"
-          >
-            {isFetching ? 'Searching' : 'Search'}
-          </button>
-        </div>
-      </form>
+      {!isCheckingAccess && !canSearchTransactions ? (
+        <StateMessage title="Search unavailable">
+          Select an active company membership to search transactions.
+        </StateMessage>
+      ) : null}
 
-      {!submittedCode ? (
+      {isCheckingAccess || canSearchTransactions ? (
+        <form
+          className="rounded border border-slate-200 bg-white p-4 shadow-sm"
+          onSubmit={handleSubmit}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="flex flex-1 flex-col gap-1 text-sm font-medium text-slate-700">
+              Transaction code
+              <input
+                className="h-10 rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                disabled={isCheckingAccess || !canSearchTransactions}
+                onChange={(event) => setTransactionCode(event.target.value)}
+                placeholder="AKR-000001"
+                type="text"
+                value={transactionCode}
+              />
+            </label>
+
+            <button
+              className="h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!canSubmit}
+              type="submit"
+            >
+              {isFetching ? 'Searching' : 'Search'}
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {canSearchTransactions && !submittedCode ? (
         <StateMessage title="No search yet">
           Submit a transaction code to view its details.
         </StateMessage>
@@ -239,4 +275,8 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : 'Check the transaction code and try again.'
+}
+
+function isTransactionSearchRole(role: AuthRole | undefined) {
+  return role === 'manager' || role === 'employee' || role === 'partner'
 }

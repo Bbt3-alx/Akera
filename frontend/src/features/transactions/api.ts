@@ -39,13 +39,17 @@ type CreateTransactionApiData = CreateTransactionResponse | Transaction
 
 type ReverseTransactionApiData = ReverseTransactionResponse | Transaction
 
+export type ListTransactionsScope = 'company' | 'mine'
+
 export async function listTransactions(
   params?: ListTransactionsParams,
+  scope: ListTransactionsScope = 'company',
 ): Promise<ListTransactionsResponse> {
+  const endpoint = scope === 'mine' ? '/transactions/mine' : '/transactions'
   const response = await http.get<
     ListTransactionsApiResponse,
     ListTransactionsApiResponse
-  >('/transactions', { params })
+  >(endpoint, { params })
 
   return unwrapListTransactionsResponse(response)
 }

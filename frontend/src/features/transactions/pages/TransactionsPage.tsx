@@ -36,7 +36,7 @@ export function TransactionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const status = statusFilter === 'all' ? undefined : statusFilter
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
-  const { data: me } = useMe()
+  const { data: me, isLoading: isMeLoading } = useMe()
   const { data, error, isError, isFetching, isLoading, refetch } =
     useTransactions({
       page: 1,
@@ -46,10 +46,17 @@ export function TransactionsPage() {
   const transactions = data?.data ?? []
   const totalTransactions = data?.pagination?.total
   const activeMembership = me?.memberships.find(
-    (membership) => membership.companyId === activeCompanyId,
+    (membership) =>
+      membership.companyId === activeCompanyId &&
+      membership.status === 'active',
   )
-  const canCreateTransaction =
-    activeMembership?.role === 'partner' && activeMembership.status === 'active'
+  const isCheckingAccess = Boolean(activeCompanyId) && isMeLoading
+  const canCreateTransaction = activeMembership?.role === 'partner'
+  const canSearchTransactions =
+    activeMembership?.role === 'manager' ||
+    activeMembership?.role === 'employee' ||
+    activeMembership?.role === 'partner'
+  const canListTransactions = canSearchTransactions
 
   return (
     <section className="space-y-6">
@@ -73,12 +80,14 @@ export function TransactionsPage() {
             </Link>
           ) : null}
 
-          <Link
-            className="inline-flex h-10 items-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            to="/app/transactions/search"
-          >
-            Search by code
-          </Link>
+          {canSearchTransactions ? (
+            <Link
+              className="inline-flex h-10 items-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              to="/app/transactions/search"
+            >
+              Search by code
+            </Link>
+          ) : null}
 
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Status
@@ -99,7 +108,7 @@ export function TransactionsPage() {
 
           <button
             className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isFetching}
+            disabled={isCheckingAccess || !canListTransactions || isFetching}
             onClick={() => void refetch()}
             type="button"
           >
@@ -116,25 +125,39 @@ export function TransactionsPage() {
             : ''}
         </div>
 
-        {isLoading ? (
+        {isCheckingAccess || isLoading ? (
           <StateMessage title="Loading transactions">
             Fetching the latest company transactions.
           </StateMessage>
         ) : null}
 
-        {isError ? (
+        {!isCheckingAccess && !canListTransactions ? (
+          <StateMessage title="Transactions unavailable">
+            Select an active company membership to view transactions.
+          </StateMessage>
+        ) : null}
+
+        {!isCheckingAccess && canListTransactions && isError ? (
           <StateMessage title="Unable to load transactions">
             {getErrorMessage(error)}
           </StateMessage>
         ) : null}
 
-        {!isLoading && !isError && transactions.length === 0 ? (
+        {!isCheckingAccess &&
+        canListTransactions &&
+        !isLoading &&
+        !isError &&
+        transactions.length === 0 ? (
           <StateMessage title="No transactions found">
             Transactions matching this filter will appear here.
           </StateMessage>
         ) : null}
 
-        {!isLoading && !isError && transactions.length > 0 ? (
+        {!isCheckingAccess &&
+        canListTransactions &&
+        !isLoading &&
+        !isError &&
+        transactions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">

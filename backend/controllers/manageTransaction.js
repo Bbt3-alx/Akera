@@ -27,6 +27,27 @@ const transactionCreatedByPopulate = {
   select: "firstName lastName name email",
 };
 
+function buildTransactionReadFilter(req, identifierFilter) {
+  const { companyId, role } = req.context;
+
+  if (role === "manager" || role === "employee") {
+    return {
+      ...identifierFilter,
+      company: companyId,
+    };
+  }
+
+  if (role === "partner") {
+    return {
+      ...identifierFilter,
+      company: companyId,
+      createdBy: req.user.id,
+    };
+  }
+
+  return null;
+}
+
 // Get Transactions with Pagination and Filtering
 export const getTransactions = async (req, res) => {
   try {
@@ -129,19 +150,17 @@ export const getPartnerTransactions = async (req, res) => {
 // Get transaction by ID
 export const getTransaction = async (req, res) => {
   try {
-    const { companyId, role } = req.context;
     const { id } = req.params;
 
-    const baseFilter = {
-      _id: id,
-      company: companyId,
-    };
-
-    if (role === "partner") {
-      baseFilter.createdBy = req.user.id;
+    const filter = buildTransactionReadFilter(req, { _id: id });
+    if (!filter) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
     }
 
-    const transaction = await Transaction.findOne(baseFilter)
+    const transaction = await Transaction.findOne(filter)
       .populate(transactionPartnerPopulate)
       .populate(transactionCreatedByPopulate)
       .lean();
@@ -293,18 +312,17 @@ export const updateTransaction = async (req, res) => {
 
 // Get transaction by code
 export const getTransactionByCode = async (req, res) => {
-  const { companyId, role } = req.context;
-  if (role !== "manager" && role !== "employee") {
+  const filter = buildTransactionReadFilter(req, {
+    transactionCode: req.params.transactionCode,
+  });
+  if (!filter) {
     return res.status(403).json({
       success: false,
       message: "Access denied",
     });
   }
 
-  const transaction = await Transaction.findOne({
-    transactionCode: req.params.transactionCode,
-    company: companyId,
-  })
+  const transaction = await Transaction.findOne(filter)
     .populate(transactionPartnerPopulate)
     .populate(transactionCreatedByPopulate)
     .lean();

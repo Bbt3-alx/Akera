@@ -5,6 +5,8 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 
+import { useMe } from '../auth/hooks.ts'
+import type { AuthRole } from '../auth/types.ts'
 import { useCompaniesStore } from '../companies/store.ts'
 import {
   cancelTransaction,
@@ -14,6 +16,7 @@ import {
   listTransactions,
   payTransaction,
   reverseTransaction,
+  type ListTransactionsScope,
 } from './api.ts'
 import type {
   CancelTransactionPayload,
@@ -23,6 +26,7 @@ import type {
 } from './types.ts'
 
 type ActiveCompanyId = string | null | undefined
+type CompanyTransactionReadRole = Extract<AuthRole, 'manager' | 'employee'>
 
 type CancelTransactionVariables = {
   transactionCode: string
@@ -39,8 +43,11 @@ export const transactionKeys = {
     ['transactions', activeCompanyId] as const,
   lists: (activeCompanyId: ActiveCompanyId) =>
     [...transactionKeys.all(activeCompanyId), 'list'] as const,
-  list: (activeCompanyId: ActiveCompanyId, params?: ListTransactionsParams) =>
-    [...transactionKeys.lists(activeCompanyId), params ?? {}] as const,
+  list: (
+    activeCompanyId: ActiveCompanyId,
+    scope: ListTransactionsScope | undefined,
+    params?: ListTransactionsParams,
+  ) => [...transactionKeys.lists(activeCompanyId), scope, params ?? {}] as const,
   detail: (activeCompanyId: ActiveCompanyId, transactionCode: string) =>
     [...transactionKeys.all(activeCompanyId), 'detail', transactionCode] as const,
   trialBalance: (activeCompanyId: ActiveCompanyId) =>
@@ -49,11 +56,18 @@ export const transactionKeys = {
 
 export function useTransactions(params?: ListTransactionsParams) {
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+  const { data: me, isLoading: isMeLoading } = useMe()
+  const activeRole = me?.memberships.find(
+    (membership) =>
+      membership.companyId === activeCompanyId &&
+      membership.status === 'active',
+  )?.role
+  const listScope = getTransactionListScope(activeRole)
 
   return useQuery({
-    queryKey: transactionKeys.list(activeCompanyId, params),
-    queryFn: () => listTransactions(params),
-    enabled: Boolean(activeCompanyId),
+    queryKey: transactionKeys.list(activeCompanyId, listScope, params),
+    queryFn: () => listTransactions(params, listScope ?? 'company'),
+    enabled: Boolean(activeCompanyId && listScope && !isMeLoading),
   })
 }
 
@@ -173,4 +187,24 @@ async function invalidateTransactionListAndDetail(
   }
 
   await Promise.all(invalidations)
+}
+
+function getTransactionListScope(
+  role: AuthRole | undefined,
+): ListTransactionsScope | undefined {
+  if (role === 'partner') {
+    return 'mine'
+  }
+
+  if (isCompanyTransactionReadRole(role)) {
+    return 'company'
+  }
+
+  return undefined
+}
+
+function isCompanyTransactionReadRole(
+  role: AuthRole | undefined,
+): role is CompanyTransactionReadRole {
+  return role === 'manager' || role === 'employee'
 }
