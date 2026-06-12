@@ -87,6 +87,10 @@ export type PayTransactionResponse = {
   receipt?: TransactionReceipt | null
 }
 
+export type CancelTransactionResponse = {
+  transaction: Transaction
+}
+
 export type CancelTransactionPayload = {
   reason?: string
 }

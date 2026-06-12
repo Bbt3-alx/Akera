@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { CancelTransactionButton } from '../components/CancelTransactionButton.tsx'
 import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
@@ -133,7 +134,10 @@ export function TransactionSearchPage() {
                     View details
                   </Link>
                 </div>
-                <PayTransactionButton transaction={data} />
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <PayTransactionButton transaction={data} />
+                  <CancelTransactionButton transaction={data} />
+                </div>
               </div>
             </div>
           </div>

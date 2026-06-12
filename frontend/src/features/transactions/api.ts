@@ -5,6 +5,7 @@ import {
   type ApiResponse,
 } from '../../shared/api/types.ts'
 import type {
+  CancelTransactionResponse,
   CancelTransactionPayload,
   CreateTransactionPayload,
   ListTransactionsParams,
@@ -29,6 +30,8 @@ type ListTransactionsApiResponse =
   | ApiErrorResponse
 
 type PayTransactionApiData = PayTransactionResponse | Transaction
+
+type CancelTransactionApiData = CancelTransactionResponse | Transaction
 
 export async function listTransactions(
   params?: ListTransactionsParams,
@@ -88,12 +91,12 @@ export async function cancelTransaction(
   payload?: CancelTransactionPayload,
 ): Promise<Transaction> {
   const response = await http.put<
-    ApiResponse<Transaction>,
-    ApiResponse<Transaction>,
+    ApiResponse<CancelTransactionApiData>,
+    ApiResponse<CancelTransactionApiData>,
     CancelTransactionPayload | undefined
   >(`/transactions/${encodeURIComponent(transactionCode)}/cancel`, payload)
 
-  return unwrapApiResponse(response)
+  return normalizeCancelTransactionResponse(unwrapApiResponse(response))
 }
 
 export async function reverseTransaction(
@@ -166,4 +169,14 @@ function normalizePayTransactionResponse(
   }
 
   return { transaction: data, receipt: null }
+}
+
+function normalizeCancelTransactionResponse(
+  data: CancelTransactionApiData,
+): Transaction {
+  if ('transaction' in data) {
+    return data.transaction
+  }
+
+  return data
 }

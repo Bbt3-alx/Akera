@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { CancelTransactionButton } from '../components/CancelTransactionButton.tsx'
 import { PayTransactionButton } from '../components/PayTransactionButton.tsx'
 import { useTransactionByCode } from '../hooks.ts'
 import type {
@@ -86,7 +87,10 @@ export function TransactionDetailsPage() {
               </div>
               <div className="flex flex-col gap-3 sm:items-end">
                 <StatusBadge status={data.status} />
-                <PayTransactionButton transaction={data} />
+                <div className="flex flex-col gap-2 sm:items-end">
+                  <PayTransactionButton transaction={data} />
+                  <CancelTransactionButton transaction={data} />
+                </div>
               </div>
             </div>
           </div>
