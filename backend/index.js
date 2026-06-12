@@ -21,6 +21,7 @@ import usdCustomerRoutes from "./routes/usdCustomerRoutes.js";
 import receiptRoutes from "./routes/receiptRoute.js";
 import companyBrandingRoutes from "./routes/companyBrandingRoute.js";
 import securityRoutes from "./routes/securityRoute.js";
+import companyInvitationRoutes from "./routes/companyInvitationRoute.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import { activityLogger } from "./middlewares/activityLogger.js";
 import getDashboard from "./routes/dashbordRoute.js";
@@ -64,6 +65,7 @@ app.use("/api/v1/dashboard", getDashboard);
 app.use("/api/v1/receipts", receiptRoutes)
 app.use("/api/v1/company/branding", companyBrandingRoutes);
 app.use("/api/v1/security", securityRoutes);
+app.use("/api/v1/company-invitations", companyInvitationRoutes);
 // app.use(standardizeResponse);
 app.use((err, req, res, next) => {
   errorHandler(err, req, res);

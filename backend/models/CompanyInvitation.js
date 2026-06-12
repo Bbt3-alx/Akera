@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { Schema, model } from "mongoose";
 
 const companyInvitationSchema = new Schema(
@@ -6,6 +7,7 @@ const companyInvitationSchema = new Schema(
       type: String,
       required: true,
       lowercase: true,
+      trim: true,
       index: true,
     },
     company: {
@@ -18,6 +20,15 @@ const companyInvitationSchema = new Schema(
       type: String,
       enum: ["employee", "partner"],
       required: true,
+    },
+    currency: {
+      type: String,
+      enum: ["FCFA", "GNF"],
+    },
+    startingBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     status: {
       type: String,
@@ -40,16 +51,22 @@ const companyInvitationSchema = new Schema(
       type: Date,
       required: true,
     },
+    acceptedAt: Date,
+    rejectedAt: Date,
+    revokedAt: Date,
+    revokedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   { timestamps: true },
 );
 
 // Pre-validate hook to generate a unique token if not provided
-companyInvitationSchema.pre("validate", function (next) {
+companyInvitationSchema.pre("validate", function () {
   if (!this.token) {
     this.token = crypto.randomBytes(32).toString("hex");
   }
-  next();
 });
 
 // Compound index to ensure a user can have only one pending invitation per company
