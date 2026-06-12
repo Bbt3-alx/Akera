@@ -24,6 +24,12 @@ export function AppLayout() {
     data?.memberships.find(
       (membership) => membership.companyId === activeCompanyId,
     )?.companyName ?? 'No company selected'
+  const activeMembership = data?.memberships.find(
+    (membership) =>
+      membership.companyId === activeCompanyId &&
+      membership.status === 'active',
+  )
+  const canManageInvitations = activeMembership?.role === 'manager'
 
   function handleLogout() {
     clearAccessToken()
@@ -47,6 +53,11 @@ export function AppLayout() {
             Dashboard
           </SidebarLink>
           <SidebarLink to="/app/transactions">Transactions</SidebarLink>
+          {canManageInvitations ? (
+            <SidebarLink to="/app/company/invitations">
+              Invitations
+            </SidebarLink>
+          ) : null}
         </nav>
       </aside>
 
@@ -60,6 +71,11 @@ export function AppLayout() {
                   Dashboard
                 </TopbarLink>
                 <TopbarLink to="/app/transactions">Transactions</TopbarLink>
+                {canManageInvitations ? (
+                  <TopbarLink to="/app/company/invitations">
+                    Invitations
+                  </TopbarLink>
+                ) : null}
               </nav>
             </div>
 
