@@ -38,6 +38,17 @@ export const createTransaction = async (req, res) => {
     companyId: req.context.companyId,
   });
 
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      inputAmount: transaction.inputAmount,
+      inputCurrency: transaction.inputCurrency,
+      beneficiaryName: transaction.beneficiaryName,
+    },
+  };
+
   res.status(201).json({
     success: true,
     data,
@@ -56,6 +67,20 @@ export const payTransaction = async (req, res) => {
     result,
     companyId: req.context.companyId,
   });
+  const transaction = result?.transaction ?? result;
+  const receipt = result?.receipt;
+
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      companyAmount: transaction.companyAmount,
+      companyCurrency: transaction.companyCurrency,
+      receiptId: receipt?._id,
+      receiptNumber: receipt?.receiptNumber,
+    },
+  };
 
   res.json({
     success: true,
@@ -81,6 +106,15 @@ export const cancelPendingTransaction = async (req, res) => {
     companyId,
   });
 
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      reason,
+    },
+  };
+
   res.status(200).json({
     success: true,
     data,
@@ -91,7 +125,7 @@ export const reverseCompletedTransaction = async (req, res) => {
 
   const { companyId} = req.context;
   const { transactionCode} = req.params;
-  const {reason} = req.body;
+  const reason = normalizeReverseReason(req.body?.reason);
 
   const transaction = await reverseCompletedTransactionService({
     companyId,
@@ -100,9 +134,23 @@ export const reverseCompletedTransaction = async (req, res) => {
     reason,
   });
 
+  const data = await serializeReverseResult({
+    transaction,
+    companyId,
+  });
+
+  res.locals.audit = {
+    targetId: transaction._id,
+    targetCode: transaction.transactionCode,
+    metadata: {
+      status: transaction.status,
+      reason,
+    },
+  };
+
   return res.status(200).json({
     success: true,
-    data: transaction,
+    data,
   });
 };
 
@@ -131,6 +179,15 @@ async function serializeCreateResult({ transaction, companyId }) {
 }
 
 async function serializeCancelResult({ transaction, companyId }) {
+  const serializableTransaction = await findSerializableTransaction(
+    transaction,
+    companyId,
+  );
+
+  return serializeTransactionMutationResult(serializableTransaction);
+}
+
+async function serializeReverseResult({ transaction, companyId }) {
   const serializableTransaction = await findSerializableTransaction(
     transaction,
     companyId,
@@ -177,6 +234,22 @@ async function findReceiptForTransaction(transaction, companyId) {
 }
 
 export function normalizeCancelReason(reason) {
+  return normalizeOptionalReason({
+    errorCode: "INVALID_CANCEL_REASON",
+    label: "Cancel reason",
+    reason,
+  });
+}
+
+export function normalizeReverseReason(reason) {
+  return normalizeOptionalReason({
+    errorCode: "INVALID_REVERSE_REASON",
+    label: "Reverse reason",
+    reason,
+  });
+}
+
+function normalizeOptionalReason({ errorCode, label, reason }) {
   if (reason === undefined) {
     return undefined;
   }
@@ -184,8 +257,8 @@ export function normalizeCancelReason(reason) {
   if (typeof reason !== "string") {
     throw new ApiError(
       400,
-      "Cancel reason must be a string",
-      "INVALID_CANCEL_REASON",
+      `${label} must be a string`,
+      errorCode,
     );
   }
 
@@ -198,8 +271,8 @@ export function normalizeCancelReason(reason) {
   if (trimmedReason.length > 300) {
     throw new ApiError(
       400,
-      "Cancel reason must be 300 characters or fewer",
-      "INVALID_CANCEL_REASON",
+      `${label} must be 300 characters or fewer`,
+      errorCode,
     );
   }
 

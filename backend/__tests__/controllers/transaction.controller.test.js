@@ -2,6 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 
 import {
   normalizeCancelReason,
+  normalizeReverseReason,
   serializeTransactionMutationResult,
 } from "../../controllers/transaction.controller.js";
 import { ApiError } from "../../middlewares/errorHandler.js";
@@ -58,6 +59,31 @@ describe("transaction controller helpers", () => {
         "transactionPinHash",
       );
     });
+
+    it("wraps reversed transactions without leaking request-only secrets", () => {
+      const result = serializeTransactionMutationResult({
+        _id: "tx-2",
+        transactionCode: "AKR-000002",
+        membership: "membership-2",
+        createdBy: "creator-2",
+        status: "reversed",
+        reversedReason: "Manager correction",
+        reverseReason: "legacy mismatch",
+        transactionPin: "123456",
+      });
+
+      expect(result).toEqual({
+        transaction: expect.objectContaining({
+          _id: "tx-2",
+          id: "tx-2",
+          transactionCode: "AKR-000002",
+          status: "reversed",
+          reversedReason: "Manager correction",
+        }),
+      });
+      expect(result.transaction).not.toHaveProperty("reverseReason");
+      expect(result.transaction).not.toHaveProperty("transactionPin");
+    });
   });
 
   describe("normalizeCancelReason", () => {
@@ -79,6 +105,29 @@ describe("transaction controller helpers", () => {
     it("rejects reasons longer than 300 characters", () => {
       expect(() => normalizeCancelReason("a".repeat(301))).toThrow(
         "Cancel reason must be 300 characters or fewer",
+      );
+    });
+  });
+
+  describe("normalizeReverseReason", () => {
+    it("trims string reasons", () => {
+      expect(normalizeReverseReason("  Manager correction  ")).toBe(
+        "Manager correction",
+      );
+    });
+
+    it("treats omitted or blank reasons as undefined", () => {
+      expect(normalizeReverseReason(undefined)).toBeUndefined();
+      expect(normalizeReverseReason("   ")).toBeUndefined();
+    });
+
+    it("rejects non-string reasons", () => {
+      expect(() => normalizeReverseReason(123)).toThrow(ApiError);
+    });
+
+    it("rejects reasons longer than 300 characters", () => {
+      expect(() => normalizeReverseReason("a".repeat(301))).toThrow(
+        "Reverse reason must be 300 characters or fewer",
       );
     });
   });
