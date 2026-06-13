@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { transactionKeys } from '../transactions/hooks.ts'
 import { useCompaniesStore } from '../companies/store.ts'
+import { invalidateCompanyDashboard } from '../dashboard/hooks.ts'
 import {
   createCompanyCashDeposit,
   getCompanyCash,
@@ -42,6 +43,7 @@ export function useCreateCompanyCashDeposit() {
         queryClient.invalidateQueries({
           queryKey: transactionKeys.trialBalance(activeCompanyId),
         }),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
       ])
     },
   })

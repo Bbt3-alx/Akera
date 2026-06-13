@@ -8,6 +8,7 @@ import {
 import { useMe } from '../auth/hooks.ts'
 import type { AuthRole } from '../auth/types.ts'
 import { useCompaniesStore } from '../companies/store.ts'
+import { invalidateCompanyDashboard } from '../dashboard/hooks.ts'
 import {
   cancelTransaction,
   createTransaction,
@@ -89,7 +90,10 @@ export function useCreateTransaction() {
   return useMutation({
     mutationFn: (payload: CreateTransactionPayload) => createTransaction(payload),
     onSuccess: async () => {
-      await invalidateTransactionLists(queryClient, activeCompanyId)
+      await Promise.all([
+        invalidateTransactionLists(queryClient, activeCompanyId),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }
@@ -101,11 +105,14 @@ export function usePayTransaction() {
   return useMutation({
     mutationFn: payTransaction,
     onSuccess: async (response, transactionCode) => {
-      await invalidateTransactionListAndDetail(
-        queryClient,
-        activeCompanyId,
-        response.transaction.transactionCode || transactionCode,
-      )
+      await Promise.all([
+        invalidateTransactionListAndDetail(
+          queryClient,
+          activeCompanyId,
+          response.transaction.transactionCode || transactionCode,
+        ),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }
@@ -124,11 +131,14 @@ export function useCancelTransaction() {
     mutationFn: ({ transactionCode, payload }: CancelTransactionVariables) =>
       cancelTransaction(transactionCode, payload),
     onSuccess: async (transaction, { transactionCode }) => {
-      await invalidateTransactionListAndDetail(
-        queryClient,
-        activeCompanyId,
-        transaction.transactionCode || transactionCode,
-      )
+      await Promise.all([
+        invalidateTransactionListAndDetail(
+          queryClient,
+          activeCompanyId,
+          transaction.transactionCode || transactionCode,
+        ),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }
@@ -141,11 +151,14 @@ export function useReverseTransaction() {
     mutationFn: ({ transactionCode, payload }: ReverseTransactionVariables) =>
       reverseTransaction(transactionCode, payload),
     onSuccess: async (transaction, { transactionCode }) => {
-      await invalidateTransactionListAndDetail(
-        queryClient,
-        activeCompanyId,
-        transaction.transactionCode || transactionCode,
-      )
+      await Promise.all([
+        invalidateTransactionListAndDetail(
+          queryClient,
+          activeCompanyId,
+          transaction.transactionCode || transactionCode,
+        ),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }

@@ -8,6 +8,7 @@ import {
 import { AUTH_ME_QUERY_KEY } from '../auth/hooks.ts'
 import { useAuthStore } from '../auth/store.ts'
 import { useCompaniesStore } from '../companies/store.ts'
+import { invalidateCompanyDashboard } from '../dashboard/hooks.ts'
 import {
   acceptInvitation,
   createInvitation,
@@ -65,13 +66,17 @@ export function useCreateInvitation() {
   return useMutation({
     mutationFn: (payload: CreateInvitationPayload) => createInvitation(payload),
     onSuccess: async () => {
-      await invalidateCompanyInvitationLists(queryClient, activeCompanyId)
+      await Promise.all([
+        invalidateCompanyInvitationLists(queryClient, activeCompanyId),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }
 
 export function useAcceptInvitation() {
   const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
 
   return useMutation({
     mutationFn: acceptInvitation,
@@ -79,6 +84,7 @@ export function useAcceptInvitation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: invitationKeys.myAll }),
         queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY }),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
       ])
     },
   })
@@ -86,11 +92,15 @@ export function useAcceptInvitation() {
 
 export function useRejectInvitation() {
   const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
 
   return useMutation({
     mutationFn: rejectInvitation,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: invitationKeys.myAll })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: invitationKeys.myAll }),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }
@@ -102,7 +112,10 @@ export function useRevokeInvitation() {
   return useMutation({
     mutationFn: revokeInvitation,
     onSuccess: async () => {
-      await invalidateCompanyInvitationLists(queryClient, activeCompanyId)
+      await Promise.all([
+        invalidateCompanyInvitationLists(queryClient, activeCompanyId),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }

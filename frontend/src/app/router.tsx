@@ -6,6 +6,7 @@ import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
 import { CompanyCashPage } from '../features/companyCash/pages/CompanyCashPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
+import { DashboardPage } from '../features/dashboard/pages/DashboardPage.tsx'
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
 import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInvitationsPage.tsx'
 import { MyInvitationsPage } from '../features/invitations/pages/MyInvitationsPage.tsx'
@@ -69,18 +70,11 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: (
-          <section className="rounded border border-slate-200 bg-white p-6 shadow-sm">
-            <p className="text-sm font-medium text-slate-500">Dashboard</p>
-            <h1 className="mt-2 text-2xl font-semibold text-slate-950">
-              Welcome to Akera
-            </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              Your company workspace is ready. Dashboard metrics will appear
-              here later.
-            </p>
-          </section>
-        ),
+        element: <Navigate to="/app/dashboard" replace />,
+      },
+      {
+        path: 'dashboard',
+        element: <DashboardPage />,
       },
       {
         path: 'transactions',

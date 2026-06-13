@@ -55,7 +55,7 @@ export function AppLayout() {
         </div>
 
         <nav className="mt-8 space-y-1">
-          <SidebarLink end to="/app">
+          <SidebarLink to="/app/dashboard">
             Dashboard
           </SidebarLink>
           <SidebarLink to="/app/transactions">Transactions</SidebarLink>
@@ -89,7 +89,7 @@ export function AppLayout() {
             <div className="md:hidden">
               <div className="text-lg font-semibold">Akera</div>
               <nav className="mt-3 flex flex-wrap gap-2">
-                <TopbarLink end to="/app">
+                <TopbarLink to="/app/dashboard">
                   Dashboard
                 </TopbarLink>
                 <TopbarLink to="/app/transactions">Transactions</TopbarLink>

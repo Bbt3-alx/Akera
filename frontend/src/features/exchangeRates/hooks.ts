@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useCompaniesStore } from '../companies/store.ts'
+import { invalidateCompanyDashboard } from '../dashboard/hooks.ts'
 import { getCurrentExchangeRate, updateExchangeRate } from './api.ts'
 import type { UpdateExchangeRatePayload } from './types.ts'
 
@@ -31,9 +32,12 @@ export function useUpdateExchangeRate() {
     mutationFn: (payload: UpdateExchangeRatePayload) =>
       updateExchangeRate(payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: exchangeRateKeys.current(activeCompanyId),
-      })
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: exchangeRateKeys.current(activeCompanyId),
+        }),
+        invalidateCompanyDashboard(queryClient, activeCompanyId),
+      ])
     },
   })
 }
