@@ -14,7 +14,7 @@ export const validateCompanyId = (req, res, next) => {
 
 // Validate company Update
 export const validateCompanyUpdate = async (req, res, next) => {
-  const allowedFields = ["name", "address", "contact", "balance", "currency"];
+  const allowedFields = ["name", "address", "contact", "currency"];
   const invalidFields = Object.keys(req.body).filter(
     (f) => !allowedFields.includes(f)
   );

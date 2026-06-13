@@ -8,6 +8,7 @@ describe("AuditLog model", () => {
       expect.arrayContaining([
         "SECURITY_TRANSACTION_PIN_SETUP",
         "SECURITY_TRANSACTION_PIN_CHANGE",
+        "COMPANY_CASH_DEPOSIT",
       ]),
     );
   });

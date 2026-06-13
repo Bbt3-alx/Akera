@@ -23,6 +23,7 @@ import companyBrandingRoutes from "./routes/companyBrandingRoute.js";
 import securityRoutes from "./routes/securityRoute.js";
 import companyInvitationRoutes from "./routes/companyInvitationRoute.js";
 import companyExchangeRateRoutes from "./routes/companyExchangeRateRoute.js";
+import companyCashRoutes from "./routes/companyCashRoute.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import { activityLogger } from "./middlewares/activityLogger.js";
 import getDashboard from "./routes/dashbordRoute.js";
@@ -68,6 +69,7 @@ app.use("/api/v1/company/branding", companyBrandingRoutes);
 app.use("/api/v1/security", securityRoutes);
 app.use("/api/v1/company-invitations", companyInvitationRoutes);
 app.use("/api/v1/company/exchange-rate", companyExchangeRateRoutes);
+app.use("/api/v1/company/cash", companyCashRoutes);
 // app.use(standardizeResponse);
 app.use((err, req, res, next) => {
   errorHandler(err, req, res);
