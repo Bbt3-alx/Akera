@@ -2,6 +2,7 @@ import Company from "../models/Company.js";
 import CompanyExchangeRate from "../models/CompanyExchangeRate.js";
 import CompanyInvitation from "../models/CompanyInvitation.js";
 import Transaction from "../models/Transaction.js";
+import { Types } from "mongoose";
 import { ApiError } from "../middlewares/errorHandler.js";
 import {
   CANONICAL_EXCHANGE_RATE_FROM,
@@ -17,8 +18,10 @@ const COMPANY_TRANSACTION_ROLES = new Set(["manager", "employee"]);
 const COUNTED_STATUSES = [
   "pending",
   "processing",
+  "canceling",
   "completed",
   "canceled",
+  "reversing",
   "reversed",
 ];
 
@@ -38,6 +41,7 @@ const transactionCreatedByPopulate = {
 
 export async function getCompanyDashboard({
   companyId,
+  membershipId,
   userId,
   role,
   now = new Date(),
@@ -58,7 +62,13 @@ export async function getCompanyDashboard({
     throw new ApiError(404, "Company not found", "COMPANY_NOT_FOUND");
   }
 
-  const transactionFilter = buildTransactionFilter({ companyId, role, userId });
+  const companyObjectId = toObjectId(companyId, "Company ID");
+  const transactionFilter = buildTransactionFilter({
+    companyId: companyObjectId,
+    membershipId,
+    role,
+    userId,
+  });
   const accountingVisible = role === "manager";
   const invitationsVisible = role === "manager";
 
@@ -67,7 +77,7 @@ export async function getCompanyDashboard({
     transactionSummary,
     recentTransactions,
     pendingInvitationCount,
-    trialBalance,
+    accounting,
   ] = await Promise.all([
     CompanyExchangeRate.findOne({ company: companyId }).lean(),
     getTransactionSummary({ filter: transactionFilter, now }),
@@ -78,9 +88,11 @@ export async function getCompanyDashboard({
           status: "pending",
         })
       : Promise.resolve(null),
-    accountingVisible
-      ? getTrialBalanceForCompany({ companyId, role })
-      : Promise.resolve(null),
+    getAccountingSummary({
+      companyId: companyObjectId,
+      role,
+      visible: accountingVisible,
+    }),
   ]);
 
   return {
@@ -104,22 +116,25 @@ export async function getCompanyDashboard({
       visible: invitationsVisible,
       pendingCount: invitationsVisible ? pendingInvitationCount : null,
     },
-    accounting: {
-      visible: accountingVisible,
-      trialBalance: accountingVisible ? trialBalance : null,
-    },
+    accounting,
   };
 }
 
-function buildTransactionFilter({ companyId, role, userId }) {
+function buildTransactionFilter({ companyId, membershipId, role, userId }) {
   if (COMPANY_TRANSACTION_ROLES.has(role)) {
     return { company: companyId };
   }
 
   if (role === "partner") {
+    const membershipObjectId = toObjectId(membershipId, "Membership ID");
+    const userObjectId = toObjectId(userId, "User ID");
+
     return {
       company: companyId,
-      createdBy: userId,
+      $or: [
+        { membership: membershipObjectId },
+        { createdBy: userObjectId },
+      ],
     };
   }
 
@@ -136,8 +151,10 @@ async function getTransactionSummary({ filter, now }) {
         total: { $sum: 1 },
         pending: countStatus("pending"),
         processing: countStatus("processing"),
+        canceling: countStatus("canceling"),
         completed: countStatus("completed"),
         canceled: countStatus("canceled"),
+        reversing: countStatus("reversing"),
         reversed: countStatus("reversed"),
         completedCompanyAmount: sumCompanyAmountForStatus("completed"),
         pendingCompanyAmount: sumCompanyAmountForStatus("pending"),
@@ -227,7 +244,7 @@ function serializeExchangeRate(exchangeRate) {
 }
 
 function serializeCash({ company, role }) {
-  if (!COMPANY_TRANSACTION_ROLES.has(role)) {
+  if (role !== "manager") {
     return {
       visible: false,
       balance: null,
@@ -242,6 +259,38 @@ function serializeCash({ company, role }) {
   };
 }
 
+async function getAccountingSummary({ companyId, role, visible }) {
+  if (!visible) {
+    return {
+      visible: false,
+      trialBalance: null,
+      error: null,
+    };
+  }
+
+  try {
+    const trialBalance = await getTrialBalanceForCompany({ companyId, role });
+
+    return {
+      visible: true,
+      trialBalance,
+      error: null,
+    };
+  } catch (error) {
+    console.error("Dashboard trial balance failed", {
+      companyId,
+      errorCode: "TRIAL_BALANCE_ERROR",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+
+    return {
+      visible: true,
+      trialBalance: null,
+      error: "TRIAL_BALANCE_ERROR",
+    };
+  }
+}
+
 function getDayBounds(now) {
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
@@ -254,4 +303,16 @@ function getDayBounds(now) {
 
 function toNumber(value) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function toObjectId(value, label) {
+  if (typeof value?.toHexString === "function") {
+    return value;
+  }
+
+  if (!Types.ObjectId.isValid(value)) {
+    throw new ApiError(400, `${label} is invalid`, "INVALID_OBJECT_ID");
+  }
+
+  return new Types.ObjectId(value);
 }

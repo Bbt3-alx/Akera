@@ -7,8 +7,10 @@ export type DashboardTransactionScope = 'company' | 'mine'
 export type DashboardTransactionCounts = {
   pending: number
   processing: number
+  canceling: number
   completed: number
   canceled: number
+  reversing: number
   reversed: number
   total: number
 }
@@ -73,5 +75,6 @@ export type CompanyDashboard = {
   accounting: {
     visible: boolean
     trialBalance: Record<string, unknown> | null
+    error: string | null
   }
 }

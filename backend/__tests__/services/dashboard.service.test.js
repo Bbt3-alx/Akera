@@ -41,17 +41,18 @@ describe("dashboard service", () => {
     ]);
 
     const dashboard = await getCompanyDashboard({
-      companyId: ids.companyId,
+      companyId: ids.companyId.toHexString(),
+      membershipId: ids.managerMembershipId.toHexString(),
       userId: ids.managerId,
       role: "manager",
       now: new Date("2026-06-13T12:00:00.000Z"),
     });
 
-    expect(aggregate.mock.calls[0][0][0]).toEqual({
-      $match: { company: ids.companyId },
-    });
+    const managerMatch = aggregate.mock.calls[0][0][0].$match;
+    expect(managerMatch.company).toBeInstanceOf(mongoose.Types.ObjectId);
+    expect(managerMatch.company.toHexString()).toBe(ids.companyId.toHexString());
     expect(countDocuments).toHaveBeenCalledWith({
-      company: ids.companyId,
+      company: ids.companyId.toHexString(),
       status: "pending",
     });
     expect(dashboard).toEqual({
@@ -80,8 +81,10 @@ describe("dashboard service", () => {
         counts: {
           pending: 1,
           processing: 1,
+          canceling: 0,
           completed: 2,
           canceled: 1,
+          reversing: 0,
           reversed: 1,
           total: 7,
         },
@@ -122,6 +125,7 @@ describe("dashboard service", () => {
             1000: 0,
           },
         },
+        error: null,
       },
     });
     expect(JSON.stringify(dashboard)).not.toContain("idempotencyKey");
@@ -153,18 +157,30 @@ describe("dashboard service", () => {
     const ledgerAggregate = jest.spyOn(LedgerEntry, "aggregate");
 
     const dashboard = await getCompanyDashboard({
-      companyId: ids.companyId,
-      userId: ids.partnerId,
+      companyId: ids.companyId.toHexString(),
+      membershipId: ids.membershipId.toHexString(),
+      userId: ids.partnerId.toHexString(),
       role: "partner",
       now: new Date("2026-06-13T12:00:00.000Z"),
     });
 
-    const expectedFilter = {
-      company: ids.companyId,
-      createdBy: ids.partnerId,
-    };
-    expect(aggregate.mock.calls[0][0][0]).toEqual({ $match: expectedFilter });
-    expect(find).toHaveBeenCalledWith(expectedFilter);
+    const partnerMatch = aggregate.mock.calls[0][0][0].$match;
+    expect(partnerMatch.company).toBeInstanceOf(mongoose.Types.ObjectId);
+    expect(partnerMatch.company.toHexString()).toBe(ids.companyId.toHexString());
+    expect(partnerMatch.$or).toHaveLength(2);
+    expect(partnerMatch.$or[0].membership).toBeInstanceOf(
+      mongoose.Types.ObjectId,
+    );
+    expect(partnerMatch.$or[0].membership.toHexString()).toBe(
+      ids.membershipId.toHexString(),
+    );
+    expect(partnerMatch.$or[1].createdBy).toBeInstanceOf(
+      mongoose.Types.ObjectId,
+    );
+    expect(partnerMatch.$or[1].createdBy.toHexString()).toBe(
+      ids.partnerId.toHexString(),
+    );
+    expect(find).toHaveBeenCalledWith(partnerMatch);
     expect(countDocuments).not.toHaveBeenCalled();
     expect(ledgerAggregate).not.toHaveBeenCalled();
     expect(dashboard.transactions.scope).toBe("mine");
@@ -180,6 +196,7 @@ describe("dashboard service", () => {
     expect(dashboard.accounting).toEqual({
       visible: false,
       trialBalance: null,
+      error: null,
     });
     expect(dashboard.exchangeRate).toEqual({
       configured: true,
@@ -190,15 +207,17 @@ describe("dashboard service", () => {
     });
   });
 
-  it("lets employees see company transaction metrics and cash without trial balance", async () => {
+  it("lets employees see company transaction metrics without cash or trial balance", async () => {
     const ids = createIds();
     mockCompany(ids);
     mockExchangeRate(null);
     mockTransactionAggregate({
       pending: 0,
       processing: 0,
+      canceling: 0,
       completed: 1,
       canceled: 0,
+      reversing: 0,
       reversed: 0,
       total: 1,
       completedCompanyAmount: 1000,
@@ -210,21 +229,110 @@ describe("dashboard service", () => {
 
     const dashboard = await getCompanyDashboard({
       companyId: ids.companyId,
+      membershipId: ids.employeeMembershipId,
       userId: ids.employeeId,
       role: "employee",
     });
 
     expect(dashboard.transactions.scope).toBe("company");
     expect(dashboard.cash).toEqual({
-      visible: true,
-      balance: 25000,
-      currency: "FCFA",
+      visible: false,
+      balance: null,
+      currency: null,
     });
     expect(dashboard.accounting).toEqual({
       visible: false,
       trialBalance: null,
+      error: null,
     });
     expect(ledgerAggregate).not.toHaveBeenCalled();
+  });
+
+  it("includes canceling and reversing counts in dashboard summaries", async () => {
+    const ids = createIds();
+    mockCompany(ids);
+    mockExchangeRate(null);
+    mockTransactionAggregate({
+      pending: 1,
+      processing: 1,
+      canceling: 1,
+      completed: 1,
+      canceled: 1,
+      reversing: 1,
+      reversed: 1,
+      total: 7,
+      completedCompanyAmount: 1000,
+      pendingCompanyAmount: 500,
+      todayCompletedCompanyAmount: 1000,
+    });
+    mockRecentTransactions([]);
+    jest.spyOn(CompanyInvitation, "countDocuments").mockResolvedValue(0);
+    jest.spyOn(LedgerEntry, "aggregate").mockResolvedValue([]);
+
+    const dashboard = await getCompanyDashboard({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      userId: ids.managerId,
+      role: "manager",
+    });
+
+    expect(dashboard.transactions.counts).toEqual({
+      pending: 1,
+      processing: 1,
+      canceling: 1,
+      completed: 1,
+      canceled: 1,
+      reversing: 1,
+      reversed: 1,
+      total: 7,
+    });
+  });
+
+  it("returns a manager dashboard with accounting error when trial balance fails", async () => {
+    const ids = createIds();
+    mockCompany(ids);
+    mockExchangeRate(null);
+    mockTransactionAggregate({
+      pending: 0,
+      processing: 0,
+      canceling: 0,
+      completed: 0,
+      canceled: 0,
+      reversing: 0,
+      reversed: 0,
+      total: 0,
+      completedCompanyAmount: 0,
+      pendingCompanyAmount: 0,
+      todayCompletedCompanyAmount: 0,
+    });
+    mockRecentTransactions([]);
+    jest.spyOn(CompanyInvitation, "countDocuments").mockResolvedValue(0);
+    jest
+      .spyOn(LedgerEntry, "aggregate")
+      .mockRejectedValue(new Error("Trial balance not balanced"));
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    const dashboard = await getCompanyDashboard({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      userId: ids.managerId,
+      role: "manager",
+    });
+
+    expect(dashboard.accounting).toEqual({
+      visible: true,
+      trialBalance: null,
+      error: "TRIAL_BALANCE_ERROR",
+    });
+    expect(consoleError).toHaveBeenCalledWith(
+      "Dashboard trial balance failed",
+      expect.objectContaining({
+        companyId: ids.companyId,
+        errorCode: "TRIAL_BALANCE_ERROR",
+      }),
+    );
   });
 
   it("throws when the active company context no longer resolves to a company", async () => {
@@ -234,6 +342,7 @@ describe("dashboard service", () => {
     await expect(
       getCompanyDashboard({
         companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
         userId: ids.managerId,
         role: "manager",
       }),
@@ -297,7 +406,9 @@ function createIds() {
   return {
     companyId: new mongoose.Types.ObjectId(),
     employeeId: new mongoose.Types.ObjectId(),
+    employeeMembershipId: new mongoose.Types.ObjectId(),
     managerId: new mongoose.Types.ObjectId(),
+    managerMembershipId: new mongoose.Types.ObjectId(),
     membershipId: new mongoose.Types.ObjectId(),
     partnerId: new mongoose.Types.ObjectId(),
     transactionId: new mongoose.Types.ObjectId(),

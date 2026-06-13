@@ -15,16 +15,20 @@ import type {
 const STATUS_ORDER = [
   'pending',
   'processing',
+  'canceling',
   'completed',
   'canceled',
+  'reversing',
   'reversed',
 ] as const
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-amber-50 text-amber-700 ring-amber-200',
   processing: 'bg-blue-50 text-blue-700 ring-blue-200',
+  canceling: 'bg-orange-50 text-orange-700 ring-orange-200',
   completed: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   canceled: 'bg-rose-50 text-rose-700 ring-rose-200',
+  reversing: 'bg-purple-50 text-purple-700 ring-purple-200',
   reversed: 'bg-slate-100 text-slate-700 ring-slate-200',
 }
 
@@ -127,7 +131,10 @@ export function DashboardPage() {
         <div className="space-y-6">
           <ContextualActions dashboard={dashboard} />
           {dashboard.accounting.visible ? (
-            <TrialBalanceSummary trialBalance={dashboard.accounting.trialBalance} />
+            <TrialBalanceSummary
+              error={dashboard.accounting.error}
+              trialBalance={dashboard.accounting.trialBalance}
+            />
           ) : null}
         </div>
       </div>
@@ -221,7 +228,7 @@ function TransactionSummary({
         </h2>
       </div>
 
-      <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {STATUS_ORDER.map((status) => (
           <div className="bg-white p-4" key={status}>
             <p className="text-xs font-medium uppercase text-slate-500">
@@ -439,8 +446,10 @@ function ActionLink({ children, to }: ActionLinkProps) {
 }
 
 function TrialBalanceSummary({
+  error,
   trialBalance,
 }: {
+  error: string | null
   trialBalance: Record<string, unknown> | null
 }) {
   const rows = getTrialBalanceRows(trialBalance)
@@ -450,6 +459,11 @@ function TrialBalanceSummary({
       <h2 className="text-sm font-semibold text-slate-950">
         Trial balance summary
       </h2>
+      {error ? (
+        <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Trial balance is temporarily unavailable.
+        </p>
+      ) : null}
       {!trialBalance ? (
         <p className="mt-3 text-sm text-slate-600">
           No trial balance available.
