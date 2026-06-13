@@ -72,6 +72,11 @@ export function AppLayout() {
               Exchange rate
             </SidebarLink>
           ) : null}
+          {canManageCompanySettings ? (
+            <SidebarLink to="/app/security/transaction-pin">
+              Transaction PIN
+            </SidebarLink>
+          ) : null}
         </nav>
       </aside>
 
@@ -98,6 +103,11 @@ export function AppLayout() {
                 {canManageCompanySettings ? (
                   <TopbarLink to="/app/company/exchange-rate">
                     Exchange rate
+                  </TopbarLink>
+                ) : null}
+                {canManageCompanySettings ? (
+                  <TopbarLink to="/app/security/transaction-pin">
+                    Transaction PIN
                   </TopbarLink>
                 ) : null}
               </nav>

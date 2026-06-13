@@ -8,6 +8,7 @@ import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
 import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInvitationsPage.tsx'
 import { MyInvitationsPage } from '../features/invitations/pages/MyInvitationsPage.tsx'
+import { TransactionPinPage } from '../features/security/pages/TransactionPinPage.tsx'
 import { CreateTransactionPage } from '../features/transactions/pages/CreateTransactionPage.tsx'
 import { TransactionDetailsPage } from '../features/transactions/pages/TransactionDetailsPage.tsx'
 import { TransactionSearchPage } from '../features/transactions/pages/TransactionSearchPage.tsx'
@@ -107,6 +108,10 @@ export const router = createBrowserRouter([
       {
         path: 'company/exchange-rate',
         element: <CompanyExchangeRatePage />,
+      },
+      {
+        path: 'security/transaction-pin',
+        element: <TransactionPinPage />,
       },
     ],
   },

@@ -1,7 +1,9 @@
 import { useId, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
+import { AppApiError } from '../../../shared/api/types.ts'
 import { useReverseTransaction } from '../hooks.ts'
 import type {
   ReverseTransactionPayload,
@@ -190,6 +192,17 @@ export function ReverseTransactionButton({
           {errorMessage ? (
             <p className="mt-3 rounded border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700">
               {errorMessage}
+              {isPinNotConfiguredError(reverseTransaction.error) && isManager ? (
+                <>
+                  {' '}
+                  <Link
+                    className="underline decoration-rose-400 underline-offset-2 hover:text-rose-900"
+                    to="/app/security/transaction-pin"
+                  >
+                    Set transaction PIN
+                  </Link>
+                </>
+              ) : null}
             </p>
           ) : null}
 
@@ -246,7 +259,15 @@ function formatAmount(amount: number, currency: TransactionCurrency) {
 }
 
 function getErrorMessage(error: unknown) {
+  if (isPinNotConfiguredError(error)) {
+    return 'Transaction PIN is not configured.'
+  }
+
   return error instanceof Error
     ? error.message
     : 'Reversal failed. Try again or contact support.'
+}
+
+function isPinNotConfiguredError(error: unknown): boolean {
+  return error instanceof AppApiError && error.errorCode === 'PIN_NOT_CONFIGURED'
 }
