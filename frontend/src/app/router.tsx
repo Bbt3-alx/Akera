@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RegisterPage } from '../features/auth/pages/RegisterPage.tsx'
 import { LoginPage } from '../features/auth/pages/LoginPage.tsx'
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
+import { CompanyCashPage } from '../features/companyCash/pages/CompanyCashPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
@@ -108,6 +109,10 @@ export const router = createBrowserRouter([
       {
         path: 'company/exchange-rate',
         element: <CompanyExchangeRatePage />,
+      },
+      {
+        path: 'company/cash',
+        element: <CompanyCashPage />,
       },
       {
         path: 'security/transaction-pin',

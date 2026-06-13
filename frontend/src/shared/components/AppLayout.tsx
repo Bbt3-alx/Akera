@@ -73,6 +73,9 @@ export function AppLayout() {
             </SidebarLink>
           ) : null}
           {canManageCompanySettings ? (
+            <SidebarLink to="/app/company/cash">Company cash</SidebarLink>
+          ) : null}
+          {canManageCompanySettings ? (
             <SidebarLink to="/app/security/transaction-pin">
               Transaction PIN
             </SidebarLink>
@@ -85,7 +88,7 @@ export function AppLayout() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="md:hidden">
               <div className="text-lg font-semibold">Akera</div>
-              <nav className="mt-3 flex gap-2">
+              <nav className="mt-3 flex flex-wrap gap-2">
                 <TopbarLink end to="/app">
                   Dashboard
                 </TopbarLink>
@@ -104,6 +107,9 @@ export function AppLayout() {
                   <TopbarLink to="/app/company/exchange-rate">
                     Exchange rate
                   </TopbarLink>
+                ) : null}
+                {canManageCompanySettings ? (
+                  <TopbarLink to="/app/company/cash">Company cash</TopbarLink>
                 ) : null}
                 {canManageCompanySettings ? (
                   <TopbarLink to="/app/security/transaction-pin">

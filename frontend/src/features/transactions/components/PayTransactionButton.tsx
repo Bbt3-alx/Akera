@@ -1,5 +1,7 @@
 import { useId, useState } from 'react'
+import { Link } from 'react-router-dom'
 
+import { AppApiError } from '../../../shared/api/types.ts'
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
 import { useDownloadReceipt, usePayTransaction } from '../hooks.ts'
@@ -149,6 +151,18 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
           {paymentErrorMessage ? (
             <p className="mt-3 rounded border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700">
               {paymentErrorMessage}
+              {isInsufficientCompanyCashError(payTransaction.error) &&
+              isManager ? (
+                <>
+                  {' '}
+                  <Link
+                    className="underline decoration-rose-400 underline-offset-2 hover:text-rose-900"
+                    to="/app/company/cash"
+                  >
+                    Add company cash
+                  </Link>
+                </>
+              ) : null}
             </p>
           ) : null}
 
@@ -230,7 +244,22 @@ function formatAmount(amount: number, currency: TransactionCurrency) {
 }
 
 function getErrorMessage(error: unknown, fallbackMessage: string) {
+  if (isInsufficientCompanyCashError(error)) {
+    return 'Company cash is insufficient. Add company cash before paying this transaction.'
+  }
+
   return error instanceof Error ? error.message : fallbackMessage
+}
+
+function isInsufficientCompanyCashError(error: unknown): boolean {
+  if (!(error instanceof AppApiError)) {
+    return false
+  }
+
+  return (
+    error.errorCode === 'INSUFFICIENT_COMPANY_BALANCE' ||
+    error.message.toLowerCase().includes('insufficient company balance')
+  )
 }
 
 function saveBlob(blob: Blob, filename: string) {
