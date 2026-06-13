@@ -1,11 +1,16 @@
-import { getDashboardData } from "../controllers/getDashboardStats.js";
 import express from "express";
-import verifyToken from "../middlewares/verifyToken.js";
-import authorizeRoles from "../middlewares/roleAuthorization.js";
-import { ROLES } from "../constants/roles.js";
 
 const router = express.Router();
 
-router.get("/", verifyToken, authorizeRoles(ROLES.MANAGER), getDashboardData);
+const legacyDashboardRouteDisabled = (req, res) => {
+  res.status(410).json({
+    success: false,
+    code: 410,
+    message:
+      "Legacy dashboard route disabled. Use the modern dashboard endpoint when available.",
+  });
+};
+
+router.all("/", legacyDashboardRouteDisabled);
 
 export default router;

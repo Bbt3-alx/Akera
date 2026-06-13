@@ -1,25 +1,19 @@
 import express from "express";
-import {
-  createCompany,
-  getCompanyProfile,
-  updateCompany,
-  getCompanies,
-} from "../controllers/createCompany.js";
-import {
-  validateCompanyId,
-  validateCompanyUpdate,
-} from "../middlewares/validators.js";
-import { paginate } from "../middlewares/pagination.js";
-import { audit } from "../middlewares/audit.js";
+import { createCompany } from "../controllers/createCompany.js";
 import { companyCreationLimiter } from "../middlewares/rateLimit.js";
-import authorizeRoles from "../middlewares/roleAuthorization.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import { requireVerifiedUser } from "../middlewares/requireVerifiedUser.js";
-import { softDeleteCompany } from "../controllers/createCompany.js";
-import { searchCompany } from "../utils/searchAutoCompletion.js";
 
 const router = express.Router();
 
+const legacyCompanyRouteDisabled = (req, res) => {
+  res.status(410).json({
+    success: false,
+    code: 410,
+    message:
+      "Legacy company route disabled. Use membership-context company endpoints instead.",
+  });
+};
 
 router.post(
   "/",
@@ -29,38 +23,12 @@ router.post(
   createCompany
 );
 
-router.get(
-  "/:id",
-  verifyToken,
-  authorizeRoles("admin", "manager"),
-  getCompanyProfile
-);
+router.get("/", legacyCompanyRouteDisabled);
 
-router.get(
-  "/",
-  verifyToken,
-  authorizeRoles("manager"),
-  paginate(),
-  getCompanies
-);
+router.get("/:id", legacyCompanyRouteDisabled);
 
-// Update company
-router.put(
-  "/:id",
-  verifyToken,
-  authorizeRoles("manager"),
-  validateCompanyId,
-  validateCompanyUpdate,
-  audit("Update", "Company"),
-  updateCompany
-);
+router.put("/delete/:id", legacyCompanyRouteDisabled);
 
-// Soft delete a company
-router.put(
-  "/delete/:id",
-  verifyToken,
-  authorizeRoles("manager"),
-  audit("Soft Delete", "Company"),
-  softDeleteCompany
-);
+router.put("/:id", legacyCompanyRouteDisabled);
+
 export default router;

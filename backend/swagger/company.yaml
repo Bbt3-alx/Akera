@@ -11,7 +11,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, address, contact]
+              required: [name, address, contact, baseCurrency]
               properties:
                 name:
                   type: string
@@ -19,8 +19,9 @@ paths:
                   type: string
                 contact:
                   type: string
-                balance:
-                  type: number
+                baseCurrency:
+                  type: string
+                  enum: [FCFA, GNF]
       responses:
         "201":
           description: Company created.
@@ -31,8 +32,12 @@ paths:
                 properties:
                   success:
                     type: boolean
-                  company:
-                    $ref: "#/components/schemas/Company"
+                  code:
+                    type: integer
+                    example: 201
+                  data:
+                    type: object
+                    additionalProperties: true
         "400":
           $ref: "#/components/responses/BadRequest"
         "403":
@@ -40,13 +45,14 @@ paths:
         "500":
           $ref: "#/components/responses/ServerError"
     get:
-      summary: List companies available to the current manager
+      summary: Legacy company route disabled
+      description: Legacy company listing is disabled. Use membership-context company endpoints instead.
       tags: [Companies]
       security:
         - bearerAuth: []
       responses:
-        "200":
-          description: Company list.
+        "410":
+          description: Legacy company route disabled.
           content:
             application/json:
               schema:
@@ -54,28 +60,26 @@ paths:
                 properties:
                   success:
                     type: boolean
-                  companies:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Company"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "500":
-          $ref: "#/components/responses/ServerError"
+                    example: false
+                  code:
+                    type: integer
+                    example: 410
+                  message:
+                    type: string
+                    example: Legacy company route disabled. Use membership-context company endpoints instead.
 
   "/api/v1/companies/{id}":
     get:
-      summary: Get a company profile
+      summary: Legacy company route disabled
+      description: Legacy company profile reads are disabled. Use membership-context company endpoints instead.
       tags: [Companies]
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/IdPath"
       responses:
-        "200":
-          description: Company profile.
+        "410":
+          description: Legacy company route disabled.
           content:
             application/json:
               schema:
@@ -83,59 +87,62 @@ paths:
                 properties:
                   success:
                     type: boolean
-                  company:
-                    $ref: "#/components/schemas/Company"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+                    example: false
+                  code:
+                    type: integer
+                    example: 410
+                  message:
+                    type: string
+                    example: Legacy company route disabled. Use membership-context company endpoints instead.
     put:
-      summary: Update a company
+      summary: Legacy company route disabled
+      description: Legacy company updates are disabled. Use membership-context company endpoints instead.
       tags: [Companies]
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/IdPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Company"
       responses:
-        "200":
-          description: Company updated.
+        "410":
+          description: Legacy company route disabled.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  code:
+                    type: integer
+                    example: 410
+                  message:
+                    type: string
+                    example: Legacy company route disabled. Use membership-context company endpoints instead.
 
   "/api/v1/companies/delete/{id}":
     put:
-      summary: Soft delete a company
+      summary: Legacy company route disabled
+      description: Legacy company delete is disabled. Use membership-context company endpoints instead.
       tags: [Companies]
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/IdPath"
       responses:
-        "200":
-          description: Company soft deleted.
+        "410":
+          description: Legacy company route disabled.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "403":
-          $ref: "#/components/responses/Forbidden"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  code:
+                    type: integer
+                    example: 410
+                  message:
+                    type: string
+                    example: Legacy company route disabled. Use membership-context company endpoints instead.
