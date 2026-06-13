@@ -14,6 +14,8 @@ const auditLogSchema = new Schema({
       "TRANSACTION_PAY",
       "TRANSACTION_CANCEL",
       "TRANSACTION_REVERSE",
+      "SECURITY_TRANSACTION_PIN_SETUP",
+      "SECURITY_TRANSACTION_PIN_CHANGE",
     ],
   },
   collectionName: { type: String, required: true },

@@ -13,7 +13,9 @@ describe("activity logger", () => {
       password: "password-1",
       confirmPassword: "password-1",
       currentPassword: "old-password",
+      currentTransactionPin: "123456",
       newPassword: "new-password",
+      newTransactionPin: "654321",
       verificationCode: "654321",
       resetToken: "reset-token",
       profile: {
@@ -42,7 +44,9 @@ describe("activity logger", () => {
       password: "[REDACTED]",
       confirmPassword: "[REDACTED]",
       currentPassword: "[REDACTED]",
+      currentTransactionPin: "[REDACTED]",
       newPassword: "[REDACTED]",
+      newTransactionPin: "[REDACTED]",
       verificationCode: "[REDACTED]",
       resetToken: "[REDACTED]",
       profile: {

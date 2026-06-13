@@ -97,21 +97,57 @@ paths:
         "500":
           $ref: "#/components/responses/ServerError"
 
-  "/api/v1/security/setup-transaction-pin":
-    post:
-      summary: Set up or replace the current user's transaction PIN
+  "/api/v1/security/transaction-pin/status":
+    get:
+      summary: Get current user's transaction PIN status
       tags: [Security]
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      responses:
+        "200":
+          description: Transaction PIN status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      configured:
+                        type: boolean
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/security/transaction-pin/setup":
+    post:
+      summary: Configure the current manager's transaction PIN
+      tags: [Security]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [transactionPin]
+              required: [transactionPin, currentPassword]
               properties:
                 transactionPin:
+                  type: string
+                  format: password
+                  pattern: "^\\d{6}$"
+                currentPassword:
                   type: string
                   format: password
       responses:
@@ -125,6 +161,96 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/security/transaction-pin/change":
+    patch:
+      summary: Change the current manager's transaction PIN
+      tags: [Security]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentTransactionPin, newTransactionPin, currentPassword]
+              properties:
+                currentTransactionPin:
+                  type: string
+                  format: password
+                  pattern: "^\\d{6}$"
+                newTransactionPin:
+                  type: string
+                  format: password
+                  pattern: "^\\d{6}$"
+                currentPassword:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Transaction PIN changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  "/api/v1/security/setup-transaction-pin":
+    post:
+      summary: Legacy alias for transaction PIN setup
+      tags: [Security]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transactionPin, currentPassword]
+              properties:
+                transactionPin:
+                  type: string
+                  format: password
+                  pattern: "^\\d{6}$"
+                currentPassword:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Transaction PIN configured.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/ServerError"
 
