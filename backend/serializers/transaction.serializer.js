@@ -14,7 +14,6 @@ const TRANSACTION_FIELDS = [
   "beneficiaryName",
   "description",
   "status",
-  "idempotencyKey",
   "createdBy",
   "processedBy",
   "processedAt",

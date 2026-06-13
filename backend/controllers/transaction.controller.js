@@ -3,11 +3,19 @@ import {
   payTransactionService,
   cancelPendingTransactionService,
   reverseCompletedTransactionService,
+  getTransactionByCodeForContext,
+  getTransactionByIdForContext,
+  getTrialBalanceForCompany,
+  listCompanyTransactions,
+  listMyTransactions,
 } from "../services/transaction.service.js";
 import Receipt from "../models/Receipt.js";
 import Transaction from "../models/Transaction.js";
 import { ApiError } from "../middlewares/errorHandler.js";
-import { serializeTransaction } from "../serializers/transaction.serializer.js";
+import {
+  serializeTransaction,
+  serializeTransactions,
+} from "../serializers/transaction.serializer.js";
 import { serializeReceipt } from "../serializers/receipt.serializer.js";
 
 const transactionPartnerPopulate = {
@@ -22,6 +30,114 @@ const transactionPartnerPopulate = {
 const transactionCreatedByPopulate = {
   path: "createdBy",
   select: "firstName lastName name email",
+};
+
+export const getTransactions = async (req, res) => {
+  const { companyId, role } = req.context;
+  let result;
+
+  if (role === "partner") {
+    result = await listMyTransactions({
+      companyId,
+      userId: req.user.id,
+      query: req.query,
+    });
+  } else if (role === "manager" || role === "employee") {
+    result = await listCompanyTransactions({
+      companyId,
+      query: req.query,
+    });
+  } else {
+    throw new ApiError(
+      403,
+      "Access denied",
+      "TRANSACTION_ACCESS_DENIED",
+    );
+  }
+
+  res.status(200).json({
+    success: true,
+    code: 200,
+    pagination: result.pagination,
+    data: serializeTransactions(result.transactions),
+  });
+};
+
+export const getMyTransactions = async (req, res) => {
+  const { companyId, role } = req.context;
+
+  if (role !== "partner") {
+    throw new ApiError(
+      403,
+      "Only partners can access this resource",
+      "PARTNER_ACCESS_REQUIRED",
+    );
+  }
+
+  const result = await listMyTransactions({
+    companyId,
+    userId: req.user.id,
+    query: req.query,
+  });
+
+  res.status(200).json({
+    success: true,
+    code: 200,
+    pagination: result.pagination,
+    data: serializeTransactions(result.transactions),
+  });
+};
+
+export const getPartnerTransactions = getMyTransactions;
+
+export const getTransactionById = async (req, res) => {
+  const transaction = await getTransactionByIdForContext({
+    companyId: req.context.companyId,
+    userId: req.user.id,
+    role: req.context.role,
+    id: req.params.id,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeTransaction(transaction),
+  });
+};
+
+export const getTransaction = getTransactionById;
+
+export const getTransactionByCode = async (req, res) => {
+  const transaction = await getTransactionByCodeForContext({
+    companyId: req.context.companyId,
+    userId: req.user.id,
+    role: req.context.role,
+    transactionCode: req.params.transactionCode,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeTransaction(transaction),
+  });
+};
+
+export const getTrialBalance = async (req, res) => {
+  const data = await getTrialBalanceForCompany({
+    companyId: req.context.companyId,
+    role: req.context.role,
+  });
+
+  res.json({
+    success: true,
+    data,
+  });
+};
+
+export const legacyTransactionRouteDisabled = (req, res) => {
+  res.status(410).json({
+    success: false,
+    code: 410,
+    message: "Legacy transaction route disabled.",
+  });
 };
 
 // Controller to handle transaction creation

@@ -9,11 +9,160 @@ import Transaction from "../../models/Transaction.js";
 import {
   createTransactionService,
   finalizeReversedTransaction,
+  getTransactionByCodeForContext,
+  getTrialBalanceForCompany,
+  listCompanyTransactions,
+  listMyTransactions,
 } from "../../services/transaction.service.js";
 
 describe("transaction service helpers", () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  describe("transaction read services", () => {
+    it("lists company transactions with pagination for company-wide readers", async () => {
+      const ids = createIds();
+      const transaction = createTransaction(ids);
+      const find = jest
+        .spyOn(Transaction, "find")
+        .mockReturnValue(createFindManyQuery([transaction]));
+      const countDocuments = jest
+        .spyOn(Transaction, "countDocuments")
+        .mockResolvedValue(1);
+
+      const result = await listCompanyTransactions({
+        companyId: ids.companyId,
+        query: { page: "2", limit: "5", status: "pending" },
+      });
+
+      const expectedFilter = {
+        company: ids.companyId,
+        status: "pending",
+      };
+      expect(find).toHaveBeenCalledWith(expectedFilter);
+      expect(countDocuments).toHaveBeenCalledWith(expectedFilter);
+      expect(result).toEqual({
+        pagination: {
+          page: 2,
+          limit: 5,
+          total: 1,
+          totalPages: 1,
+        },
+        transactions: [transaction],
+      });
+    });
+
+    it("lists only the requesting partner's transactions", async () => {
+      const ids = createIds();
+      const transaction = createTransaction(ids);
+      const find = jest
+        .spyOn(Transaction, "find")
+        .mockReturnValue(createFindManyQuery([transaction]));
+      const countDocuments = jest
+        .spyOn(Transaction, "countDocuments")
+        .mockResolvedValue(1);
+
+      await listMyTransactions({
+        companyId: ids.companyId,
+        userId: ids.userId,
+        query: { status: "pending" },
+      });
+
+      const expectedFilter = {
+        company: ids.companyId,
+        createdBy: ids.userId,
+        status: "pending",
+      };
+      expect(find).toHaveBeenCalledWith(expectedFilter);
+      expect(countDocuments).toHaveBeenCalledWith(expectedFilter);
+      expect(find.mock.calls[0][0]).not.toHaveProperty("initiatedBy");
+    });
+
+    it("prevents partners from reading another partner's transaction by code", async () => {
+      const ids = createIds();
+      const findOne = jest
+        .spyOn(Transaction, "findOne")
+        .mockReturnValue(createFindOneQuery(null));
+
+      await expect(
+        getTransactionByCodeForContext({
+          companyId: ids.companyId,
+          userId: ids.userId,
+          role: "partner",
+          transactionCode: "AKR-000002",
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 404,
+        errorCode: "TRANSACTION_NOT_FOUND",
+      });
+
+      expect(findOne).toHaveBeenCalledWith({
+        transactionCode: "AKR-000002",
+        company: ids.companyId,
+        createdBy: ids.userId,
+      });
+    });
+
+    it("allows managers to read company transactions by code", async () => {
+      const ids = createIds();
+      const transaction = createTransaction(ids);
+      const findOne = jest
+        .spyOn(Transaction, "findOne")
+        .mockReturnValue(createFindOneQuery(transaction));
+
+      const result = await getTransactionByCodeForContext({
+        companyId: ids.companyId,
+        userId: ids.userId,
+        role: "manager",
+        transactionCode: "AKR-000001",
+      });
+
+      expect(result).toBe(transaction);
+      expect(findOne).toHaveBeenCalledWith({
+        transactionCode: "AKR-000001",
+        company: ids.companyId,
+      });
+    });
+
+    it("rejects trial balance reads for partners", async () => {
+      const ids = createIds();
+      const aggregate = jest.spyOn(LedgerEntry, "aggregate");
+
+      await expect(
+        getTrialBalanceForCompany({
+          companyId: ids.companyId,
+          role: "partner",
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        errorCode: "TRIAL_BALANCE_MANAGER_REQUIRED",
+      });
+
+      expect(aggregate).not.toHaveBeenCalled();
+    });
+
+    it("allows managers to read trial balance", async () => {
+      const ids = createIds();
+      jest.spyOn(LedgerEntry, "aggregate").mockResolvedValue([
+        {
+          _id: { currency: "FCFA", accountCode: "1000" },
+          totalDebit: 100,
+          totalCredit: 100,
+        },
+      ]);
+
+      const result = await getTrialBalanceForCompany({
+        companyId: ids.companyId,
+        role: "manager",
+      });
+
+      expect(result).toEqual({
+        FCFA: {
+          1000: 0,
+        },
+      });
+    });
   });
 
   describe("createTransactionService", () => {
@@ -235,6 +384,23 @@ function mockMongooseSession() {
 function createSessionQuery(result) {
   return {
     session: jest.fn().mockResolvedValue(result),
+  };
+}
+
+function createFindOneQuery(result) {
+  return {
+    populate: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
+function createFindManyQuery(result) {
+  return {
+    sort: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    populate: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
   };
 }
 

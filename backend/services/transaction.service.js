@@ -2,6 +2,7 @@ import Transaction from "../models/Transaction.js";
 import Company from "../models/Company.js";
 import CompanyMembership from "../models/CompanyMembership.js";
 import CompanyExchangeRate from "../models/CompanyExchangeRate.js";
+import LedgerEntry from "../models/LedgerEntry.js";
 import { convert } from "../utils/convertAmount.js";
 import { generateTransactionCode } from "../utils/generateTransactionCode.js";
 import { ApiError } from "../middlewares/errorHandler.js";
@@ -9,6 +10,120 @@ import { runTransaction } from "../utils/dbTransaction.js";
 import { ACCOUNTS } from "../constants/accounts.js";
 import { writeJournalEntries } from "./ledger.service.js";
 import { generateReceipt } from "./receipt.service.js";
+
+const transactionPartnerPopulate = {
+  path: "membership",
+  select: "user",
+  populate: {
+    path: "user",
+    select: "firstName lastName name email",
+  },
+};
+
+const transactionCreatedByPopulate = {
+  path: "createdBy",
+  select: "firstName lastName name email",
+};
+
+export async function listCompanyTransactions({ companyId, query = {} }) {
+  return listTransactions({
+    filter: buildTransactionListFilter({ companyId, query }),
+    query,
+  });
+}
+
+export async function listMyTransactions({ companyId, userId, query = {} }) {
+  return listTransactions({
+    filter: buildTransactionListFilter({ companyId, userId, query }),
+    query,
+  });
+}
+
+export async function getTransactionByCodeForContext({
+  companyId,
+  userId,
+  role,
+  transactionCode,
+}) {
+  return findTransactionForContext({
+    companyId,
+    userId,
+    role,
+    identifierFilter: { transactionCode },
+  });
+}
+
+export async function getTransactionByIdForContext({
+  companyId,
+  userId,
+  role,
+  id,
+}) {
+  return findTransactionForContext({
+    companyId,
+    userId,
+    role,
+    identifierFilter: { _id: id },
+  });
+}
+
+export async function getTrialBalanceForCompany({ companyId, role }) {
+  if (role !== "manager") {
+    throw new ApiError(
+      403,
+      "Only managers can view trial balance",
+      "TRIAL_BALANCE_MANAGER_REQUIRED",
+    );
+  }
+
+  const results = await LedgerEntry.aggregate([
+    {
+      $match: {
+        company: companyId,
+      },
+    },
+    {
+      $group: {
+        _id: {
+          currency: "$currency",
+          accountCode: "$accountCode",
+        },
+        totalDebit: { $sum: "$debit" },
+        totalCredit: { $sum: "$credit" },
+      },
+    },
+  ]);
+
+  const trialBalance = {};
+
+  for (const row of results) {
+    const { currency, accountCode } = row._id;
+    const balance = row.totalDebit - row.totalCredit;
+
+    if (!trialBalance[currency]) {
+      trialBalance[currency] = {};
+    }
+
+    trialBalance[currency][accountCode] = balance;
+  }
+
+  for (const currency in trialBalance) {
+    const total = Object.values(trialBalance[currency]).reduce(
+      (sum, val) => sum + val,
+      0,
+    );
+
+    if (Math.abs(total) > 0.001) {
+      throw new ApiError(
+        500,
+        `Trial balance not balanced for currency ${currency}`,
+        "TRIAL_BALANCE_ERROR",
+      );
+    }
+  }
+
+  return trialBalance;
+}
 
 // Service to create a transaction
 export async function createTransactionService({
@@ -608,4 +723,115 @@ export async function finalizeReversedTransaction({
   await transaction.save({ session });
 
   return transaction;
+}
+
+async function listTransactions({ filter, query }) {
+  const { page, limit } = normalizePagination(query);
+
+  const [transactions, total] = await Promise.all([
+    Transaction.find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate(transactionPartnerPopulate)
+      .populate(transactionCreatedByPopulate)
+      .lean(),
+    Transaction.countDocuments(filter),
+  ]);
+
+  return {
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+    transactions,
+  };
+}
+
+function buildTransactionListFilter({ companyId, userId, query }) {
+  return {
+    company: companyId,
+    ...(userId && { createdBy: userId }),
+    ...(query.status && { status: query.status }),
+  };
+}
+
+async function findTransactionForContext({
+  companyId,
+  userId,
+  role,
+  identifierFilter,
+}) {
+  const filter = buildTransactionReadFilter({
+    companyId,
+    userId,
+    role,
+    identifierFilter,
+  });
+
+  if (!filter) {
+    throw new ApiError(
+      403,
+      "Access denied",
+      "TRANSACTION_ACCESS_DENIED",
+    );
+  }
+
+  const transaction = await Transaction.findOne(filter)
+    .populate(transactionPartnerPopulate)
+    .populate(transactionCreatedByPopulate)
+    .lean();
+
+  if (!transaction) {
+    throw new ApiError(
+      404,
+      "Transaction not found",
+      "TRANSACTION_NOT_FOUND",
+    );
+  }
+
+  return transaction;
+}
+
+function buildTransactionReadFilter({
+  companyId,
+  userId,
+  role,
+  identifierFilter,
+}) {
+  if (role === "manager" || role === "employee") {
+    return {
+      ...identifierFilter,
+      company: companyId,
+    };
+  }
+
+  if (role === "partner") {
+    return {
+      ...identifierFilter,
+      company: companyId,
+      createdBy: userId,
+    };
+  }
+
+  return null;
+}
+
+function normalizePagination(query) {
+  return {
+    page: normalizePositiveInteger(query.page, 1),
+    limit: normalizePositiveInteger(query.limit, 20),
+  };
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return parsed;
 }

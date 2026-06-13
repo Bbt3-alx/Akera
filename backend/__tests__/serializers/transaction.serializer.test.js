@@ -39,7 +39,6 @@ describe("transaction serializer", () => {
       beneficiaryName: "Mamadou Camara",
       description: "Payout",
       status: "pending",
-      idempotencyKey: "idem-1",
       createdBy: "creator-1",
       processedBy: "manager-1",
       processedAt: "2026-06-11T10:00:00.000Z",
@@ -73,7 +72,6 @@ describe("transaction serializer", () => {
       beneficiaryName: "Mamadou Camara",
       description: "Payout",
       status: "pending",
-      idempotencyKey: "idem-1",
       createdBy: "creator-1",
       processedBy: "manager-1",
       processedAt: "2026-06-11T10:00:00.000Z",
@@ -93,6 +91,7 @@ describe("transaction serializer", () => {
         email: "awa@example.com",
       },
     });
+    expect(serialized).not.toHaveProperty("idempotencyKey");
     expect(serialized).not.toHaveProperty("__v");
     expect(serialized.partner).not.toHaveProperty("balance");
     expect(serialized.partner).not.toHaveProperty("permissions");
