@@ -190,35 +190,31 @@ paths:
 
   "/api/v1/transactions/{id}/edit":
     put:
-      summary: Update a transaction
+      summary: Legacy transaction edit route disabled
+      description: This legacy mutation route is disabled and returns 410 Gone. Use the modern transaction cancellation, payment, and reversal flows instead.
       tags: [Transactions]
       security:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/CompanyIdHeader"
         - $ref: "#/components/parameters/IdPath"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                description:
-                  type: string
-                amount:
-                  type: number
       responses:
-        "200":
-          description: Transaction updated.
+        "410":
+          description: Legacy transaction route disabled.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  code:
+                    type: integer
+                    example: 410
+                  message:
+                    type: string
+                    example: Legacy transaction route disabled.
         "500":
           $ref: "#/components/responses/ServerError"
 
@@ -281,7 +277,8 @@ paths:
 
   "/api/v1/transactions/{id}/restore":
     put:
-      summary: Restore a cancelled or deleted transaction
+      summary: Legacy transaction restore route disabled
+      description: This legacy mutation route is disabled and returns 410 Gone. Use the modern transaction cancellation and reversal flows instead.
       tags: [Transactions]
       security:
         - bearerAuth: []
@@ -289,14 +286,22 @@ paths:
         - $ref: "#/components/parameters/CompanyIdHeader"
         - $ref: "#/components/parameters/IdPath"
       responses:
-        "200":
-          description: Transaction restored.
+        "410":
+          description: Legacy transaction route disabled.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  code:
+                    type: integer
+                    example: 410
+                  message:
+                    type: string
+                    example: Legacy transaction route disabled.
         "500":
           $ref: "#/components/responses/ServerError"
 

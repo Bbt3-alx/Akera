@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+
 import { describe, expect, it, jest } from "@jest/globals";
 
 import transactionRoutes from "../../routes/transactionRoute.js";
@@ -16,6 +18,21 @@ describe("transaction routes", () => {
         code: 410,
         message: "Legacy transaction route disabled.",
       });
+    }
+  });
+
+  it("documents legacy edit and restore routes as disabled", () => {
+    const swagger = readFileSync("backend/swagger/transaction.yaml", "utf8");
+
+    for (const path of [
+      '"/api/v1/transactions/{id}/edit":',
+      '"/api/v1/transactions/{id}/restore":',
+    ]) {
+      const section = getSwaggerPathSection(swagger, path);
+
+      expect(section).toContain("Legacy transaction route disabled");
+      expect(section).toContain('"410":');
+      expect(section).toContain("Legacy transaction route disabled.");
     }
   });
 });
@@ -38,4 +55,13 @@ function createResponse() {
   };
 
   return res;
+}
+
+function getSwaggerPathSection(swagger, path) {
+  const start = swagger.indexOf(path);
+  expect(start).toBeGreaterThanOrEqual(0);
+
+  const nextPath = swagger.indexOf('\n  "/api/v1/transactions/', start + 1);
+
+  return nextPath === -1 ? swagger.slice(start) : swagger.slice(start, nextPath);
 }
