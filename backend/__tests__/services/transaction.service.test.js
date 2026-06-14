@@ -1,10 +1,18 @@
 import mongoose from "mongoose";
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
+jest.mock("../../utils/generateReceiptPdf.js", () => ({
+  generateReceiptPdf: jest.fn(async ({ receiptNumber }) =>
+    `/tmp/receipt-${receiptNumber}.pdf`
+  ),
+}));
+
 import Company from "../../models/Company.js";
+import CompanyBranding from "../../models/CompanyBranding.js";
 import CompanyExchangeRate from "../../models/CompanyExchangeRate.js";
 import CompanyMembership from "../../models/CompanyMembership.js";
 import LedgerEntry from "../../models/LedgerEntry.js";
+import Receipt from "../../models/Receipt.js";
 import Transaction from "../../models/Transaction.js";
 import {
   createTransactionService,
@@ -13,6 +21,7 @@ import {
   getTrialBalanceForCompany,
   listCompanyTransactions,
   listMyTransactions,
+  payTransactionService,
 } from "../../services/transaction.service.js";
 
 describe("transaction service helpers", () => {
@@ -338,6 +347,65 @@ describe("transaction service helpers", () => {
           }),
         ],
         { session: expect.any(Object) },
+      );
+    });
+  });
+
+  describe("payTransactionService", () => {
+    it("returns a receipt when completing a pending transaction", async () => {
+      mockMongooseSession();
+      const ids = createIds();
+      const transaction = createTransaction(ids);
+      transaction.save = jest.fn().mockResolvedValue(undefined);
+      jest.spyOn(CompanyMembership, "findOne").mockReturnValue(
+        createSessionQuery({
+          _id: ids.membershipId,
+          user: ids.userId,
+          company: ids.companyId,
+          role: "manager",
+          status: "active",
+        }),
+      );
+      jest
+        .spyOn(Transaction, "findOneAndUpdate")
+        .mockResolvedValue(transaction);
+      jest.spyOn(LedgerEntry, "insertMany").mockResolvedValue([]);
+      jest
+        .spyOn(Company, "updateOne")
+        .mockResolvedValue({ modifiedCount: 1 });
+      jest.spyOn(Receipt, "findOne").mockReturnValue(createSessionQuery(null));
+      jest.spyOn(Company, "findById").mockReturnValue(
+        createSessionQuery({
+          _id: ids.companyId,
+          name: "Akera Gold",
+          receiptPrefix: "RCPT",
+        }),
+      );
+      jest.spyOn(CompanyBranding, "findOneAndUpdate").mockResolvedValue({
+        receiptPrefix: "RCPT",
+        receiptCounter: 1,
+        primaryColor: "#1A73E8",
+        footerText: "Generated securely by Akera system",
+      });
+      jest.spyOn(Receipt, "create").mockImplementation(async ([data]) => [
+        {
+          _id: new mongoose.Types.ObjectId(),
+          ...data,
+        },
+      ]);
+
+      const result = await payTransactionService({
+        companyId: ids.companyId,
+        transactionCode: "AKR-000001",
+        managerId: ids.userId,
+      });
+
+      expect(result.transaction).toBe(transaction);
+      expect(result.receipt).toEqual(
+        expect.objectContaining({
+          transaction: transaction._id,
+          receiptNumber: `RCPT-${ids.companyId.toString().slice(-6).toUpperCase()}-000001`,
+        }),
       );
     });
   });

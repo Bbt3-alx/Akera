@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../store.ts'
@@ -50,6 +50,12 @@ export function CompanySwitcher() {
             </option>
           ))}
         </select>
+        <Link
+          className="mt-2 inline-flex text-xs font-medium text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-950 hover:decoration-slate-700"
+          to="/app/companies/new"
+        >
+          Create company
+        </Link>
       </div>
     )
   }
@@ -62,6 +68,12 @@ export function CompanySwitcher() {
       <div className="mt-1 truncate text-sm font-medium text-slate-900">
         {activeMembership?.companyName ?? 'No company selected'}
       </div>
+      <Link
+        className="mt-2 inline-flex text-xs font-medium text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-950 hover:decoration-slate-700"
+        to="/app/companies/new"
+      >
+        Create company
+      </Link>
     </div>
   )
 }

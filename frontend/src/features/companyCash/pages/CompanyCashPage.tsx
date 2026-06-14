@@ -17,7 +17,6 @@ import type {
 } from '../types.ts'
 
 const PIN_PATTERN = /^\d{6}$/
-const currencyOptions = ['FCFA', 'GNF'] as const
 const methodOptions = ['cash', 'bank', 'mobile_money', 'other'] as const
 
 const companyCashDepositSchema = z.object({
@@ -25,7 +24,6 @@ const companyCashDepositSchema = z.object({
     .number({ error: 'Amount is required' })
     .refine(Number.isFinite, 'Amount must be a finite number')
     .positive('Amount must be greater than 0'),
-  currency: z.enum(currencyOptions, { error: 'Currency is required' }),
   method: z.enum(methodOptions, { error: 'Method is required' }),
   reference: z
     .string()
@@ -116,10 +114,10 @@ export function CompanyCashPage() {
         <>
           <CashSummary
             balance={companyCashQuery.data?.balance ?? 0}
-            currency={companyCashQuery.data?.currency ?? 'FCFA'}
+            currency={companyCashQuery.data?.currency ?? null}
           />
           <DepositForm
-            companyCurrency={companyCashQuery.data?.currency ?? 'FCFA'}
+            companyCurrency={companyCashQuery.data?.currency ?? null}
           />
         </>
       ) : null}
@@ -129,7 +127,7 @@ export function CompanyCashPage() {
 
 type CashSummaryProps = {
   balance: number
-  currency: CompanyCashCurrency
+  currency: CompanyCashCurrency | null
 }
 
 function CashSummary({ balance, currency }: CashSummaryProps) {
@@ -144,7 +142,7 @@ function CashSummary({ balance, currency }: CashSummaryProps) {
 }
 
 type DepositFormProps = {
-  companyCurrency: CompanyCashCurrency
+  companyCurrency: CompanyCashCurrency | null
 }
 
 function DepositForm({ companyCurrency }: DepositFormProps) {
@@ -165,7 +163,6 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
     resolver: zodResolver(companyCashDepositSchema),
     defaultValues: {
       amount: undefined,
-      currency: companyCurrency,
       method: 'cash',
       reference: '',
       note: '',
@@ -173,6 +170,7 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
     },
   })
   const isSaving = isSubmitting || createDeposit.isPending
+  const isCurrencyReady = Boolean(companyCurrency)
   const depositError = getDepositErrorMessage(createDeposit.error)
   const pinNotConfigured =
     createDeposit.error instanceof AppApiError &&
@@ -181,17 +179,20 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
   useEffect(() => {
     reset((values) => ({
       ...values,
-      currency: companyCurrency,
       transactionPin: '',
     }))
   }, [companyCurrency, reset])
 
   const onSubmit = handleSubmit(async (values) => {
+    if (!companyCurrency) {
+      return
+    }
+
     setSuccessMessage(null)
     setLastResult(null)
     createDeposit.reset()
 
-    const signature = createDepositSignature(values)
+    const signature = createDepositSignature(values, companyCurrency)
     const submitKey =
       lastSubmittedSignature === signature
         ? idempotencyKey
@@ -203,7 +204,7 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
     try {
       const result = await createDeposit.mutateAsync({
         amount: values.amount,
-        currency: values.currency,
+        currency: companyCurrency,
         method: values.method,
         reference: toOptionalString(values.reference),
         note: toOptionalString(values.note),
@@ -215,11 +216,9 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
       setLastResult(result)
       setIdempotencyKey(createIdempotencyKey())
       setLastSubmittedSignature(null)
-      const resultBalance = getDepositBalance(result)
 
       reset({
         amount: undefined,
-        currency: resultBalance?.currency ?? values.currency,
         method: 'cash',
         reference: '',
         note: '',
@@ -240,6 +239,18 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
       onSubmit={onSubmit}
     >
       <h2 className="text-lg font-semibold text-slate-950">Record deposit</h2>
+      <p className="mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+        Deposit currency:{' '}
+        <span className="font-medium text-slate-950">
+          {companyCurrency ?? 'Loading currency...'}
+        </span>
+      </p>
+      {!isCurrencyReady ? (
+        <p className="mt-2 text-sm text-slate-600">
+          Deposit currency is still loading. Deposits are disabled until the
+          company cash currency is available.
+        </p>
+      ) : null}
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <FormField
@@ -249,12 +260,6 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
             setValueAs: toOptionalNumber,
           })}
           type="number"
-        />
-        <SelectField
-          error={errors.currency?.message}
-          label="Currency"
-          options={currencyOptions}
-          registration={register('currency')}
         />
         <SelectField
           error={errors.method?.message}
@@ -328,10 +333,14 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
 
       <button
         className="mt-6 h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-        disabled={isSaving}
+        disabled={isSaving || !isCurrencyReady}
         type="submit"
       >
-        {isSaving ? 'Recording deposit' : 'Record deposit'}
+        {!isCurrencyReady
+          ? 'Loading currency'
+          : isSaving
+            ? 'Recording deposit'
+            : 'Record deposit'}
       </button>
     </form>
   )
@@ -464,10 +473,13 @@ function StateMessage({ children, title }: StateMessageProps) {
   )
 }
 
-function createDepositSignature(values: CompanyCashDepositFormValues) {
+function createDepositSignature(
+  values: CompanyCashDepositFormValues,
+  currency: CompanyCashCurrency,
+) {
   return JSON.stringify({
     amount: values.amount,
-    currency: values.currency,
+    currency,
     method: values.method,
     reference: toOptionalString(values.reference) ?? '',
     note: toOptionalString(values.note) ?? '',
@@ -491,7 +503,14 @@ function toOptionalString(value: string | undefined) {
   return trimmed ? trimmed : undefined
 }
 
-function formatAmount(value: number, currency: CompanyCashCurrency) {
+function formatAmount(
+  value: number,
+  currency: CompanyCashCurrency | null | undefined,
+) {
+  if (!currency) {
+    return 'Not available'
+  }
+
   return `${new Intl.NumberFormat(undefined, {
     maximumFractionDigits: 2,
   }).format(value)} ${currency}`

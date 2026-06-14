@@ -95,9 +95,7 @@ export async function signupUser(payload = {}) {
     verificationTokenExpiresAt: Date.now() + VERIFICATION_TOKEN_TTL_MS,
   });
 
-  if (process.env.NODE_ENV === "production") {
-    await sendVerificationEmail(user.email, verificationToken);
-  }
+  await sendVerificationEmail(user.email, verificationToken);
 
   return {
     user: serializeUser(user),

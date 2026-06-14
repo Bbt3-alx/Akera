@@ -1,6 +1,7 @@
 import Company from "../models/Company.js";
 import CompanyExchangeRate from "../models/CompanyExchangeRate.js";
 import CompanyInvitation from "../models/CompanyInvitation.js";
+import CompanyMembership from "../models/CompanyMembership.js";
 import Transaction from "../models/Transaction.js";
 import { Types } from "mongoose";
 import { ApiError } from "../middlewares/errorHandler.js";
@@ -78,6 +79,7 @@ export async function getCompanyDashboard({
     recentTransactions,
     pendingInvitationCount,
     accounting,
+    partnerBalance,
   ] = await Promise.all([
     CompanyExchangeRate.findOne({ company: companyId }).lean(),
     getTransactionSummary({ filter: transactionFilter, now }),
@@ -93,6 +95,12 @@ export async function getCompanyDashboard({
       role,
       visible: accountingVisible,
     }),
+    getPartnerBalanceSummary({
+      companyId: companyObjectId,
+      membershipId,
+      role,
+      userId,
+    }),
   ]);
 
   return {
@@ -106,6 +114,7 @@ export async function getCompanyDashboard({
     },
     exchangeRate: serializeExchangeRate(exchangeRate),
     cash: serializeCash({ company, role }),
+    partnerBalance,
     transactions: {
       scope: role === "partner" ? "mine" : "company",
       counts: transactionSummary.counts,
@@ -256,6 +265,55 @@ function serializeCash({ company, role }) {
     visible: true,
     balance: company.balance ?? 0,
     currency: company.baseCurrency ?? null,
+  };
+}
+
+async function getPartnerBalanceSummary({
+  companyId,
+  membershipId,
+  role,
+  userId,
+}) {
+  if (role !== "partner") {
+    return {
+      visible: false,
+      balance: null,
+      currency: null,
+    };
+  }
+
+  const membershipObjectId = toObjectId(membershipId, "Membership ID");
+  const userObjectId = toObjectId(userId, "User ID");
+  const membership = await CompanyMembership.findOne({
+    _id: membershipObjectId,
+    company: companyId,
+    user: userObjectId,
+    role: "partner",
+    status: "active",
+  })
+    .select("balance currency")
+    .lean();
+
+  if (!membership) {
+    throw new ApiError(
+      404,
+      "Partner membership not found",
+      "PARTNER_MEMBERSHIP_NOT_FOUND",
+    );
+  }
+
+  if (!membership.currency) {
+    throw new ApiError(
+      500,
+      "Partner balance currency is unavailable",
+      "PARTNER_BALANCE_UNAVAILABLE",
+    );
+  }
+
+  return {
+    visible: true,
+    balance: toNumber(membership.balance),
+    currency: membership.currency,
   };
 }
 

@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, type ReactNode } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 
 import { AUTH_ME_QUERY_KEY, useMe } from '../../auth/hooks.ts'
 import { useAuthStore } from '../../auth/store.ts'
@@ -179,7 +179,15 @@ export function CompanySelectPage() {
   return (
     <CompanySelectShell>
       <div className="w-full">
-        <h1 className="text-2xl font-semibold">Select company</h1>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-semibold">Select company</h1>
+          <Link
+            className="inline-flex h-10 items-center justify-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+            to="/create-company"
+          >
+            Create company
+          </Link>
+        </div>
 
         <InvitationList
           acceptingInvitationId={

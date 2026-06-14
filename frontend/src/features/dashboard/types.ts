@@ -62,6 +62,11 @@ export type CompanyDashboard = {
     balance: number | null
     currency: DashboardCurrency | null
   }
+  partnerBalance: {
+    visible: boolean
+    balance: number | null
+    currency: DashboardCurrency | null
+  }
   transactions: {
     scope: DashboardTransactionScope
     counts: DashboardTransactionCounts

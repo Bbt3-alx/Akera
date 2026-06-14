@@ -61,6 +61,20 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/app/companies/new',
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      {
+        index: true,
+        element: <CreateCompanyPage variant="embedded" />,
+      },
+    ],
+  },
+  {
     path: '/app',
     element: (
       <ProtectedRoute>

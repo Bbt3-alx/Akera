@@ -151,6 +151,15 @@ function MetricGrid({ dashboard }: { dashboard: CompanyDashboard }) {
           value={formatAmount(dashboard.cash.balance, dashboard.cash.currency)}
         />
       ) : null}
+      {dashboard.partnerBalance?.visible ? (
+        <MetricCard
+          label="Your balance with this company"
+          value={formatAmount(
+            dashboard.partnerBalance.balance,
+            dashboard.partnerBalance.currency,
+          )}
+        />
+      ) : null}
       <MetricCard
         action={
           !dashboard.exchangeRate.configured &&

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import Company from "../../models/Company.js";
 import CompanyExchangeRate from "../../models/CompanyExchangeRate.js";
 import CompanyInvitation from "../../models/CompanyInvitation.js";
+import CompanyMembership from "../../models/CompanyMembership.js";
 import LedgerEntry from "../../models/LedgerEntry.js";
 import Transaction from "../../models/Transaction.js";
 import { getCompanyDashboard } from "../../services/dashboard.service.js";
@@ -75,6 +76,11 @@ describe("dashboard service", () => {
         visible: true,
         balance: 25000,
         currency: "FCFA",
+      },
+      partnerBalance: {
+        visible: false,
+        balance: null,
+        currency: null,
       },
       transactions: {
         scope: "company",
@@ -153,6 +159,10 @@ describe("dashboard service", () => {
       todayCompletedCompanyAmount: 1000,
     });
     const find = mockRecentTransactions([createTransaction(ids)]);
+    const findOneMembership = mockPartnerMembership(ids, {
+      balance: 87500,
+      currency: "GNF",
+    });
     const countDocuments = jest.spyOn(CompanyInvitation, "countDocuments");
     const ledgerAggregate = jest.spyOn(LedgerEntry, "aggregate");
 
@@ -181,6 +191,13 @@ describe("dashboard service", () => {
       ids.partnerId.toHexString(),
     );
     expect(find).toHaveBeenCalledWith(partnerMatch);
+    expect(findOneMembership).toHaveBeenCalledWith({
+      _id: ids.membershipId,
+      company: ids.companyId,
+      user: ids.partnerId,
+      role: "partner",
+      status: "active",
+    });
     expect(countDocuments).not.toHaveBeenCalled();
     expect(ledgerAggregate).not.toHaveBeenCalled();
     expect(dashboard.transactions.scope).toBe("mine");
@@ -188,6 +205,11 @@ describe("dashboard service", () => {
       visible: false,
       balance: null,
       currency: null,
+    });
+    expect(dashboard.partnerBalance).toEqual({
+      visible: true,
+      balance: 87500,
+      currency: "GNF",
     });
     expect(dashboard.invitations).toEqual({
       visible: false,
@@ -236,6 +258,11 @@ describe("dashboard service", () => {
 
     expect(dashboard.transactions.scope).toBe("company");
     expect(dashboard.cash).toEqual({
+      visible: false,
+      balance: null,
+      currency: null,
+    });
+    expect(dashboard.partnerBalance).toEqual({
       visible: false,
       balance: null,
       currency: null,
@@ -380,6 +407,17 @@ function mockRecentTransactions(transactions) {
     .mockReturnValue(createFindManyQuery(transactions));
 }
 
+function mockPartnerMembership({ companyId, membershipId, partnerId }, result) {
+  return jest.spyOn(CompanyMembership, "findOne").mockReturnValue(
+    createSelectLeanQuery({
+      _id: membershipId,
+      company: companyId,
+      user: partnerId,
+      ...result,
+    }),
+  );
+}
+
 function createCompanyQuery(result) {
   return {
     lean: jest.fn().mockResolvedValue(result),
@@ -390,6 +428,13 @@ function createCompanyQuery(result) {
 function createLeanQuery(result) {
   return {
     lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
+function createSelectLeanQuery(result) {
+  return {
+    lean: jest.fn().mockResolvedValue(result),
+    select: jest.fn().mockReturnThis(),
   };
 }
 
