@@ -92,10 +92,10 @@ export function CancelTransactionButton({
     : null
 
   return (
-    <div className="space-y-2 text-left sm:text-right">
+    <div className="w-full space-y-2 text-left sm:w-auto sm:text-right">
       {transaction.status === 'pending' && !successMessage ? (
         <button
-          className="inline-flex h-9 items-center justify-center rounded border border-rose-300 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 w-full items-center justify-center rounded border border-rose-300 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           disabled={!canCancel}
           onClick={handleOpenConfirmation}
           type="button"
@@ -111,7 +111,7 @@ export function CancelTransactionButton({
       {isConfirming ? (
         <div
           aria-labelledby={dialogTitleId}
-          className="rounded border border-rose-200 bg-rose-50 p-3 text-sm text-slate-700 shadow-sm sm:w-80 sm:text-left"
+          className="w-full rounded border border-rose-200 bg-rose-50 p-3 text-sm text-slate-700 shadow-sm sm:w-80 sm:text-left"
           role="dialog"
         >
           <h3
@@ -199,9 +199,9 @@ type ConfirmDetailProps = {
 
 function ConfirmDetail({ label, value }: ConfirmDetailProps) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="break-words text-right font-medium text-slate-950">
+      <dd className="break-words font-medium text-slate-950 sm:text-right">
         {value}
       </dd>
     </div>

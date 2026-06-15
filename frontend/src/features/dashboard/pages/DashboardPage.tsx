@@ -73,7 +73,7 @@ export function DashboardPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-medium capitalize text-slate-500">
             {dashboard.viewer.role}
           </p>
@@ -100,14 +100,14 @@ export function DashboardPage() {
           </button>
           {isPartner ? (
             <Link
-              className="inline-flex h-10 items-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="inline-flex h-10 items-center justify-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
               to="/app/transactions/new"
             >
               New transaction
             </Link>
           ) : (
             <Link
-              className="inline-flex h-10 items-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="inline-flex h-10 items-center justify-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
               to="/app/transactions"
             >
               View transactions
@@ -144,7 +144,7 @@ export function DashboardPage() {
 
 function MetricGrid({ dashboard }: { dashboard: CompanyDashboard }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
       {dashboard.cash.visible ? (
         <MetricCard
           label="Company cash"
@@ -210,10 +210,14 @@ function MetricCard({ action, label, value }: MetricCardProps) {
   return (
     <div className="rounded border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex min-h-5 items-center justify-between gap-3">
-        <p className="text-sm font-medium text-slate-500">{label}</p>
+        <p className="break-words text-sm font-medium text-slate-500">
+          {label}
+        </p>
         {action}
       </div>
-      <p className="mt-2 text-xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-2 break-words text-lg font-semibold text-slate-950 sm:text-xl">
+        {value}
+      </p>
     </div>
   )
 }
@@ -237,7 +241,7 @@ function TransactionSummary({
         </h2>
       </div>
 
-      <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         {STATUS_ORDER.map((status) => (
           <div className="bg-white p-4" key={status}>
             <p className="text-xs font-medium uppercase text-slate-500">
@@ -288,8 +292,8 @@ function RecentTransactions({ dashboard }: { dashboard: CompanyDashboard }) {
 
   return (
     <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
-        <div>
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-950">
             Recent transactions
           </h2>
@@ -360,7 +364,7 @@ function RecentTransactionItem({
             </Link>
             <StatusBadge status={transaction.status} />
           </div>
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 break-words text-sm text-slate-600">
             {isPartner ? (
               <>
                 Beneficiary: {transaction.beneficiaryName}
@@ -380,7 +384,7 @@ function RecentTransactionItem({
             )}
           </p>
         </div>
-        <div className="text-sm text-slate-600 lg:text-right">
+        <div className="shrink-0 text-sm text-slate-600 lg:text-right">
           <p className="font-medium text-slate-950">
             {formatAmount(
               transaction.companyAmount,
@@ -487,7 +491,7 @@ function TrialBalanceSummary({
         <dl className="mt-4 divide-y divide-slate-100 text-sm">
           {rows.slice(0, 8).map((row) => (
             <div
-              className="flex items-center justify-between gap-4 py-2"
+                className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               key={`${row.currency}-${row.accountCode}`}
             >
               <dt className="min-w-0 text-slate-600">
@@ -496,7 +500,7 @@ function TrialBalanceSummary({
                 </span>{' '}
                 {row.accountCode}
               </dt>
-              <dd className="shrink-0 font-medium text-slate-950">
+              <dd className="break-words font-medium text-slate-950 sm:shrink-0">
                 {row.balance}
               </dd>
             </div>

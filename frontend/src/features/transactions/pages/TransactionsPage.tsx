@@ -64,7 +64,7 @@ export function TransactionsPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-slate-950">
             Transactions
           </h1>
@@ -73,10 +73,10 @@ export function TransactionsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto">
           {canCreateTransaction ? (
             <Link
-              className="inline-flex h-10 items-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
+              className="inline-flex h-10 items-center justify-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
               to="/app/transactions/new"
             >
               New transaction
@@ -85,17 +85,17 @@ export function TransactionsPage() {
 
           {canSearchTransactions ? (
             <Link
-              className="inline-flex h-10 items-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex h-10 items-center justify-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               to="/app/transactions/search"
             >
               Search by code
             </Link>
           ) : null}
 
-          <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
+          <label className="flex w-full flex-col gap-1 text-sm font-medium text-slate-700 sm:w-auto">
             Status
             <select
-              className="h-10 min-w-40 rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+              className="h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:min-w-40"
               onChange={(event) =>
                 setStatusFilter(event.target.value as StatusFilter)
               }
@@ -190,7 +190,7 @@ export function TransactionsPage() {
                         ? activeCompanyName
                         : transaction.partner?.name || 'Unknown partner'}
                     </td>
-                    <td className="px-4 py-3 text-slate-700">
+                    <td className="max-w-64 break-words px-4 py-3 text-slate-700">
                       {transaction.beneficiaryName}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">

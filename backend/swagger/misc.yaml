@@ -24,6 +24,201 @@ paths:
                     type: string
                     example: Legacy dashboard route disabled. Use the modern dashboard endpoint when available.
 
+  "/api/v1/company/dashboard":
+    get:
+      summary: Modern company dashboard
+      description: >-
+        Returns a role-aware dashboard for the active company context. This
+        endpoint requires an Authorization Bearer token, requires a verified
+        user, requires the x-company-id header, and uses the caller's active
+        company membership. Managers see company metrics, company cash, pending
+        invitations, and accounting/trial balance. Employees see company
+        transaction metrics, but company cash and accounting are hidden unless
+        the backend marks them visible. Partners see only their own transaction
+        metrics and partner balance, and do not see company cash, invitations,
+        or accounting.
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/CompanyIdHeader"
+      responses:
+        "200":
+          description: Role-aware active company dashboard.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  code:
+                    type: integer
+                    example: 200
+                  data:
+                    type: object
+                    properties:
+                      company:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          name:
+                            type: string
+                          baseCurrency:
+                            type: string
+                            enum: [FCFA, GNF]
+                      viewer:
+                        type: object
+                        properties:
+                          role:
+                            type: string
+                            enum: [manager, employee, partner]
+                            description: Active company membership role.
+                      exchangeRate:
+                        type: object
+                        properties:
+                          configured:
+                            type: boolean
+                          rate:
+                            type: number
+                            nullable: true
+                          from:
+                            type: string
+                            example: FCFA
+                          to:
+                            type: string
+                            example: GNF
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            nullable: true
+                      cash:
+                        type: object
+                        description: Visible for managers unless backend rules change visibility.
+                        properties:
+                          visible:
+                            type: boolean
+                          balance:
+                            type: number
+                            nullable: true
+                          currency:
+                            type: string
+                            nullable: true
+                            enum: [FCFA, GNF]
+                      partnerBalance:
+                        type: object
+                        description: Visible for active partners viewing their own balance.
+                        properties:
+                          visible:
+                            type: boolean
+                          balance:
+                            type: number
+                            nullable: true
+                          currency:
+                            type: string
+                            nullable: true
+                            enum: [FCFA, GNF]
+                      transactions:
+                        type: object
+                        properties:
+                          scope:
+                            type: string
+                            enum: [company, mine]
+                          counts:
+                            type: object
+                            properties:
+                              pending:
+                                type: integer
+                              processing:
+                                type: integer
+                              completed:
+                                type: integer
+                              canceled:
+                                type: integer
+                              canceling:
+                                type: integer
+                              reversed:
+                                type: integer
+                              reversing:
+                                type: integer
+                              total:
+                                type: integer
+                          totals:
+                            type: object
+                            properties:
+                              completedCompanyAmount:
+                                type: number
+                              pendingCompanyAmount:
+                                type: number
+                              todayCompletedCompanyAmount:
+                                type: number
+                          recent:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                transactionCode:
+                                  type: string
+                                status:
+                                  type: string
+                                beneficiaryName:
+                                  type: string
+                                inputAmount:
+                                  type: number
+                                inputCurrency:
+                                  type: string
+                                  enum: [FCFA, GNF]
+                                companyAmount:
+                                  type: number
+                                companyCurrency:
+                                  type: string
+                                  enum: [FCFA, GNF]
+                                partner:
+                                  type: object
+                                  nullable: true
+                                  additionalProperties: true
+                                createdAt:
+                                  type: string
+                                  format: date-time
+                      invitations:
+                        type: object
+                        description: Visible for managers only.
+                        properties:
+                          visible:
+                            type: boolean
+                          pendingCount:
+                            type: integer
+                            nullable: true
+                      accounting:
+                        type: object
+                        description: Visible for managers unless backend rules change visibility.
+                        properties:
+                          visible:
+                            type: boolean
+                          trialBalance:
+                            type: object
+                            nullable: true
+                            additionalProperties: true
+                          error:
+                            type: string
+                            nullable: true
+                            enum: [TRIAL_BALANCE_ERROR]
+                            description: Set to TRIAL_BALANCE_ERROR when trial balance generation fails.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
   "/api/v1/receipts/verify/{receiptNumber}":
     get:
       summary: Verify a receipt by receipt number

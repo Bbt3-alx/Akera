@@ -84,7 +84,7 @@ export function AppLayout() {
       </aside>
 
       <div className="md:pl-64">
-        <header className="border-b border-slate-200 bg-white px-6 py-4">
+        <header className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="md:hidden">
               <div className="text-lg font-semibold">Akera</div>
@@ -121,12 +121,14 @@ export function AppLayout() {
 
             <CompanySwitcher />
 
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-sm font-medium text-slate-900">
+            <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+              <div className="min-w-0 text-left md:text-right">
+                <div className="truncate text-sm font-medium text-slate-900">
                   {userDisplayName}
                 </div>
-                <div className="text-xs text-slate-500">{user?.email}</div>
+                <div className="truncate text-xs text-slate-500">
+                  {user?.email}
+                </div>
               </div>
               <button
                 className="rounded border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
@@ -139,7 +141,7 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="p-6">
+        <main className="p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
@@ -160,8 +162,8 @@ type NavLabelProps = {
 
 function NavLabel({ children, count = 0 }: NavLabelProps) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span>{children}</span>
+    <span className="inline-flex min-w-0 items-center gap-2">
+      <span className="truncate">{children}</span>
       {count > 0 ? (
         <span className="inline-flex min-w-5 justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
           {count}
@@ -195,7 +197,7 @@ function TopbarLink({ children, end, to }: AppNavLinkProps) {
     <NavLink
       className={({ isActive }) =>
         [
-          'rounded px-3 py-2 text-sm font-medium transition',
+          'inline-flex items-center rounded px-3 py-2 text-sm font-medium transition',
           isActive
             ? 'bg-slate-950 text-white'
             : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950',

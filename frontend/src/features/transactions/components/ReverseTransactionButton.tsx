@@ -110,10 +110,10 @@ export function ReverseTransactionButton({
     : null
 
   return (
-    <div className="space-y-2 text-left sm:text-right">
+    <div className="w-full space-y-2 text-left sm:w-auto sm:text-right">
       {transaction.status === 'completed' && !successMessage ? (
         <button
-          className="inline-flex h-9 items-center justify-center rounded border border-purple-300 px-3 text-sm font-medium text-purple-700 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 w-full items-center justify-center rounded border border-purple-300 px-3 text-sm font-medium text-purple-700 transition hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           disabled={isCheckingAccess || isReversalPending}
           onClick={handleOpenConfirmation}
           type="button"
@@ -129,7 +129,7 @@ export function ReverseTransactionButton({
       {isConfirming ? (
         <div
           aria-labelledby={dialogTitleId}
-          className="rounded border border-purple-200 bg-purple-50 p-3 text-sm text-slate-700 shadow-sm sm:w-80 sm:text-left"
+          className="w-full rounded border border-purple-200 bg-purple-50 p-3 text-sm text-slate-700 shadow-sm sm:w-80 sm:text-left"
           role="dialog"
         >
           <h3
@@ -243,9 +243,9 @@ type ConfirmDetailProps = {
 
 function ConfirmDetail({ label, value }: ConfirmDetailProps) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="break-words text-right font-medium text-slate-950">
+      <dd className="break-words font-medium text-slate-950 sm:text-right">
         {value}
       </dd>
     </div>

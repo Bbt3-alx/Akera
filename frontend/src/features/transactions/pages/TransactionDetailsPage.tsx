@@ -45,7 +45,7 @@ export function TransactionDetailsPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-slate-950">
             Transaction details
           </h1>
@@ -55,7 +55,7 @@ export function TransactionDetailsPage() {
         </div>
 
         <Link
-          className="inline-flex h-10 items-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          className="inline-flex h-10 w-full items-center justify-center rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 sm:w-auto"
           to="/app/transactions"
         >
           Back to list
@@ -90,17 +90,17 @@ export function TransactionDetailsPage() {
         <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-4 py-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase text-slate-500">
                   Transaction
                 </p>
-                <h2 className="mt-1 text-xl font-semibold text-slate-950">
+                <h2 className="mt-1 break-words text-xl font-semibold text-slate-950">
                   <TransactionCodeDisplay code={data.transactionCode} />
                 </h2>
               </div>
-              <div className="flex flex-col gap-3 sm:items-end">
+              <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
                 <StatusBadge status={data.status} />
-                <div className="flex flex-col gap-2 sm:items-end">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
                   <PayTransactionButton transaction={data} />
                   <CancelTransactionButton transaction={data} />
                   <ReverseTransactionButton transaction={data} />

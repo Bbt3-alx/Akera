@@ -39,6 +39,26 @@ describe("company dashboard routes", () => {
       'app.use("/api/v1/company/dashboard", companyDashboardRoutes)',
     );
   });
+
+  it("documents the modern company dashboard endpoint", () => {
+    const miscSwagger = readFileSync("backend/swagger/misc.yaml", "utf8");
+    const dashboardSection = getSwaggerPathSection(
+      miscSwagger,
+      '"/api/v1/company/dashboard":',
+    );
+
+    expect(dashboardSection).toContain("Modern company dashboard");
+    expect(dashboardSection).toMatch(/requires a verified\s+user/);
+    expect(dashboardSection).toContain("#/components/parameters/CompanyIdHeader");
+    expect(dashboardSection).toContain("manager");
+    expect(dashboardSection).toContain("employee");
+    expect(dashboardSection).toContain("partner");
+    expect(dashboardSection).toContain("partnerBalance");
+    expect(dashboardSection).toContain("canceling");
+    expect(dashboardSection).toContain("reversing");
+    expect(dashboardSection).toContain("trialBalance");
+    expect(dashboardSection).toContain("TRIAL_BALANCE_ERROR");
+  });
 });
 
 async function callLastRouteHandler(router, path, method, req, res) {
@@ -67,4 +87,13 @@ function createResponse() {
   };
 
   return res;
+}
+
+function getSwaggerPathSection(swagger, path) {
+  const start = swagger.indexOf(path);
+  expect(start).toBeGreaterThanOrEqual(0);
+
+  const nextPath = swagger.indexOf('\n  "/api/v1/', start + 1);
+
+  return nextPath === -1 ? swagger.slice(start) : swagger.slice(start, nextPath);
 }

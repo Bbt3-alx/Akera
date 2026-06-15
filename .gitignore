@@ -133,5 +133,8 @@ dist
 .pnp.*
 ex-frontend
 uploads
-docs
+docs/
+!/docs/
+/docs/*
+!/docs/demo-checklist.md
 prevFrontend

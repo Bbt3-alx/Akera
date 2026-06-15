@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { z } from 'zod'
 
 import { AppApiError } from '../../../shared/api/types.ts'
+import { createIdempotencyKey } from '../../../shared/utils/idempotency.ts'
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
 import {
@@ -150,7 +151,9 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [lastResult, setLastResult] =
     useState<CompanyCashDepositResponse | null>(null)
-  const [idempotencyKey, setIdempotencyKey] = useState(createIdempotencyKey)
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    createIdempotencyKey('cash'),
+  )
   const [lastSubmittedSignature, setLastSubmittedSignature] =
     useState<string | null>(null)
   const {
@@ -196,7 +199,7 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
     const submitKey =
       lastSubmittedSignature === signature
         ? idempotencyKey
-        : createIdempotencyKey()
+        : createIdempotencyKey('cash')
 
     setIdempotencyKey(submitKey)
     setLastSubmittedSignature(signature)
@@ -214,7 +217,7 @@ function DepositForm({ companyCurrency }: DepositFormProps) {
 
       setSuccessMessage('Deposit recorded.')
       setLastResult(result)
-      setIdempotencyKey(createIdempotencyKey())
+      setIdempotencyKey(createIdempotencyKey('cash'))
       setLastSubmittedSignature(null)
 
       reset({
@@ -484,10 +487,6 @@ function createDepositSignature(
     reference: toOptionalString(values.reference) ?? '',
     note: toOptionalString(values.note) ?? '',
   })
-}
-
-function createIdempotencyKey() {
-  return crypto.randomUUID()
 }
 
 function toOptionalNumber(value: unknown) {

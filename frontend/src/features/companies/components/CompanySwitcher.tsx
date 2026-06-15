@@ -31,7 +31,7 @@ export function CompanySwitcher() {
 
   if (memberships.length > 1) {
     return (
-      <div className="min-w-0">
+      <div className="w-full min-w-0 sm:w-auto">
         <label
           className="block text-xs font-medium uppercase text-slate-500"
           htmlFor="company-switcher"
@@ -39,7 +39,7 @@ export function CompanySwitcher() {
           Company
         </label>
         <select
-          className="mt-1 w-full min-w-56 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+          className="mt-1 w-full min-w-0 rounded border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10 sm:min-w-56"
           id="company-switcher"
           onChange={(event) => handleCompanyChange(event.target.value)}
           value={activeCompanyId ?? ''}
@@ -61,7 +61,7 @@ export function CompanySwitcher() {
   }
 
   return (
-    <div className="min-w-0">
+    <div className="w-full min-w-0 sm:w-auto">
       <div className="text-xs font-medium uppercase text-slate-500">
         Company
       </div>

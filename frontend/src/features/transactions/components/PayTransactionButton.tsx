@@ -104,10 +104,10 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
     : null
 
   return (
-    <div className="space-y-2 text-left sm:text-right">
+    <div className="w-full space-y-2 text-left sm:w-auto sm:text-right">
       {transaction.status === 'pending' && !successMessage ? (
         <button
-          className="inline-flex h-9 items-center justify-center rounded bg-emerald-700 px-3 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-9 w-full items-center justify-center rounded bg-emerald-700 px-3 text-sm font-medium text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           disabled={!canPay}
           onClick={handleOpenConfirmation}
           type="button"
@@ -123,7 +123,7 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
       {isConfirming ? (
         <div
           aria-labelledby={dialogTitleId}
-          className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700 shadow-sm sm:w-80 sm:text-left"
+          className="w-full rounded border border-amber-200 bg-amber-50 p-3 text-sm text-slate-700 shadow-sm sm:w-80 sm:text-left"
           role="dialog"
         >
           <h3
@@ -201,7 +201,7 @@ export function PayTransactionButton({ transaction }: PayTransactionButtonProps)
                 generated.
               </p>
               <button
-                className="inline-flex h-9 items-center justify-center rounded border border-emerald-300 bg-white px-3 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-9 w-full items-center justify-center rounded border border-emerald-300 bg-white px-3 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 disabled={isDownloadPending}
                 onClick={handleDownloadReceipt}
                 type="button"
@@ -228,9 +228,9 @@ type ConfirmDetailProps = {
 
 function ConfirmDetail({ label, value }: ConfirmDetailProps) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
       <dt className="text-slate-500">{label}</dt>
-      <dd className="break-words text-right font-medium text-slate-950">
+      <dd className="break-words font-medium text-slate-950 sm:text-right">
         {value}
       </dd>
     </div>

@@ -18,10 +18,14 @@ import { TransactionsPage } from '../features/transactions/pages/TransactionsPag
 import { AppLayout } from '../shared/components/AppLayout.tsx'
 import { ProtectedRoute } from '../shared/components/ProtectedRoute.tsx'
 import { PublicAuthRoute } from '../shared/components/PublicAuthRoute.tsx'
+import { RouteErrorFallback } from '../shared/components/RouteErrorFallback.tsx'
+
+const routeErrorElement = <RouteErrorFallback />
 
 export const router = createBrowserRouter([
   {
     path: '/login',
+    errorElement: routeErrorElement,
     element: (
       <PublicAuthRoute>
         <LoginPage />
@@ -30,6 +34,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/register',
+    errorElement: routeErrorElement,
     element: (
       <PublicAuthRoute>
         <RegisterPage />
@@ -38,6 +43,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/verify-email',
+    errorElement: routeErrorElement,
     element: (
       <PublicAuthRoute>
         <VerifyEmailPage />
@@ -46,6 +52,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/select-company',
+    errorElement: routeErrorElement,
     element: (
       <ProtectedRoute requireCompany={false}>
         <CompanySelectPage />
@@ -54,6 +61,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/create-company',
+    errorElement: routeErrorElement,
     element: (
       <ProtectedRoute requireCompany={false}>
         <CreateCompanyPage />
@@ -62,6 +70,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/app/companies/new',
+    errorElement: routeErrorElement,
     element: (
       <ProtectedRoute requireCompany={false}>
         <AppLayout />
@@ -76,6 +85,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/app',
+    errorElement: routeErrorElement,
     element: (
       <ProtectedRoute>
         <AppLayout />

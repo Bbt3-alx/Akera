@@ -10,6 +10,7 @@ import { useCompaniesStore } from '../../companies/store.ts'
 import { useCurrentExchangeRate } from '../../exchangeRates/hooks.ts'
 import type { CompanyExchangeRate } from '../../exchangeRates/types.ts'
 import { AppApiError } from '../../../shared/api/types.ts'
+import { createIdempotencyKey } from '../../../shared/utils/idempotency.ts'
 import { useCreateTransaction } from '../hooks.ts'
 import type {
   CreateTransactionPayload,
@@ -100,7 +101,7 @@ export function CreateTransactionPage() {
         ? submissionIdentity
         : {
             fingerprint,
-            idempotencyKey: createIdempotencyKey(),
+            idempotencyKey: createIdempotencyKey('txn'),
           }
 
     setCreatedTransaction(null)
@@ -422,24 +423,6 @@ function getSubmissionFingerprint(payload: CreateTransactionRequest) {
     payload.beneficiaryName,
     payload.description ?? '',
   ])
-}
-
-function createIdempotencyKey() {
-  if (typeof globalThis.crypto?.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID()
-  }
-
-  return `txn-${Date.now()}-${createRandomString()}`
-}
-
-function createRandomString() {
-  if (typeof globalThis.crypto?.getRandomValues === 'function') {
-    const values = new Uint32Array(2)
-    globalThis.crypto.getRandomValues(values)
-    return Array.from(values, (value) => value.toString(36)).join('')
-  }
-
-  return Math.random().toString(36).slice(2, 12)
 }
 
 function getErrorMessage(error: unknown): string | null {
