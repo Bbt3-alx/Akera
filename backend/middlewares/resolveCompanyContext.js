@@ -1,4 +1,8 @@
 import { MEMBERSHIP_STATUS } from "../constants/membershipStatus.js";
+import {
+  normalizeCompanyEnabledModules,
+  normalizeCompanyTransferWorkflows,
+} from "../constants/companyModules.js";
 import CompanyMembership from "../models/CompanyMembership.js";
 import { ApiError } from "./errorHandler.js";
 
@@ -20,7 +24,9 @@ const resolveCompanyContext = async (req, res, next) => {
       user: req.user.id,
       company: companyId,
       status: MEMBERSHIP_STATUS.ACTIVE,
-    }).lean();
+    })
+      .populate("company", "_id name businessType transferWorkflows enabledModules")
+      .lean();
 
     if (!membership) {
       return next(
@@ -32,11 +38,21 @@ const resolveCompanyContext = async (req, res, next) => {
       );
     }
 
+    const company = membership.company;
+    const resolvedCompanyId = company?._id || membership.company;
+
     req.context = {
-      companyId: membership.company,
+      companyId: resolvedCompanyId,
       membershipId: membership._id,
       role: membership.role,
       permissions: membership.permissions || [],
+      company: {
+        id: resolvedCompanyId,
+        name: company?.name,
+        businessType: company?.businessType || "transfer",
+        transferWorkflows: normalizeCompanyTransferWorkflows(company),
+        enabledModules: normalizeCompanyEnabledModules(company),
+      },
     };
 
     next();

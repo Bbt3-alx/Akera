@@ -16,6 +16,8 @@ import { TransactionDetailsPage } from '../features/transactions/pages/Transacti
 import { TransactionSearchPage } from '../features/transactions/pages/TransactionSearchPage.tsx'
 import { TransactionsPage } from '../features/transactions/pages/TransactionsPage.tsx'
 import { AppLayout } from '../shared/components/AppLayout.tsx'
+import { ModuleGate } from '../shared/components/ModuleGate.tsx'
+import { ModulePlaceholderPage } from '../shared/components/ModulePlaceholderPage.tsx'
 import { ProtectedRoute } from '../shared/components/ProtectedRoute.tsx'
 import { PublicAuthRoute } from '../shared/components/PublicAuthRoute.tsx'
 import { RouteErrorFallback } from '../shared/components/RouteErrorFallback.tsx'
@@ -102,19 +104,68 @@ export const router = createBrowserRouter([
       },
       {
         path: 'transactions',
-        element: <TransactionsPage />,
+        element: (
+          <ModuleGate moduleName="transfers">
+            <TransactionsPage />
+          </ModuleGate>
+        ),
       },
       {
         path: 'transactions/search',
-        element: <TransactionSearchPage />,
+        element: (
+          <ModuleGate moduleName="transfers">
+            <TransactionSearchPage />
+          </ModuleGate>
+        ),
       },
       {
         path: 'transactions/new',
-        element: <CreateTransactionPage />,
+        element: (
+          <ModuleGate moduleName="transfers">
+            <CreateTransactionPage />
+          </ModuleGate>
+        ),
       },
       {
         path: 'transactions/:transactionCode',
-        element: <TransactionDetailsPage />,
+        element: (
+          <ModuleGate moduleName="transfers">
+            <TransactionDetailsPage />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'collections',
+        element: (
+          <ModuleGate moduleName="correspondent_collections">
+            <ModulePlaceholderPage
+              description="Correspondent collection screens will be added in the next workflow pass."
+              title="Collections"
+            />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'account-operations',
+        element: (
+          <ModuleGate moduleName="account_operations">
+            <ModulePlaceholderPage
+              description="Withdrawal and account operation screens will be added next."
+              title="Account Operations"
+            />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'remote-agent-payout',
+        element: (
+          <ModuleGate moduleName="remote_agent_payout">
+            <ModulePlaceholderPage
+              description="Remote agent payout screens will be added in a later workflow pass."
+              title="Remote Agent Payout"
+            />
+          </ModuleGate>
+        ),
       },
       {
         path: 'invitations',
@@ -126,11 +177,71 @@ export const router = createBrowserRouter([
       },
       {
         path: 'company/exchange-rate',
-        element: <CompanyExchangeRatePage />,
+        element: (
+          <ModuleGate moduleName="exchange_rate">
+            <CompanyExchangeRatePage />
+          </ModuleGate>
+        ),
       },
       {
         path: 'company/cash',
-        element: <CompanyCashPage />,
+        element: (
+          <ModuleGate moduleName="company_cash">
+            <CompanyCashPage />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'gold/dashboard',
+        element: (
+          <ModuleGate moduleName="gold_trading">
+            <ModulePlaceholderPage title="Gold trading dashboard coming next" />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'gold/buy-operations',
+        element: (
+          <ModuleGate moduleName="gold_buy_operations">
+            <ModulePlaceholderPage
+              description="Gold buy operation screens will be added in a later phase."
+              title="Buy Operations"
+            />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'gold/sell-operations',
+        element: (
+          <ModuleGate moduleName="gold_sell_operations">
+            <ModulePlaceholderPage
+              description="Gold sell operation screens will be added in a later phase."
+              title="Sell Operations"
+            />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'gold/shipping',
+        element: (
+          <ModuleGate moduleName="gold_shipping">
+            <ModulePlaceholderPage
+              description="Gold shipping screens will be added in a later phase."
+              title="Shipping"
+            />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'gold/payments',
+        element: (
+          <ModuleGate moduleName="gold_trading">
+            <ModulePlaceholderPage
+              description="Gold payment screens will be added in a later phase."
+              title="Gold Payments"
+            />
+          </ModuleGate>
+        ),
       },
       {
         path: 'security/transaction-pin',

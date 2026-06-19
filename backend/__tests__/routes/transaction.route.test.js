@@ -5,6 +5,14 @@ import { describe, expect, it, jest } from "@jest/globals";
 import transactionRoutes from "../../routes/transactionRoute.js";
 
 describe("transaction routes", () => {
+  it("guards collection transactions behind the correspondent collection module", () => {
+    const route = findRoute("/collections", "post");
+
+    expect(route.stack.map((layer) => layer.handle.moduleName)).toContain(
+      "correspondent_collections",
+    );
+  });
+
   it("returns 410 from legacy edit and restore routes", () => {
     for (const path of ["/:id/edit", "/:id/restore"]) {
       const route = findRoute(path, "put");

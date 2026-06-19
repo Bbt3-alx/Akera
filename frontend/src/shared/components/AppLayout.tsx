@@ -3,9 +3,15 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { useMe } from '../../features/auth/hooks.ts'
 import { useAuthStore } from '../../features/auth/store.ts'
+import { getEnabledModulesForMembership } from '../../features/companies/companyModules.ts'
 import { CompanySwitcher } from '../../features/companies/components/CompanySwitcher.tsx'
 import { useCompaniesStore } from '../../features/companies/store.ts'
 import { useMyInvitations } from '../../features/invitations/hooks.ts'
+import {
+  buildNavigationSections,
+  type NavigationItem,
+  type NavigationSection,
+} from '../navigation/moduleNavigation.ts'
 
 export function AppLayout() {
   const navigate = useNavigate()
@@ -36,6 +42,11 @@ export function AppLayout() {
     myInvitationsQuery.data?.filter(
       (invitation) => invitation.status === 'pending',
     ).length ?? 0
+  const navigationSections = buildNavigationSections({
+    enabledModules: getEnabledModulesForMembership(activeMembership),
+    isManager: canManageCompanySettings,
+    pendingInvitationCount,
+  })
 
   function handleLogout() {
     clearAccessToken()
@@ -54,33 +65,7 @@ export function AppLayout() {
           </div>
         </div>
 
-        <nav className="mt-8 space-y-1">
-          <SidebarLink to="/app/dashboard">
-            Dashboard
-          </SidebarLink>
-          <SidebarLink to="/app/transactions">Transactions</SidebarLink>
-          <SidebarLink to="/app/invitations">
-            <NavLabel count={pendingInvitationCount}>Invitations</NavLabel>
-          </SidebarLink>
-          {canManageCompanySettings ? (
-            <SidebarLink to="/app/company/invitations">
-              Company invites
-            </SidebarLink>
-          ) : null}
-          {canManageCompanySettings ? (
-            <SidebarLink to="/app/company/exchange-rate">
-              Exchange rate
-            </SidebarLink>
-          ) : null}
-          {canManageCompanySettings ? (
-            <SidebarLink to="/app/company/cash">Company cash</SidebarLink>
-          ) : null}
-          {canManageCompanySettings ? (
-            <SidebarLink to="/app/security/transaction-pin">
-              Transaction PIN
-            </SidebarLink>
-          ) : null}
-        </nav>
+        <SidebarNavigation sections={navigationSections} />
       </aside>
 
       <div className="md:pl-64">
@@ -88,35 +73,7 @@ export function AppLayout() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="md:hidden">
               <div className="text-lg font-semibold">Akera</div>
-              <nav className="mt-3 flex flex-wrap gap-2">
-                <TopbarLink to="/app/dashboard">
-                  Dashboard
-                </TopbarLink>
-                <TopbarLink to="/app/transactions">Transactions</TopbarLink>
-                <TopbarLink to="/app/invitations">
-                  <NavLabel count={pendingInvitationCount}>
-                    Invitations
-                  </NavLabel>
-                </TopbarLink>
-                {canManageCompanySettings ? (
-                  <TopbarLink to="/app/company/invitations">
-                    Company invites
-                  </TopbarLink>
-                ) : null}
-                {canManageCompanySettings ? (
-                  <TopbarLink to="/app/company/exchange-rate">
-                    Exchange rate
-                  </TopbarLink>
-                ) : null}
-                {canManageCompanySettings ? (
-                  <TopbarLink to="/app/company/cash">Company cash</TopbarLink>
-                ) : null}
-                {canManageCompanySettings ? (
-                  <TopbarLink to="/app/security/transaction-pin">
-                    Transaction PIN
-                  </TopbarLink>
-                ) : null}
-              </nav>
+              <TopbarNavigation sections={navigationSections} />
             </div>
 
             <CompanySwitcher />
@@ -147,6 +104,51 @@ export function AppLayout() {
       </div>
     </div>
   )
+}
+
+type NavigationProps = {
+  sections: NavigationSection[]
+}
+
+function SidebarNavigation({ sections }: NavigationProps) {
+  return (
+    <nav className="mt-8 space-y-5">
+      {sections.map((section, sectionIndex) => (
+        <div key={section.label ?? `main-${sectionIndex}`}>
+          {section.label ? (
+            <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              {section.label}
+            </div>
+          ) : null}
+          <div className="space-y-1">
+            {section.items.map((item) => (
+              <SidebarLink key={item.to} to={item.to}>
+                <NavigationLabel item={item} />
+              </SidebarLink>
+            ))}
+          </div>
+        </div>
+      ))}
+    </nav>
+  )
+}
+
+function TopbarNavigation({ sections }: NavigationProps) {
+  return (
+    <nav className="mt-3 flex flex-wrap gap-2">
+      {sections.flatMap((section) =>
+        section.items.map((item) => (
+          <TopbarLink key={item.to} to={item.to}>
+            <NavigationLabel item={item} />
+          </TopbarLink>
+        )),
+      )}
+    </nav>
+  )
+}
+
+function NavigationLabel({ item }: { item: NavigationItem }) {
+  return <NavLabel count={item.count}>{item.label}</NavLabel>
 }
 
 type AppNavLinkProps = {

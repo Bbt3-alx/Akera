@@ -19,6 +19,8 @@ import express from "express";
 import { audit } from "../middlewares/audit.js";
 import verifyTransactionPin from "../middlewares/verifyTransactionPin.js";
 import { requireVerifiedUser } from "../middlewares/requireVerifiedUser.js";
+import { requireCompanyModule } from "../middlewares/requireCompanyModule.js";
+import { COMPANY_MODULES } from "../constants/companyModules.js";
 
 const router = express.Router();
 
@@ -36,6 +38,7 @@ router.post(
 
 router.post(
   "/collections",
+  requireCompanyModule(COMPANY_MODULES.CORRESPONDENT_COLLECTIONS),
   audit("ACCOUNT_OPERATION_COLLECTION_DEPOSIT", "AccountOperation"),
   catchAsync(createCollectionTransaction),
 );

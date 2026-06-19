@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useMe } from '../../auth/hooks.ts'
+import {
+  getEnabledModulesForMembership,
+  hasAnyGoldModule,
+  hasAnyTransferModule,
+} from '../../companies/companyModules.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
 import { TransactionCodeDisplay } from '../../transactions/components/TransactionCodeDisplay.tsx'
 import { useCompanyDashboard } from '../hooks.ts'
@@ -33,6 +39,37 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export function DashboardPage() {
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+  const { data } = useMe()
+  const activeMembership = data?.memberships.find(
+    (membership) =>
+      membership.companyId === activeCompanyId &&
+      membership.status === 'active',
+  )
+  const enabledModules = getEnabledModulesForMembership(activeMembership)
+  const hasTransfer = hasAnyTransferModule(enabledModules)
+  const hasGold = hasAnyGoldModule(enabledModules)
+
+  if (!activeCompanyId) {
+    return (
+      <StateMessage title="No company selected">
+        Select a company to view dashboard metrics.
+      </StateMessage>
+    )
+  }
+
+  if (hasGold && !hasTransfer) {
+    return <GoldDashboard />
+  }
+
+  if (hasGold && hasTransfer) {
+    return <MixedDashboard />
+  }
+
+  return <TransferDashboard />
+}
+
+function TransferDashboard() {
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const dashboardQuery = useCompanyDashboard()
   const dashboard = dashboardQuery.data
@@ -139,6 +176,67 @@ export function DashboardPage() {
         </div>
       </div>
     </section>
+  )
+}
+
+function GoldDashboard() {
+  return (
+    <StateMessage title="Gold trading dashboard coming next">
+      Gold trading analytics will be added after the gold workflow pages are
+      wired into the new module shell.
+    </StateMessage>
+  )
+}
+
+function MixedDashboard() {
+  return (
+    <section className="space-y-6">
+      <div className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm font-medium text-slate-500">Mixed company</p>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+          Company dashboard
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-slate-600">
+          Review transfer operations now, with gold trading analytics grouped
+          below as the next module area.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <DashboardModuleCard
+          description="Existing transfer and correspondent collection metrics."
+          title="Transfers"
+          to="/app/dashboard"
+        />
+        <DashboardModuleCard
+          description="Gold trading dashboard coming next"
+          title="Gold Trading"
+          to="/app/gold/dashboard"
+        />
+      </div>
+
+      <TransferDashboard />
+    </section>
+  )
+}
+
+function DashboardModuleCard({
+  description,
+  title,
+  to,
+}: {
+  description: string
+  title: string
+  to: string
+}) {
+  return (
+    <Link
+      className="block rounded border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+      to={to}
+    >
+      <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+      <p className="mt-2 text-sm text-slate-600">{description}</p>
+    </Link>
   )
 }
 

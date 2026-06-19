@@ -1,4 +1,12 @@
 import { Schema, model } from "mongoose";
+import {
+  ALLOWED_COMPANY_BUSINESS_TYPES,
+  ALLOWED_COMPANY_MODULES,
+  COMPANY_BUSINESS_TYPES,
+  DEFAULT_TRANSFER_WORKFLOWS,
+  ALLOWED_TRANSFER_WORKFLOWS,
+  deriveEnabledModulesFromBusinessType,
+} from "../constants/companyModules.js";
 
 // Company Schema
 const companySchema = new Schema(
@@ -16,6 +24,27 @@ const companySchema = new Schema(
     transactions: [{ type: Schema.Types.ObjectId, ref: "Transaction" }],
     operations: [{ type: Schema.Types.ObjectId, ref: "BuyOperation" }],
     baseCurrency: { type: String, enum: ["FCFA", "GNF"], required: true },
+    businessType: {
+      type: String,
+      enum: ALLOWED_COMPANY_BUSINESS_TYPES,
+      default: COMPANY_BUSINESS_TYPES.TRANSFER,
+      required: true,
+    },
+    transferWorkflows: {
+      type: [String],
+      enum: ALLOWED_TRANSFER_WORKFLOWS,
+      default: () => [...DEFAULT_TRANSFER_WORKFLOWS],
+    },
+    enabledModules: {
+      type: [String],
+      enum: ALLOWED_COMPANY_MODULES,
+      default() {
+        return deriveEnabledModulesFromBusinessType(
+          this.businessType,
+          this.transferWorkflows,
+        );
+      },
+    },
     status: {
       type: String,
       enum: ["active", "inactive", "closed"],

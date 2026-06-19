@@ -17,6 +17,21 @@ describe("account operation routes", () => {
     expect(requestRoute.stack.length).toBeGreaterThan(listRoute.stack.length);
     expect(requestRoute.stack.length).toBeGreaterThanOrEqual(6);
   });
+
+  it("guards all account operation endpoints behind the account operations module", () => {
+    for (const [path, method] of [
+      ["/", "get"],
+      ["/withdrawal-requests", "post"],
+      ["/:operationCode/confirm", "post"],
+      ["/:operationCode/reject", "post"],
+    ]) {
+      const route = findRoute(path, method);
+
+      expect(route.stack.map((layer) => layer.handle.moduleName)).toContain(
+        "account_operations",
+      );
+    }
+  });
 });
 
 function findRoute(path, method) {

@@ -99,6 +99,16 @@ describe("legacy mounted route shutdown", () => {
     expect(getRoute(transactionRoutes, "/:transactionCode/reverse", "post")).toBeDefined();
   });
 
+  it("guards exchange rate routes behind the exchange rate module", () => {
+    for (const method of ["get", "put"]) {
+      const route = getRoute(companyExchangeRateRoutes, "/", method);
+
+      expect(route.stack.map((layer) => layer.handle.moduleName)).toContain(
+        "exchange_rate",
+      );
+    }
+  });
+
   it("documents disabled legacy partner, company, and dashboard routes as 410", () => {
     const partnerSwagger = readFileSync("backend/swagger/partner.yaml", "utf8");
     const companySwagger = readFileSync("backend/swagger/company.yaml", "utf8");

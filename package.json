@@ -18,7 +18,7 @@
     "supertest": "^7.0.0"
   },
   "scripts": {
-    "test": "jest --runInBand",
+    "test": "jest --runInBand && npm run test --prefix frontend -- --run",
     "dev": "nodemon backend/index.js",
     "start": "VITE_NODE_ENV=production node backend/index.js",
     "build": "npm install && npm install --prefix frontend && npm run build --prefix frontend"

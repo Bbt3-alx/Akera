@@ -10,9 +10,11 @@ import { audit } from "../middlewares/audit.js";
 import { catchAsync } from "../middlewares/errorHandler.js";
 import { requireManagerContext } from "../middlewares/requireManagerContext.js";
 import { requireVerifiedUser } from "../middlewares/requireVerifiedUser.js";
+import { requireCompanyModule } from "../middlewares/requireCompanyModule.js";
 import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
 import verifyToken from "../middlewares/verifyToken.js";
 import verifyTransactionPin from "../middlewares/verifyTransactionPin.js";
+import { COMPANY_MODULES } from "../constants/companyModules.js";
 
 const router = express.Router();
 
@@ -20,6 +22,7 @@ const activeCompanyAccess = [
   verifyToken,
   requireVerifiedUser,
   resolveCompanyContext,
+  requireCompanyModule(COMPANY_MODULES.ACCOUNT_OPERATIONS),
 ];
 
 router.get("/", activeCompanyAccess, catchAsync(getAccountOperations));

@@ -1,19 +1,31 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
+import {
+  useForm,
+  useWatch,
+  type UseFormRegisterReturn,
+} from 'react-hook-form'
 import { z } from 'zod'
 
 import { AUTH_ME_QUERY_KEY } from '../../auth/hooks.ts'
 import { AppApiError } from '../../../shared/api/types.ts'
+import { toCreateCompanyPayload } from '../onboarding.ts'
 import { useCompaniesStore } from '../store.ts'
 import { useCreateCompany } from '../hooks.ts'
+import type { TransferWorkflowSelection } from '../types.ts'
 
 const createCompanySchema = z.object({
   name: z.string().min(1, 'Company name is required'),
   address: z.string().min(1, 'Address is required'),
   contact: z.string().min(1, 'Contact is required'),
   baseCurrency: z.enum(['FCFA', 'GNF']),
+  businessType: z.enum(['transfer', 'gold_trading', 'mixed']),
+  transferWorkflowSelection: z.enum([
+    'correspondent_collection',
+    'remote_agent_payout',
+    'both',
+  ]),
 })
 
 type CreateCompanyFormValues = z.infer<typeof createCompanySchema>
@@ -33,6 +45,7 @@ export function CreateCompanyPage({
     (state) => state.setActiveCompanyId,
   )
   const {
+    control,
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
@@ -43,7 +56,13 @@ export function CreateCompanyPage({
       address: '',
       contact: '',
       baseCurrency: 'FCFA',
+      businessType: 'transfer',
+      transferWorkflowSelection: 'correspondent_collection',
     },
+  })
+  const selectedBusinessType = useWatch({
+    control,
+    name: 'businessType',
   })
   const errorMessage = getErrorMessage(createCompanyMutation.error)
   const isEmbedded = variant === 'embedded'
@@ -55,7 +74,9 @@ export function CreateCompanyPage({
       : 'Back to company access'
 
   const onSubmit = handleSubmit(async (values) => {
-    const response = await createCompanyMutation.mutateAsync(values)
+    const response = await createCompanyMutation.mutateAsync(
+      toCreateCompanyPayload(values),
+    )
 
     setActiveCompanyId(response.membership.companyId)
     await queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY })
@@ -110,6 +131,66 @@ export function CreateCompanyPage({
           ) : null}
         </div>
 
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium text-slate-700">
+            What do you want to manage with Akera?
+          </legend>
+          <BusinessTypeOption
+            description="Transfers, correspondent collections, account operations, exchange rate, and cash."
+            label="Transfers and correspondents"
+            registration={register('businessType')}
+            value="transfer"
+          />
+          <BusinessTypeOption
+            description="Buy, sell, shipping, gold payments, and company cash."
+            label="Gold trading"
+            registration={register('businessType')}
+            value="gold_trading"
+          />
+          <BusinessTypeOption
+            description="Both transfer/correspondent workflows and gold trading workflows."
+            label="Both"
+            registration={register('businessType')}
+            value="mixed"
+          />
+          {errors.businessType ? (
+            <p className="mt-1 text-sm text-red-600">
+              {errors.businessType.message}
+            </p>
+          ) : null}
+        </fieldset>
+
+        {selectedBusinessType === 'transfer' ? (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-700">
+              Which transfer workflow applies?
+            </legend>
+            <TransferWorkflowOption
+              description="Correspondents collect money and initiate transactions. Example: Kalil collects GNF, Abdoulaye pays FCFA."
+              label="Correspondent collection"
+              registration={register('transferWorkflowSelection')}
+              value="correspondent_collection"
+            />
+            <TransferWorkflowOption
+              description="Managers initiate transactions and remote agents or employees pay beneficiaries. Example: Adama initiates in Guinea, Bamako agents pay in FCFA."
+              label="Remote agent payout"
+              registration={register('transferWorkflowSelection')}
+              value="remote_agent_payout"
+            />
+            <TransferWorkflowOption
+              description="Enable correspondent collection and remote agent payout workflows."
+              label="Both"
+              registration={register('transferWorkflowSelection')}
+              value="both"
+            />
+            {errors.transferWorkflowSelection ? (
+              <p className="mt-1 text-sm text-red-600">
+                {errors.transferWorkflowSelection.message}
+              </p>
+            ) : null}
+          </fieldset>
+        ) : null}
+
         {errorMessage ? (
           <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {errorMessage}
@@ -144,6 +225,72 @@ export function CreateCompanyPage({
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
       {content}
     </main>
+  )
+}
+
+type TransferWorkflowOptionProps = {
+  description: string
+  label: string
+  registration: UseFormRegisterReturn
+  value: TransferWorkflowSelection
+}
+
+function TransferWorkflowOption({
+  description,
+  label,
+  registration,
+  value,
+}: TransferWorkflowOptionProps) {
+  return (
+    <label className="flex cursor-pointer gap-3 rounded border border-slate-200 p-3 transition hover:border-slate-300 hover:bg-slate-50">
+      <input
+        className="mt-1"
+        type="radio"
+        value={value}
+        {...registration}
+      />
+      <span>
+        <span className="block text-sm font-medium text-slate-900">
+          {label}
+        </span>
+        <span className="mt-1 block text-sm text-slate-600">
+          {description}
+        </span>
+      </span>
+    </label>
+  )
+}
+
+type BusinessTypeOptionProps = {
+  description: string
+  label: string
+  registration: UseFormRegisterReturn
+  value: CreateCompanyFormValues['businessType']
+}
+
+function BusinessTypeOption({
+  description,
+  label,
+  registration,
+  value,
+}: BusinessTypeOptionProps) {
+  return (
+    <label className="flex cursor-pointer gap-3 rounded border border-slate-200 p-3 transition hover:border-slate-300 hover:bg-slate-50">
+      <input
+        className="mt-1"
+        type="radio"
+        value={value}
+        {...registration}
+      />
+      <span>
+        <span className="block text-sm font-medium text-slate-900">
+          {label}
+        </span>
+        <span className="mt-1 block text-sm text-slate-600">
+          {description}
+        </span>
+      </span>
+    </label>
   )
 }
 

@@ -1,6 +1,15 @@
 import Company from "../models/Company.js";
 import CompanyMembership from "../models/CompanyMembership.js";
 import { ApiError } from "../middlewares/errorHandler.js";
+import {
+  ALLOWED_COMPANY_BUSINESS_TYPES,
+  ALLOWED_TRANSFER_WORKFLOWS,
+  BOTH_TRANSFER_WORKFLOWS,
+  COMPANY_BUSINESS_TYPES,
+  DEFAULT_TRANSFER_WORKFLOWS,
+  deriveEnabledModulesFromBusinessType,
+  normalizeTransferWorkflows,
+} from "../constants/companyModules.js";
 import { runTransaction } from "../utils/dbTransaction.js";
 import { generateCompanyCode } from "../utils/generateCompanyCode.js";
 
@@ -15,6 +24,8 @@ const validateCreateCompanyPayload = ({
   address,
   contact,
   baseCurrency,
+  businessType,
+  requestedTransferWorkflows,
 }) => {
   const missingFields = [];
 
@@ -35,6 +46,26 @@ const validateCreateCompanyPayload = ({
     throw new ApiError(
       400,
       "baseCurrency must be one of: FCFA, GNF",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  if (!ALLOWED_COMPANY_BUSINESS_TYPES.includes(businessType)) {
+    throw new ApiError(
+      400,
+      "businessType must be one of: transfer, gold_trading, mixed",
+      "VALIDATION_ERROR",
+    );
+  }
+
+  if (
+    requestedTransferWorkflows.some(
+      (workflow) => !ALLOWED_TRANSFER_WORKFLOWS.includes(workflow),
+    )
+  ) {
+    throw new ApiError(
+      400,
+      "transferWorkflows must include only: correspondent_collection, remote_agent_payout",
       "VALIDATION_ERROR",
     );
   }
@@ -63,6 +94,9 @@ const serializeCreatedCompany = (company) => ({
   code: company.code,
   baseCurrency: company.baseCurrency,
   currency: company.baseCurrency,
+  businessType: company.businessType,
+  transferWorkflows: company.transferWorkflows || [...DEFAULT_TRANSFER_WORKFLOWS],
+  enabledModules: company.enabledModules || [],
 });
 
 const serializeCreatedMembership = ({ membership, company }) => ({
@@ -85,8 +119,28 @@ export async function createCompanyForUser({ userId, payload = {} }) {
   const baseCurrency = normalizeRequiredString(
     payload.baseCurrency || payload.currency,
   );
+  const businessType =
+    normalizeRequiredString(payload.businessType) || COMPANY_BUSINESS_TYPES.TRANSFER;
+  const requestedTransferWorkflows = Array.isArray(payload.transferWorkflows)
+    ? payload.transferWorkflows
+    : [payload.transferWorkflows].filter(Boolean);
+  const transferWorkflows =
+    businessType === COMPANY_BUSINESS_TYPES.MIXED
+      ? [...BOTH_TRANSFER_WORKFLOWS]
+      : normalizeTransferWorkflows(requestedTransferWorkflows);
+  const enabledModules = deriveEnabledModulesFromBusinessType(
+    businessType,
+    transferWorkflows,
+  );
 
-  validateCreateCompanyPayload({ name, address, contact, baseCurrency });
+  validateCreateCompanyPayload({
+    name,
+    address,
+    contact,
+    baseCurrency,
+    businessType,
+    requestedTransferWorkflows,
+  });
 
   return runTransaction(async (session) => {
     const duplicateCompany = await Company.findOne({
@@ -115,6 +169,9 @@ export async function createCompanyForUser({ userId, payload = {} }) {
           code,
           manager: userId,
           baseCurrency,
+          businessType,
+          transferWorkflows,
+          enabledModules,
         },
       ],
       { session },

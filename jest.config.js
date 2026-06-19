@@ -1,4 +1,5 @@
 export default {
+  testPathIgnorePatterns: ["/node_modules/", "/frontend/"],
   transform: {
     "^.+\\.js$": "babel-jest", // Transform JavaScript files with Babel
   },

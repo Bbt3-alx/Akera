@@ -1,3 +1,9 @@
+import type {
+  CompanyBusinessType,
+  CompanyModule,
+  CompanyTransferWorkflow,
+} from '../companies/types.ts'
+
 export type AuthRole = 'manager' | 'employee' | 'partner'
 
 export type MembershipStatus = 'active' | 'invited' | 'suspended'
@@ -14,6 +20,16 @@ export type Membership = {
   membershipId: string
   companyId: string
   companyName: string
+  company: {
+    id: string
+    name: string
+    businessType: CompanyBusinessType
+    transferWorkflows: CompanyTransferWorkflow[]
+    enabledModules: CompanyModule[]
+  } | null
+  companyBusinessType: CompanyBusinessType
+  companyTransferWorkflows: CompanyTransferWorkflow[]
+  companyEnabledModules: CompanyModule[]
   role: AuthRole
   status: MembershipStatus
   permissions: string[]
