@@ -1,4 +1,5 @@
 import {
+  createCollectionTransactionService,
   createTransactionService,
   payTransactionService,
   cancelPendingTransactionService,
@@ -16,6 +17,7 @@ import {
   serializeTransaction,
   serializeTransactions,
 } from "../serializers/transaction.serializer.js";
+import { serializeAccountOperation } from "../serializers/accountOperation.serializer.js";
 import { serializeReceipt } from "../serializers/receipt.serializer.js";
 
 const transactionPartnerPopulate = {
@@ -162,6 +164,41 @@ export const createTransaction = async (req, res) => {
       inputAmount: transaction.inputAmount,
       inputCurrency: transaction.inputCurrency,
       beneficiaryName: transaction.beneficiaryName,
+    },
+  };
+
+  res.status(201).json({
+    success: true,
+    data,
+  });
+};
+
+export const createCollectionTransaction = async (req, res) => {
+  const result = await createCollectionTransactionService({
+    companyId: req.context.companyId,
+    membershipId: req.context.membershipId,
+    userId: req.user.id,
+    payload: req.body,
+  });
+
+  const transaction = await findSerializableTransaction(
+    result.transaction,
+    req.context.companyId,
+  );
+  const data = {
+    transaction: serializeTransaction(transaction),
+    accountOperation: serializeAccountOperation(result.accountOperation),
+  };
+
+  res.locals.audit = {
+    targetId: result.accountOperation._id,
+    targetCode: result.accountOperation.operationCode,
+    metadata: {
+      transactionCode: result.transaction.transactionCode,
+      amount: result.accountOperation.amount,
+      currency: result.accountOperation.currency,
+      type: result.accountOperation.type,
+      status: result.accountOperation.status,
     },
   };
 

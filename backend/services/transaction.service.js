@@ -1,5 +1,6 @@
 import Transaction from "../models/Transaction.js";
 import Company from "../models/Company.js";
+import AccountOperation from "../models/AccountOperation.js";
 import CompanyMembership from "../models/CompanyMembership.js";
 import CompanyExchangeRate from "../models/CompanyExchangeRate.js";
 import LedgerEntry from "../models/LedgerEntry.js";
@@ -10,6 +11,11 @@ import { runTransaction } from "../utils/dbTransaction.js";
 import { ACCOUNTS } from "../constants/accounts.js";
 import { writeJournalEntries } from "./ledger.service.js";
 import { generateReceipt } from "./receipt.service.js";
+import {
+  assertSameIdempotencyPayload,
+  generateAccountOperationCode,
+  normalizeCollectionIdempotencyPayload,
+} from "./accountOperation.service.js";
 
 const transactionPartnerPopulate = {
   path: "membership",
@@ -296,6 +302,193 @@ export async function createTransactionService({
   });
 }
 
+export async function createCollectionTransactionService({
+  companyId,
+  membershipId,
+  userId,
+  payload,
+}) {
+  const normalized = normalizeCollectionIdempotencyPayload(payload);
+  const idempotencyKey = normalizeIdempotencyKey(payload.idempotencyKey);
+
+  return runTransaction(async (session) => {
+    const membership = await CompanyMembership.findOne({
+      _id: membershipId,
+      user: userId,
+      company: companyId,
+      role: "partner",
+      status: "active",
+    }).session(session);
+
+    if (!membership) {
+      throw new ApiError(
+        404,
+        "Partner account not found",
+        "PARTNER_ACCOUNT_NOT_FOUND",
+      );
+    }
+
+    const existingOperation = await AccountOperation.findOne({
+      company: companyId,
+      createdBy: userId,
+      idempotencyKey,
+    })
+      .session(session)
+      .lean();
+
+    if (existingOperation) {
+      assertSameIdempotencyPayload(existingOperation, normalized);
+
+      const existingTransaction = await Transaction.findById(
+        existingOperation.linkedTransaction,
+      ).session(session);
+
+      if (!existingTransaction) {
+        throw new ApiError(
+          409,
+          "Idempotent collection transaction is unavailable",
+          "IDEMPOTENT_COLLECTION_TRANSACTION_MISSING",
+        );
+      }
+
+      return {
+        transaction: existingTransaction,
+        accountOperation: existingOperation,
+      };
+    }
+
+    if (normalized.collectedCurrency !== membership.currency) {
+      throw new ApiError(
+        400,
+        "Collected currency must match partner account currency",
+        "COLLECTION_CURRENCY_MISMATCH",
+      );
+    }
+
+    const company = await Company.findById(companyId).session(session);
+    if (!company) {
+      throw new ApiError(404, "Company not found", "COMPANY_NOT_FOUND");
+    }
+
+    let rate;
+    if (normalized.collectedCurrency !== company.baseCurrency) {
+      const rateDoc = await CompanyExchangeRate.findOne({
+        company: companyId,
+      }).session(session);
+
+      if (!rateDoc) {
+        throw new ApiError(
+          400,
+          "Exchange rate not configured",
+          "EXCHANGE_RATE_NOT_CONFIGURED",
+        );
+      }
+
+      rate = rateDoc.rate;
+    }
+
+    const companyAmount = convert({
+      amount: normalized.collectedAmount,
+      from: normalized.collectedCurrency,
+      to: company.baseCurrency,
+      rate,
+    });
+    const previousBalance = membership.balance ?? 0;
+    const currentBalance = previousBalance + normalized.collectedAmount;
+
+    const [transaction] = await Transaction.create(
+      [
+        {
+          transactionCode: generateTransactionCode(company.code),
+          company: companyId,
+          membership: membershipId,
+
+          inputAmount: normalized.collectedAmount,
+          inputCurrency: normalized.collectedCurrency,
+
+          partnerAmount: normalized.collectedAmount,
+          partnerCurrency: membership.currency,
+
+          companyAmount,
+          companyCurrency: company.baseCurrency,
+
+          exchangeRate: rate,
+          sourceType: "correspondent_collection",
+
+          beneficiaryName: normalized.beneficiaryName,
+          description: normalized.description,
+
+          idempotencyKey,
+          createdBy: userId,
+        },
+      ],
+      { session },
+    );
+
+    const [accountOperation] = await AccountOperation.create(
+      [
+        {
+          company: companyId,
+          targetMembership: membershipId,
+          createdByMembership: membershipId,
+          createdBy: userId,
+          linkedTransaction: transaction._id,
+          type: "deposit",
+          status: "completed",
+          amount: normalized.collectedAmount,
+          currency: normalized.collectedCurrency,
+          previousBalance,
+          currentBalance,
+          operationCode: generateAccountOperationCode(),
+          idempotencyKey,
+          idempotencyPayload: normalized,
+        },
+      ],
+      { session },
+    );
+
+    const ledgerEntries = await writeJournalEntries({
+      accountOperationId: accountOperation._id,
+      companyId,
+      userId,
+      session,
+      entries: [
+        {
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+          currency: accountOperation.currency,
+          debit: accountOperation.amount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          currency: accountOperation.currency,
+          debit: 0,
+          credit: accountOperation.amount,
+        },
+      ],
+    });
+
+    accountOperation.ledgerEntries = ledgerEntries.map((entry) => entry._id);
+    await accountOperation.save({ session });
+
+    const balanceUpdate = await CompanyMembership.updateOne(
+      { _id: membershipId, company: companyId },
+      { $inc: { balance: normalized.collectedAmount } },
+      { session },
+    );
+
+    if (balanceUpdate.modifiedCount !== 1) {
+      throw new ApiError(
+        500,
+        "Failed to update partner balance",
+        "PARTNER_BALANCE_UPDATE_FAILED",
+      );
+    }
+
+    return { transaction, accountOperation };
+  });
+}
+
 // Service to pay a transaction
 export async function payTransactionService({
   companyId,
@@ -478,6 +671,15 @@ export async function cancelPendingTransactionService({
       );
     }
 
+    const sourceType = transaction.sourceType || "partner_balance";
+    if (sourceType === "correspondent_collection") {
+      throw new ApiError(
+        400,
+        "Collection-backed transactions cannot be canceled in this MVP",
+        "COLLECTION_TRANSACTION_CANCEL_UNSUPPORTED",
+      );
+    }
+
     // Recredit partner balance
     const creditPartner = await CompanyMembership.updateOne(
       {
@@ -600,6 +802,15 @@ export async function reverseCompletedTransactionService({
         400,
         "Transaction not reversible",
         "NOT_REVERSIBLE",
+      );
+    }
+
+    const sourceType = transaction.sourceType || "partner_balance";
+    if (sourceType === "correspondent_collection") {
+      throw new ApiError(
+        400,
+        "Collection-backed transactions cannot be reversed in this MVP",
+        "COLLECTION_TRANSACTION_REVERSE_UNSUPPORTED",
       );
     }
 
@@ -834,4 +1045,16 @@ function normalizePositiveInteger(value, fallback) {
   }
 
   return parsed;
+}
+
+function normalizeIdempotencyKey(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new ApiError(
+      400,
+      "Idempotency key is required",
+      "MISSING_IDEMPOTENCY_KEY",
+    );
+  }
+
+  return value.trim();
 }

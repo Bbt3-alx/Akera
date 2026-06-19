@@ -1,5 +1,6 @@
 import {
   createTransaction,
+  createCollectionTransaction,
   payTransaction,
   cancelPendingTransaction,
   reverseCompletedTransaction,
@@ -31,6 +32,12 @@ router.post(
   "/",
   audit("TRANSACTION_CREATE", "Transaction"),
   catchAsync(createTransaction),
+);
+
+router.post(
+  "/collections",
+  audit("ACCOUNT_OPERATION_COLLECTION_DEPOSIT", "AccountOperation"),
+  catchAsync(createCollectionTransaction),
 );
 
 router.post(

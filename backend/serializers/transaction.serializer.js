@@ -11,6 +11,7 @@ const TRANSACTION_FIELDS = [
   "companyAmount",
   "companyCurrency",
   "exchangeRate",
+  "sourceType",
   "beneficiaryName",
   "description",
   "status",

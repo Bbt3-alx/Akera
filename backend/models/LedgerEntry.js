@@ -15,6 +15,12 @@ const ledgerEntrySchema = new Schema(
       index: true,
     },
 
+    accountOperation: {
+      type: Schema.Types.ObjectId,
+      ref: "AccountOperation",
+      index: true,
+    },
+
     accountCode: {
       type: String,
       required: true,

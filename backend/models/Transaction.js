@@ -61,6 +61,13 @@ const transactionSchema = new Schema(
       type: Number,
     },
 
+    sourceType: {
+      type: String,
+      enum: ["partner_balance", "correspondent_collection"],
+      default: "partner_balance",
+      index: true,
+    },
+
     date: { type: Date, default: Date.now, index: true },
 
     beneficiaryName: {

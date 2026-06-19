@@ -31,6 +31,7 @@ export async function getAccountBalance({
 }
 
 export async function writeJournalEntries({
+  accountOperationId,
   companyId,
   transactionId,
   entries,
@@ -41,6 +42,7 @@ export async function writeJournalEntries({
 
   const formatted = entries.map((entry) => ({
     company: companyId,
+    accountOperation: accountOperationId,
     transaction: transactionId,
     accountCode: entry.accountCode,
     currency: entry.currency,
