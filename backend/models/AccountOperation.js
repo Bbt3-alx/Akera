@@ -30,6 +30,37 @@ const accountOperationSchema = new Schema(
       ref: "Transaction",
       index: true,
     },
+    linkedRemoteAgentPayout: {
+      type: Schema.Types.ObjectId,
+      ref: "RemoteAgentPayout",
+      index: true,
+    },
+    linkedRemoteAgentGroup: {
+      type: Schema.Types.ObjectId,
+      ref: "RemoteAgentGroup",
+      index: true,
+    },
+    performedByMembership: {
+      type: Schema.Types.ObjectId,
+      ref: "CompanyMembership",
+      index: true,
+    },
+    depositedByMembership: {
+      type: Schema.Types.ObjectId,
+      ref: "CompanyMembership",
+      index: true,
+    },
+    workflow: {
+      type: String,
+      enum: [
+        "account_operation",
+        "correspondent_collection",
+        "remote_agent_payout",
+      ],
+      default: "account_operation",
+      required: true,
+      index: true,
+    },
     type: {
       type: String,
       enum: ["deposit", "withdrawal"],

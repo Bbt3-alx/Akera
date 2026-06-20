@@ -1,0 +1,257 @@
+import mongoose from "mongoose";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
+
+import {
+  createAgentDeposit,
+  createPayout,
+  payPayout,
+} from "../../controllers/remoteAgentPayout.controller.js";
+import * as remoteAgentPayoutService from "../../services/remoteAgentPayout.service.js";
+
+describe("remote agent payout controller", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("creates a payout response with one-time beneficiary code and safe audit metadata", async () => {
+    const ids = createIds();
+    const payout = createPayoutRecord(ids);
+    jest
+      .spyOn(remoteAgentPayoutService, "createRemoteAgentPayout")
+      .mockResolvedValue({
+        payout,
+        beneficiaryCode: "87654321",
+      });
+    const res = createResponse();
+
+    await createPayout(createRequest(ids), res);
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: {
+        payout: expect.objectContaining({
+          id: ids.payoutId.toHexString(),
+          payoutCode: "RAP-260620-ABCD",
+          beneficiaryCodeLast4: "4321",
+        }),
+        beneficiaryCode: "87654321",
+      },
+    });
+    expect(JSON.stringify(res.json.mock.calls[0][0].data.payout)).not.toContain(
+      "secret-hash",
+    );
+    expect(JSON.stringify(res.json.mock.calls[0][0].data.payout)).not.toContain(
+      "payout-1",
+    );
+    expect(res.locals.audit).toEqual({
+      targetId: ids.payoutId,
+      targetCode: "RAP-260620-ABCD",
+      metadata: {
+        payoutCode: "RAP-260620-ABCD",
+        amount: 25000,
+        currency: "FCFA",
+        status: "pending",
+        assignedAgentGroup: ids.groupId,
+        beneficiaryCodeLast4: "4321",
+      },
+    });
+    expect(JSON.stringify(res.locals.audit)).not.toContain("87654321");
+    expect(JSON.stringify(res.locals.audit)).not.toContain("secret-hash");
+    expect(JSON.stringify(res.locals.audit)).not.toContain("transactionPin");
+    expect(JSON.stringify(res.locals.audit)).not.toContain("payout-1");
+  });
+
+  it("returns paid payout safely and does not audit secret payment fields", async () => {
+    const ids = createIds();
+    const payout = createPayoutRecord(ids, {
+      accountOperation: ids.operationId,
+      paymentIdempotencyKey: "pay-1",
+      status: "paid",
+    });
+    jest
+      .spyOn(remoteAgentPayoutService, "payRemoteAgentPayout")
+      .mockResolvedValue(payout);
+    const res = createResponse();
+
+    await payPayout(
+      createRequest(ids, {
+        body: {
+          beneficiaryCode: "87654321",
+          paymentIdempotencyKey: "pay-1",
+          transactionPin: "123456",
+        },
+        context: {
+          companyId: ids.companyId,
+          membershipId: ids.payAgentMembershipId,
+          role: "employee",
+        },
+        params: { payoutCode: "RAP-260620-ABCD" },
+        user: { id: ids.payAgentUserId },
+      }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("87654321");
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("pay-1");
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("123456");
+    expect(res.locals.audit.metadata).toEqual({
+      payoutCode: "RAP-260620-ABCD",
+      amount: 25000,
+      currency: "FCFA",
+      status: "paid",
+      assignedAgentGroup: ids.groupId,
+      beneficiaryCodeLast4: "4321",
+      accountOperation: ids.operationId,
+    });
+    expect(JSON.stringify(res.locals.audit)).not.toContain("87654321");
+    expect(JSON.stringify(res.locals.audit)).not.toContain("pay-1");
+    expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
+  });
+
+  it("records a group deposit response with the actual depositing membership in safe audit metadata", async () => {
+    const ids = createIds();
+    const operation = createAccountOperationRecord(ids);
+    jest
+      .spyOn(remoteAgentPayoutService, "createRemoteAgentDeposit")
+      .mockResolvedValue(operation);
+    const res = createResponse();
+
+    await createAgentDeposit(
+      createRequest(ids, {
+        context: {
+          companyId: ids.companyId,
+          membershipId: ids.depositorMembershipId,
+          role: "employee",
+        },
+        params: { groupId: ids.groupId.toHexString() },
+        user: { id: ids.depositorUserId },
+      }),
+      res,
+    );
+
+    expect(remoteAgentPayoutService.createRemoteAgentDeposit)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        membershipId: ids.depositorMembershipId,
+        userId: ids.depositorUserId,
+        role: "employee",
+        groupId: ids.groupId.toHexString(),
+        payload: expect.objectContaining({ transactionPin: "123456" }),
+      });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.locals.audit.metadata).toEqual({
+      type: "deposit",
+      workflow: "remote_agent_payout",
+      amount: 25000,
+      currency: "FCFA",
+      status: "completed",
+      linkedRemoteAgentGroup: ids.groupId,
+      performedByMembership: ids.depositorMembershipId,
+      depositedByMembership: ids.depositorMembershipId,
+      previousBalance: 100000,
+      currentBalance: 125000,
+    });
+    expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
+  });
+});
+
+function createIds() {
+  return {
+    companyId: new mongoose.Types.ObjectId(),
+    depositorMembershipId: new mongoose.Types.ObjectId(),
+    depositorUserId: new mongoose.Types.ObjectId(),
+    groupId: new mongoose.Types.ObjectId(),
+    managerId: new mongoose.Types.ObjectId(),
+    managerMembershipId: new mongoose.Types.ObjectId(),
+    operationId: new mongoose.Types.ObjectId(),
+    payAgentMembershipId: new mongoose.Types.ObjectId(),
+    payAgentUserId: new mongoose.Types.ObjectId(),
+    payoutId: new mongoose.Types.ObjectId(),
+  };
+}
+
+function createPayoutRecord(
+  { companyId, groupId, managerId, managerMembershipId, payoutId },
+  override = {},
+) {
+  return {
+    _id: payoutId,
+    company: companyId,
+    payoutCode: "RAP-260620-ABCD",
+    assignedAgentGroup: groupId,
+    createdByMembership: managerMembershipId,
+    createdBy: managerId,
+    amount: 25000,
+    currency: "FCFA",
+    beneficiaryName: "Awa Traore",
+    status: "pending",
+    beneficiaryCodeHash: "secret-hash",
+    beneficiaryCodeLast4: "4321",
+    idempotencyKey: "payout-1",
+    idempotencyPayload: { amount: 25000 },
+    createdAt: "2026-06-20T09:00:00.000Z",
+    updatedAt: "2026-06-20T09:00:00.000Z",
+    ...override,
+  };
+}
+
+function createAccountOperationRecord({
+  companyId,
+  depositorMembershipId,
+  depositorUserId,
+  groupId,
+  operationId,
+}) {
+  return {
+    _id: operationId,
+    company: companyId,
+    targetMembership: depositorMembershipId,
+    createdByMembership: depositorMembershipId,
+    createdBy: depositorUserId,
+    linkedRemoteAgentGroup: groupId,
+    performedByMembership: depositorMembershipId,
+    depositedByMembership: depositorMembershipId,
+    workflow: "remote_agent_payout",
+    type: "deposit",
+    status: "completed",
+    amount: 25000,
+    currency: "FCFA",
+    previousBalance: 100000,
+    currentBalance: 125000,
+    operationCode: "AOP-260620-ABCD",
+    ledgerEntries: [],
+  };
+}
+
+function createRequest(
+  { companyId, managerId, managerMembershipId },
+  override = {},
+) {
+  return {
+    body: {
+      amount: 25000,
+      transactionPin: "123456",
+      idempotencyKey: "payout-1",
+    },
+    context: {
+      companyId,
+      membershipId: managerMembershipId,
+      role: "manager",
+    },
+    params: {},
+    user: {
+      id: managerId,
+    },
+    ...override,
+  };
+}
+
+function createResponse() {
+  return {
+    locals: {},
+    json: jest.fn().mockReturnThis(),
+    status: jest.fn().mockReturnThis(),
+  };
+}

@@ -18,12 +18,12 @@ describe("verifyTransactionPin middleware", () => {
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: 401,
-        errorCode: "PIN_REQUIRED",
+        errorCode: "TRANSACTION_PIN_REQUIRED",
       }),
     );
   });
 
-  it("rejects requests when the manager has no configured transaction PIN", async () => {
+  it("rejects requests when the authenticated user has no configured transaction PIN", async () => {
     mockFindById({ transactionPinHash: undefined });
     const next = jest.fn();
 
@@ -33,7 +33,7 @@ describe("verifyTransactionPin middleware", () => {
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: 403,
-        errorCode: "PIN_NOT_CONFIGURED",
+        errorCode: "TRANSACTION_PIN_NOT_CONFIGURED",
       }),
     );
   });
@@ -50,7 +50,7 @@ describe("verifyTransactionPin middleware", () => {
     expect(next).toHaveBeenCalledWith(
       expect.objectContaining({
         statusCode: 401,
-        errorCode: "INVALID_PIN",
+        errorCode: "INVALID_TRANSACTION_PIN",
       }),
     );
   });

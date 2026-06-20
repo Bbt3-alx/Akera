@@ -14,7 +14,7 @@ async function verifyTransactionPin(
         throw new ApiError(
             401,
             "Transaction PIN required",
-            "PIN_REQUIRED"
+            "TRANSACTION_PIN_REQUIRED"
         )
     }
 
@@ -25,7 +25,7 @@ async function verifyTransactionPin(
         throw new ApiError(
             403,
             "Transaction PIN not configured",
-            "PIN_NOT_CONFIGURED"
+            "TRANSACTION_PIN_NOT_CONFIGURED"
         )
     }
 
@@ -38,7 +38,7 @@ async function verifyTransactionPin(
         throw new ApiError(
             401,
             "Invalid Transaction PIN",
-            "INVALID_PIN"
+            "INVALID_TRANSACTION_PIN"
         );
     }
 

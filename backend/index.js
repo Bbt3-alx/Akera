@@ -26,6 +26,7 @@ import companyExchangeRateRoutes from "./routes/companyExchangeRateRoute.js";
 import companyCashRoutes from "./routes/companyCashRoute.js";
 import companyDashboardRoutes from "./routes/companyDashboardRoute.js";
 import accountOperationRoutes from "./routes/accountOperationRoute.js";
+import remoteAgentPayoutRoutes from "./routes/remoteAgentPayoutRoute.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import { activityLogger } from "./middlewares/activityLogger.js";
 import getDashboard from "./routes/dashbordRoute.js";
@@ -74,6 +75,7 @@ app.use("/api/v1/company/exchange-rate", companyExchangeRateRoutes);
 app.use("/api/v1/company/cash", companyCashRoutes);
 app.use("/api/v1/company/dashboard", companyDashboardRoutes);
 app.use("/api/v1/account-operations", accountOperationRoutes);
+app.use("/api/v1/remote-agent-payouts", remoteAgentPayoutRoutes);
 // app.use(standardizeResponse);
 app.use((err, req, res, next) => {
   errorHandler(err, req, res);
