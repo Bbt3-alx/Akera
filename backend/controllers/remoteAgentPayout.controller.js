@@ -3,11 +3,22 @@ import {
   createRemoteAgentDeposit,
   createRemoteAgentPayout,
   getRemoteAgentPayoutByCode,
-  listRemoteAgentGroups,
   listRemoteAgentPayouts,
   lookupRemoteAgentPayoutByBeneficiaryCode,
   payRemoteAgentPayout,
 } from "../services/remoteAgentPayout.service.js";
+import {
+  addRemoteAgentGroupMember,
+  createRemoteAgentGroup,
+  getRemoteAgentGroup,
+  listRemoteAgentGroups,
+  updateRemoteAgentGroup,
+  updateRemoteAgentGroupMember,
+} from "../services/remoteAgentGroup.service.js";
+import {
+  serializeRemoteAgentGroup,
+  serializeRemoteAgentGroups,
+} from "../serializers/remoteAgentGroup.serializer.js";
 import {
   serializeRemoteAgentPayout,
   serializeRemoteAgentPayouts,
@@ -63,14 +74,145 @@ export const createPayout = async (req, res) => {
 };
 
 export const listGroups = async (req, res) => {
-  const groups = await listRemoteAgentGroups({
+  const result = await listRemoteAgentGroups({
     companyId: req.context.companyId,
+    filters: req.query,
+    pagination: req.query,
     role: req.context.role,
   });
 
   res.status(200).json({
     success: true,
-    data: groups.map((group) => serializeGroup(group)),
+    pagination: result.pagination,
+    data: serializeRemoteAgentGroups(result.groups),
+  });
+};
+
+export const getGroup = async (req, res) => {
+  const group = await getRemoteAgentGroup({
+    companyId: req.context.companyId,
+    groupId: req.params.groupId,
+    role: req.context.role,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeRemoteAgentGroup(group),
+  });
+};
+
+export const createGroup = async (req, res) => {
+  const group = await createRemoteAgentGroup({
+    companyId: req.context.companyId,
+    managerId: req.user.id,
+    managerMembershipId: req.context.membershipId,
+    role: req.context.role,
+    payload: req.body,
+  });
+
+  res.locals.audit = {
+    targetId: group._id,
+    targetCode: group.name,
+    metadata: {
+      groupId: group._id,
+      name: group.name,
+      status: group.status,
+      actorMembership: req.context.membershipId,
+    },
+  };
+
+  res.status(201).json({
+    success: true,
+    data: serializeRemoteAgentGroup(group),
+  });
+};
+
+export const updateGroup = async (req, res) => {
+  const group = await updateRemoteAgentGroup({
+    companyId: req.context.companyId,
+    groupId: req.params.groupId,
+    managerId: req.user.id,
+    managerMembershipId: req.context.membershipId,
+    role: req.context.role,
+    payload: req.body,
+  });
+
+  res.locals.audit = {
+    targetId: group._id,
+    targetCode: group.name,
+    metadata: {
+      groupId: group._id,
+      name: group.name,
+      status: group.status,
+      actorMembership: req.context.membershipId,
+    },
+  };
+
+  res.status(200).json({
+    success: true,
+    data: serializeRemoteAgentGroup(group),
+  });
+};
+
+export const addGroupMember = async (req, res) => {
+  const group = await addRemoteAgentGroupMember({
+    companyId: req.context.companyId,
+    groupId: req.params.groupId,
+    membershipId: req.body.membershipId,
+    managerId: req.user.id,
+    managerMembershipId: req.context.membershipId,
+    role: req.context.role,
+    payload: req.body,
+  });
+
+  res.locals.audit = {
+    targetId: group._id,
+    targetCode: group.name,
+    metadata: {
+      groupId: group._id,
+      name: group.name,
+      actorMembership: req.context.membershipId,
+      memberMembership: req.body.membershipId,
+      role: req.body.role,
+      permissions: req.body.permissions,
+      status: req.body.status,
+    },
+  };
+
+  res.status(200).json({
+    success: true,
+    data: serializeRemoteAgentGroup(group),
+  });
+};
+
+export const updateGroupMember = async (req, res) => {
+  const group = await updateRemoteAgentGroupMember({
+    companyId: req.context.companyId,
+    groupId: req.params.groupId,
+    membershipId: req.params.membershipId,
+    managerId: req.user.id,
+    managerMembershipId: req.context.membershipId,
+    role: req.context.role,
+    payload: req.body,
+  });
+
+  res.locals.audit = {
+    targetId: group._id,
+    targetCode: group.name,
+    metadata: {
+      groupId: group._id,
+      name: group.name,
+      actorMembership: req.context.membershipId,
+      memberMembership: req.params.membershipId,
+      role: req.body.role,
+      permissions: req.body.permissions,
+      status: req.body.status,
+    },
+  };
+
+  res.status(200).json({
+    success: true,
+    data: serializeRemoteAgentGroup(group),
   });
 };
 
@@ -194,46 +336,3 @@ export const cancelPayout = async (req, res) => {
     data: serializeRemoteAgentPayout(payout),
   });
 };
-
-function serializeGroup(group) {
-  const balance = toNumber(group.balance);
-  const reservedBalance = toNumber(group.reservedBalance);
-
-  return {
-    id: serializeId(group._id ?? group.id),
-    name: group.name,
-    balance,
-    reservedBalance,
-    availableBalance: balance - reservedBalance,
-    currency: group.currency,
-    status: group.status,
-    members: Array.isArray(group.members)
-      ? group.members.map((member) => ({
-          membership: serializeId(member.membership),
-          role: member.role,
-          permissions: member.permissions,
-          status: member.status,
-        }))
-      : [],
-  };
-}
-
-function serializeId(value) {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (typeof value.toHexString === "function") {
-    return value.toHexString();
-  }
-
-  if (typeof value === "object") {
-    return serializeId(value._id ?? value.id);
-  }
-
-  return value.toString();
-}
-
-function toNumber(value) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}

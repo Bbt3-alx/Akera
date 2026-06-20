@@ -34,6 +34,14 @@ const remoteAgentGroupMemberSchema = new Schema(
       required: true,
       index: true,
     },
+    joinedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
   { _id: false },
 );

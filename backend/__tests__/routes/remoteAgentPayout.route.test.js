@@ -1,5 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
 
+import { requireManagerContext } from "../../middlewares/requireManagerContext.js";
+import verifyTransactionPin from "../../middlewares/verifyTransactionPin.js";
 import remoteAgentPayoutRoutes from "../../routes/remoteAgentPayoutRoute.js";
 
 describe("remote agent payout routes", () => {
@@ -8,6 +10,11 @@ describe("remote agent payout routes", () => {
       ["/", "get"],
       ["/", "post"],
       ["/groups", "get"],
+      ["/groups", "post"],
+      ["/groups/:groupId", "get"],
+      ["/groups/:groupId", "patch"],
+      ["/groups/:groupId/members", "post"],
+      ["/groups/:groupId/members/:membershipId", "patch"],
       ["/groups/:groupId/deposits", "post"],
       ["/lookup", "post"],
       ["/:payoutCode", "get"],
@@ -23,6 +30,11 @@ describe("remote agent payout routes", () => {
       ["/", "get"],
       ["/", "post"],
       ["/groups", "get"],
+      ["/groups", "post"],
+      ["/groups/:groupId", "get"],
+      ["/groups/:groupId", "patch"],
+      ["/groups/:groupId/members", "post"],
+      ["/groups/:groupId/members/:membershipId", "patch"],
       ["/groups/:groupId/deposits", "post"],
       ["/lookup", "post"],
       ["/:payoutCode", "get"],
@@ -42,6 +54,10 @@ describe("remote agent payout routes", () => {
 
     for (const [path, method] of [
       ["/", "post"],
+      ["/groups", "post"],
+      ["/groups/:groupId", "patch"],
+      ["/groups/:groupId/members", "post"],
+      ["/groups/:groupId/members/:membershipId", "patch"],
       ["/groups/:groupId/deposits", "post"],
       ["/:payoutCode/pay", "post"],
       ["/:payoutCode/cancel", "post"],
@@ -49,7 +65,48 @@ describe("remote agent payout routes", () => {
       const route = findRoute(path, method);
 
       expect(route.stack.length).toBeGreaterThan(listRoute.stack.length);
+      expect(route.stack.map((layer) => layer.handle)).toContain(
+        verifyTransactionPin,
+      );
     }
+  });
+
+  it("does not require transaction PIN for group read endpoints", () => {
+    const listRoute = findRoute("/groups", "get");
+    const detailRoute = findRoute("/groups/:groupId", "get");
+    const createRoute = findRoute("/groups", "post");
+
+    expect(listRoute.stack.length).toBeLessThan(createRoute.stack.length);
+    expect(detailRoute.stack.length).toBeLessThan(createRoute.stack.length);
+    expect(listRoute.stack.map((layer) => layer.handle)).not.toContain(
+      verifyTransactionPin,
+    );
+    expect(detailRoute.stack.map((layer) => layer.handle)).not.toContain(
+      verifyTransactionPin,
+    );
+  });
+
+  it("requires manager context for all group management endpoints", () => {
+    for (const [path, method] of [
+      ["/groups", "get"],
+      ["/groups", "post"],
+      ["/groups/:groupId", "get"],
+      ["/groups/:groupId", "patch"],
+      ["/groups/:groupId/members", "post"],
+      ["/groups/:groupId/members/:membershipId", "patch"],
+    ]) {
+      const route = findRoute(path, method);
+
+      expect(route.stack.map((layer) => layer.handle)).toContain(
+        requireManagerContext,
+      );
+    }
+
+    expect(
+      findRoute("/groups/:groupId/deposits", "post").stack.map(
+        (layer) => layer.handle,
+      ),
+    ).not.toContain(requireManagerContext);
   });
 });
 

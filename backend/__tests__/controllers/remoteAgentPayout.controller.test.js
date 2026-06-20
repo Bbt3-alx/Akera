@@ -2,15 +2,58 @@ import mongoose from "mongoose";
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
 import {
+  addGroupMember,
   createAgentDeposit,
+  createGroup,
   createPayout,
   payPayout,
+  updateGroupMember,
 } from "../../controllers/remoteAgentPayout.controller.js";
+import * as remoteAgentGroupService from "../../services/remoteAgentGroup.service.js";
 import * as remoteAgentPayoutService from "../../services/remoteAgentPayout.service.js";
 
 describe("remote agent payout controller", () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it("creates a remote agent group response with safe audit metadata", async () => {
+    const ids = createIds();
+    const group = createGroupRecord(ids);
+    jest
+      .spyOn(remoteAgentGroupService, "createRemoteAgentGroup")
+      .mockResolvedValue(group);
+    const res = createResponse();
+
+    await createGroup(createRequest(ids), res);
+
+    expect(remoteAgentGroupService.createRemoteAgentGroup)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        managerId: ids.managerId,
+        managerMembershipId: ids.managerMembershipId,
+        role: "manager",
+        payload: expect.objectContaining({ transactionPin: "123456" }),
+      });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({
+        id: ids.groupId.toHexString(),
+        name: "Agents Bamako",
+        availableBalance: 75000,
+      }),
+    );
+    expect(res.locals.audit).toEqual({
+      targetId: ids.groupId,
+      targetCode: "Agents Bamako",
+      metadata: {
+        groupId: ids.groupId,
+        name: "Agents Bamako",
+        status: "active",
+        actorMembership: ids.managerMembershipId,
+      },
+    });
+    expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
   });
 
   it("creates a payout response with one-time beneficiary code and safe audit metadata", async () => {
@@ -155,6 +198,98 @@ describe("remote agent payout controller", () => {
     });
     expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
   });
+
+  it("adds a group member with safe audit metadata", async () => {
+    const ids = createIds();
+    const group = createGroupRecord(ids);
+    jest
+      .spyOn(remoteAgentGroupService, "addRemoteAgentGroupMember")
+      .mockResolvedValue(group);
+    const res = createResponse();
+
+    await addGroupMember(
+      createRequest(ids, {
+        body: {
+          membershipId: ids.payAgentMembershipId.toHexString(),
+          permissions: ["remote_payout:view", "remote_payout:pay"],
+          transactionPin: "123456",
+        },
+        params: {
+          groupId: ids.groupId.toHexString(),
+        },
+      }),
+      res,
+    );
+
+    expect(remoteAgentGroupService.addRemoteAgentGroupMember)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        groupId: ids.groupId.toHexString(),
+        membershipId: ids.payAgentMembershipId.toHexString(),
+        managerId: ids.managerId,
+        managerMembershipId: ids.managerMembershipId,
+        role: "manager",
+        payload: expect.objectContaining({ transactionPin: "123456" }),
+      });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.locals.audit.metadata).toEqual({
+      groupId: ids.groupId,
+      name: "Agents Bamako",
+      actorMembership: ids.managerMembershipId,
+      memberMembership: ids.payAgentMembershipId.toHexString(),
+      role: undefined,
+      permissions: ["remote_payout:view", "remote_payout:pay"],
+      status: undefined,
+    });
+    expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
+  });
+
+  it("updates a group member with safe audit metadata", async () => {
+    const ids = createIds();
+    const group = createGroupRecord(ids);
+    jest
+      .spyOn(remoteAgentGroupService, "updateRemoteAgentGroupMember")
+      .mockResolvedValue(group);
+    const res = createResponse();
+
+    await updateGroupMember(
+      createRequest(ids, {
+        body: {
+          role: "supervisor",
+          permissions: ["remote_payout:view", "remote_payout:deposit"],
+          status: "inactive",
+          transactionPin: "123456",
+        },
+        params: {
+          groupId: ids.groupId.toHexString(),
+          membershipId: ids.payAgentMembershipId.toHexString(),
+        },
+      }),
+      res,
+    );
+
+    expect(remoteAgentGroupService.updateRemoteAgentGroupMember)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        groupId: ids.groupId.toHexString(),
+        membershipId: ids.payAgentMembershipId.toHexString(),
+        managerId: ids.managerId,
+        managerMembershipId: ids.managerMembershipId,
+        role: "manager",
+        payload: expect.objectContaining({ transactionPin: "123456" }),
+      });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.locals.audit.metadata).toEqual({
+      groupId: ids.groupId,
+      name: "Agents Bamako",
+      actorMembership: ids.managerMembershipId,
+      memberMembership: ids.payAgentMembershipId.toHexString(),
+      role: "supervisor",
+      permissions: ["remote_payout:view", "remote_payout:deposit"],
+      status: "inactive",
+    });
+    expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
+  });
 });
 
 function createIds() {
@@ -169,6 +304,30 @@ function createIds() {
     payAgentMembershipId: new mongoose.Types.ObjectId(),
     payAgentUserId: new mongoose.Types.ObjectId(),
     payoutId: new mongoose.Types.ObjectId(),
+  };
+}
+
+function createGroupRecord({
+  companyId,
+  groupId,
+  payAgentMembershipId,
+}) {
+  return {
+    _id: groupId,
+    company: companyId,
+    name: "Agents Bamako",
+    currency: "FCFA",
+    balance: 100000,
+    reservedBalance: 25000,
+    status: "active",
+    members: [
+      {
+        membership: payAgentMembershipId,
+        role: "agent",
+        permissions: ["remote_payout:view", "remote_payout:pay"],
+        status: "active",
+      },
+    ],
   };
 }
 

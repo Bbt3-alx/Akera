@@ -1,14 +1,19 @@
 import express from "express";
 
 import {
+  addGroupMember,
   cancelPayout,
   createAgentDeposit,
+  createGroup,
   createPayout,
+  getGroup,
   getPayout,
   listGroups,
   listPayouts,
   lookupPayout,
   payPayout,
+  updateGroup,
+  updateGroupMember,
 } from "../controllers/remoteAgentPayout.controller.js";
 import { COMPANY_MODULES } from "../constants/companyModules.js";
 import { audit } from "../middlewares/audit.js";
@@ -45,6 +50,49 @@ router.get(
   activeCompanyAccess,
   requireManagerContext,
   catchAsync(listGroups),
+);
+
+router.post(
+  "/groups",
+  activeCompanyAccess,
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("REMOTE_AGENT_GROUP_CREATE", "RemoteAgentGroup"),
+  catchAsync(createGroup),
+);
+
+router.get(
+  "/groups/:groupId",
+  activeCompanyAccess,
+  requireManagerContext,
+  catchAsync(getGroup),
+);
+
+router.patch(
+  "/groups/:groupId",
+  activeCompanyAccess,
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("REMOTE_AGENT_GROUP_UPDATE", "RemoteAgentGroup"),
+  catchAsync(updateGroup),
+);
+
+router.post(
+  "/groups/:groupId/members",
+  activeCompanyAccess,
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("REMOTE_AGENT_GROUP_MEMBER_ADD", "RemoteAgentGroup"),
+  catchAsync(addGroupMember),
+);
+
+router.patch(
+  "/groups/:groupId/members/:membershipId",
+  activeCompanyAccess,
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("REMOTE_AGENT_GROUP_MEMBER_UPDATE", "RemoteAgentGroup"),
+  catchAsync(updateGroupMember),
 );
 
 router.post(
