@@ -43,9 +43,13 @@ export function serializeRemoteAgentGroups(groups) {
 }
 
 function serializeMember(member) {
+  const user = serializeUser(member.membership?.user ?? member.user);
+
   return {
     membership: serializeId(member.membership),
-    user: serializeUser(member.membership?.user ?? member.user),
+    agentName: user?.name ?? null,
+    agentEmail: user?.email ?? null,
+    user,
     role: member.role,
     permissions: Array.isArray(member.permissions)
       ? [...member.permissions]
@@ -58,16 +62,39 @@ function serializeMember(member) {
 
 function serializeUser(user) {
   if (!user || typeof user !== "object") {
-    return user ? { id: serializeId(user) } : undefined;
+    return user
+      ? { id: serializeId(user), name: null, email: null }
+      : undefined;
   }
+
+  const name = resolveUserName(user);
 
   return {
     id: serializeId(user._id ?? user.id),
-    name: [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-      user.name ||
-      user.email,
+    name,
     email: user.email,
   };
+}
+
+function resolveUserName(user) {
+  if (typeof user.name === "string" && user.name.trim()) {
+    return user.name.trim();
+  }
+
+  const fullName = [user.firstName, user.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (fullName) {
+    return fullName;
+  }
+
+  if (typeof user.email === "string" && user.email.trim()) {
+    return user.email.trim();
+  }
+
+  return null;
 }
 
 function serializeId(value) {

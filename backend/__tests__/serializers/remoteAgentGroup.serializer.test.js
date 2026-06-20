@@ -53,6 +53,8 @@ describe("remote agent group serializer", () => {
       members: [
         {
           membership: "membership-1",
+          agentName: "Moussa Keita",
+          agentEmail: "moussa@example.com",
           user: {
             id: "user-1",
             name: "Moussa Keita",
@@ -73,5 +75,45 @@ describe("remote agent group serializer", () => {
     expect(JSON.stringify(result)).not.toContain("transactionPin");
     expect(JSON.stringify(result)).not.toContain("ipAddress");
     expect(JSON.stringify(result)).not.toContain("balance\":50000");
+  });
+
+  it("falls back to email for agentName and hides sensitive user fields", () => {
+    const result = serializeRemoteAgentGroup({
+      _id: "group-1",
+      company: "company-1",
+      name: "Agents Bamako",
+      currency: "FCFA",
+      members: [
+        {
+          membership: {
+            _id: "membership-1",
+            user: {
+              _id: "user-1",
+              email: "agent@example.com",
+              password: "secret-password",
+              transactionPinHash: "secret-pin-hash",
+              resetPasswordToken: "secret-token",
+            },
+          },
+          role: "agent",
+          permissions: ["remote_payout:view"],
+          status: "active",
+        },
+      ],
+    });
+
+    expect(result.members[0]).toEqual(expect.objectContaining({
+      membership: "membership-1",
+      agentName: "agent@example.com",
+      agentEmail: "agent@example.com",
+      user: {
+        id: "user-1",
+        name: "agent@example.com",
+        email: "agent@example.com",
+      },
+    }));
+    expect(JSON.stringify(result)).not.toContain("secret-password");
+    expect(JSON.stringify(result)).not.toContain("secret-pin-hash");
+    expect(JSON.stringify(result)).not.toContain("secret-token");
   });
 });

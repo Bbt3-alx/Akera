@@ -12,6 +12,14 @@ const DEFAULT_MEMBER_PERMISSIONS = ["remote_payout:view"];
 const VALID_GROUP_STATUSES = new Set(["active", "inactive"]);
 const VALID_MEMBER_ROLES = new Set(["agent", "supervisor"]);
 const VALID_MEMBER_STATUSES = new Set(["active", "inactive"]);
+const REMOTE_AGENT_GROUP_MEMBER_POPULATE = {
+  path: "members.membership",
+  select: "user role status currency",
+  populate: {
+    path: "user",
+    select: "name email",
+  },
+};
 
 export async function listRemoteAgentGroups({
   companyId,
@@ -50,7 +58,7 @@ export async function listRemoteAgentGroups({
       .sort({ name: 1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate("members.membership", "user role status currency")
+      .populate(REMOTE_AGENT_GROUP_MEMBER_POPULATE)
       .lean(),
     RemoteAgentGroup.countDocuments(filter),
   ]);
@@ -77,7 +85,7 @@ export async function getRemoteAgentGroup({ companyId, groupId, role }) {
     _id: normalizedGroupId,
     company: companyId,
   })
-    .populate("members.membership", "user role status currency")
+    .populate(REMOTE_AGENT_GROUP_MEMBER_POPULATE)
     .lean();
 
   if (!group) {
@@ -123,7 +131,11 @@ export async function createRemoteAgentGroup({
       { session },
     );
 
-    return group;
+    return findRemoteAgentGroupForResponse({
+      companyId,
+      groupId: group._id,
+      session,
+    });
   });
 }
 
@@ -185,7 +197,11 @@ export async function updateRemoteAgentGroup({
 
     await group.save({ session });
 
-    return group;
+    return findRemoteAgentGroupForResponse({
+      companyId,
+      groupId: group._id,
+      session,
+    });
   });
 }
 
@@ -261,7 +277,11 @@ export async function addRemoteAgentGroupMember({
 
     await group.save({ session });
 
-    return group;
+    return findRemoteAgentGroupForResponse({
+      companyId,
+      groupId: group._id,
+      session,
+    });
   });
 }
 
@@ -338,8 +358,22 @@ export async function updateRemoteAgentGroupMember({
     member.updatedAt = new Date();
     await group.save({ session });
 
-    return group;
+    return findRemoteAgentGroupForResponse({
+      companyId,
+      groupId: group._id,
+      session,
+    });
   });
+}
+
+async function findRemoteAgentGroupForResponse({ companyId, groupId, session }) {
+  return RemoteAgentGroup.findOne({
+    _id: groupId,
+    company: companyId,
+  })
+    .populate(REMOTE_AGENT_GROUP_MEMBER_POPULATE)
+    .session(session)
+    .lean();
 }
 
 function normalizeCreatePayload(payload) {

@@ -35,8 +35,9 @@ describe("remote agent group service", () => {
 
   it("lists manager-scoped company groups with filters and pagination", async () => {
     const ids = createIds();
-    const groups = [createGroup(ids)];
-    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(createFindQuery(groups));
+    const groups = [createPopulatedGroup(ids)];
+    const query = createFindQuery(groups);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
     jest.spyOn(RemoteAgentGroup, "countDocuments").mockResolvedValue(1);
 
     const result = await listRemoteAgentGroups({
@@ -51,6 +52,10 @@ describe("remote agent group service", () => {
       name: /Bamako/i,
       status: "active",
     });
+    expect(query.populate).toHaveBeenCalledWith(expectedMemberPopulate());
+    expect(result.groups[0].members[0].membership.user.name).toBe(
+      "Moussa Keita",
+    );
     expect(result).toEqual({
       groups,
       pagination: {
@@ -64,10 +69,9 @@ describe("remote agent group service", () => {
 
   it("gets a group only when it belongs to the company", async () => {
     const ids = createIds();
-    const group = createGroup(ids);
-    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
-      createLeanQuery(group),
-    );
+    const group = createPopulatedGroup(ids);
+    const query = createLeanQuery(group);
+    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(query);
 
     await expect(
       getRemoteAgentGroup({
@@ -80,13 +84,19 @@ describe("remote agent group service", () => {
       _id: ids.groupId,
       company: ids.companyId,
     });
+    expect(query.populate).toHaveBeenCalledWith(expectedMemberPopulate());
+    expect(group.members[0].membership.user.name).toBe("Moussa Keita");
   });
 
   it("creates an empty active FCFA group without mutating company balance", async () => {
     mockMongooseSession();
     const ids = createIds();
     const group = createGroup(ids, { members: [] });
+    const responseGroup = createPopulatedGroup(ids, { members: [] });
     jest.spyOn(RemoteAgentGroup, "create").mockResolvedValue([group]);
+    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
+      createResponseGroupQuery(responseGroup),
+    );
     const companyUpdate = jest.spyOn(Company, "updateOne");
     const companyFindOneAndUpdate = jest.spyOn(Company, "findOneAndUpdate");
 
@@ -98,7 +108,7 @@ describe("remote agent group service", () => {
       payload: { name: " Agents Bamako ", transactionPin: "123456" },
     });
 
-    expect(result).toBe(group);
+    expect(result).toBe(responseGroup);
     expect(RemoteAgentGroup.create).toHaveBeenCalledWith(
       [
         {
@@ -120,14 +130,18 @@ describe("remote agent group service", () => {
   it("creates a group with valid active FCFA employee members and deduplicates them", async () => {
     mockMongooseSession();
     const ids = createIds();
+    const responseGroup = createPopulatedGroup(ids);
     jest.spyOn(CompanyMembership, "find").mockReturnValue(
       createSessionLeanQuery([
         createMembership(ids, { _id: ids.employeeMembershipId }),
       ]),
     );
     jest.spyOn(RemoteAgentGroup, "create").mockResolvedValue([createGroup(ids)]);
+    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
+      createResponseGroupQuery(responseGroup),
+    );
 
-    await createRemoteAgentGroup({
+    const result = await createRemoteAgentGroup({
       companyId: ids.companyId,
       managerId: ids.managerId,
       managerMembershipId: ids.managerMembershipId,
@@ -153,6 +167,7 @@ describe("remote agent group service", () => {
       },
     });
 
+    expect(result.members[0].membership.user.name).toBe("Moussa Keita");
     expect(CompanyMembership.find).toHaveBeenCalledWith({
       _id: { $in: [ids.employeeMembershipId] },
       company: ids.companyId,
@@ -235,8 +250,16 @@ describe("remote agent group service", () => {
     const group = createGroup(ids, {
       save: jest.fn().mockResolvedValue(undefined),
     });
+    const responseGroup = createPopulatedGroup(ids, {
+      name: "Bamako Nord",
+      status: "inactive",
+    });
     jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
       createSessionQuery(group),
+    ).mockReturnValueOnce(
+      createSessionQuery(group),
+    ).mockReturnValueOnce(
+      createResponseGroupQuery(responseGroup),
     );
     jest.spyOn(RemoteAgentPayout, "countDocuments").mockReturnValue(
       createSessionCountQuery(0),
@@ -314,8 +337,13 @@ describe("remote agent group service", () => {
       members: [],
       save: jest.fn().mockResolvedValue(undefined),
     });
+    const responseGroup = createPopulatedGroup(ids);
     jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
       createSessionQuery(group),
+    ).mockReturnValueOnce(
+      createSessionQuery(group),
+    ).mockReturnValueOnce(
+      createResponseGroupQuery(responseGroup),
     );
     jest.spyOn(CompanyMembership, "findOne").mockReturnValue(
       createSessionLeanQuery(createMembership(ids)),
@@ -334,7 +362,9 @@ describe("remote agent group service", () => {
       },
     });
 
-    expect(result.members).toEqual([
+    expect(result).toBe(responseGroup);
+    expect(result.members[0].membership.user.name).toBe("Moussa Keita");
+    expect(group.members).toEqual([
       expect.objectContaining({
         membership: ids.employeeMembershipId,
         role: "agent",
@@ -361,6 +391,7 @@ describe("remote agent group service", () => {
     });
     jest.spyOn(RemoteAgentGroup, "findOne")
       .mockReturnValueOnce(createSessionQuery(inactiveGroup))
+      .mockReturnValueOnce(createResponseGroupQuery(createPopulatedGroup(ids)))
       .mockReturnValueOnce(createSessionQuery(createGroup(ids, {
         members: [
           {
@@ -430,11 +461,16 @@ describe("remote agent group service", () => {
       ],
       save: jest.fn().mockResolvedValue(undefined),
     });
+    const responseGroup = createPopulatedGroup(ids);
     jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
       createSessionQuery(group),
+    ).mockReturnValueOnce(
+      createSessionQuery(group),
+    ).mockReturnValueOnce(
+      createResponseGroupQuery(responseGroup),
     );
 
-    await updateRemoteAgentGroupMember({
+    const result = await updateRemoteAgentGroupMember({
       companyId: ids.companyId,
       groupId: ids.groupId.toString(),
       membershipId: ids.employeeMembershipId.toString(),
@@ -449,6 +485,7 @@ describe("remote agent group service", () => {
       },
     });
 
+    expect(result.members[0].membership.user.name).toBe("Moussa Keita");
     expect(group.members[0]).toEqual(expect.objectContaining({
       role: "supervisor",
       permissions: ["remote_payout:view", "remote_payout:deposit"],
@@ -544,6 +581,25 @@ function createSessionCountQuery(result) {
   };
 }
 
+function createResponseGroupQuery(result) {
+  return {
+    populate: jest.fn().mockReturnThis(),
+    session: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
+function expectedMemberPopulate() {
+  return {
+    path: "members.membership",
+    select: "user role status currency",
+    populate: {
+      path: "user",
+      select: "name email",
+    },
+  };
+}
+
 function createIds() {
   return {
     companyId: new mongoose.Types.ObjectId(),
@@ -594,4 +650,34 @@ function createGroup(
     save: jest.fn().mockResolvedValue(undefined),
     ...override,
   };
+}
+
+function createPopulatedGroup(
+  { companyId, employeeMembershipId, employeeUserId, groupId },
+  override = {},
+) {
+  return createGroup(
+    { companyId, employeeMembershipId, groupId },
+    {
+      members: [
+        {
+          membership: {
+            _id: employeeMembershipId,
+            user: {
+              _id: employeeUserId,
+              name: "Moussa Keita",
+              email: "moussa@example.com",
+            },
+            role: "employee",
+            status: "active",
+            currency: "FCFA",
+          },
+          role: "agent",
+          permissions: ["remote_payout:view", "remote_payout:pay"],
+          status: "active",
+        },
+      ],
+      ...override,
+    },
+  );
 }

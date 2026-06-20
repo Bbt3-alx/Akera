@@ -6,6 +6,8 @@ import {
   createAgentDeposit,
   createGroup,
   createPayout,
+  getGroup,
+  listGroups,
   payPayout,
   updateGroupMember,
 } from "../../controllers/remoteAgentPayout.controller.js";
@@ -15,6 +17,52 @@ import * as remoteAgentPayoutService from "../../services/remoteAgentPayout.serv
 describe("remote agent payout controller", () => {
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  it("lists groups with direct member agent names", async () => {
+    const ids = createIds();
+    const group = createGroupRecord(ids);
+    jest
+      .spyOn(remoteAgentGroupService, "listRemoteAgentGroups")
+      .mockResolvedValue({
+        groups: [group],
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      });
+    const res = createResponse();
+
+    await listGroups(createRequest(ids), res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].data[0].members[0]).toEqual(
+      expect.objectContaining({
+        agentName: "Moussa Keita",
+        agentEmail: "moussa@example.com",
+      }),
+    );
+  });
+
+  it("gets a group with direct member agent names", async () => {
+    const ids = createIds();
+    const group = createGroupRecord(ids);
+    jest
+      .spyOn(remoteAgentGroupService, "getRemoteAgentGroup")
+      .mockResolvedValue(group);
+    const res = createResponse();
+
+    await getGroup(
+      createRequest(ids, {
+        params: { groupId: ids.groupId.toHexString() },
+      }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].data.members[0]).toEqual(
+      expect.objectContaining({
+        agentName: "Moussa Keita",
+        agentEmail: "moussa@example.com",
+      }),
+    );
   });
 
   it("creates a remote agent group response with safe audit metadata", async () => {
@@ -41,6 +89,12 @@ describe("remote agent payout controller", () => {
         id: ids.groupId.toHexString(),
         name: "Agents Bamako",
         availableBalance: 75000,
+      }),
+    );
+    expect(res.json.mock.calls[0][0].data.members[0]).toEqual(
+      expect.objectContaining({
+        agentName: "Moussa Keita",
+        agentEmail: "moussa@example.com",
       }),
     );
     expect(res.locals.audit).toEqual({
@@ -232,6 +286,12 @@ describe("remote agent payout controller", () => {
         payload: expect.objectContaining({ transactionPin: "123456" }),
       });
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].data.members[0]).toEqual(
+      expect.objectContaining({
+        agentName: "Moussa Keita",
+        agentEmail: "moussa@example.com",
+      }),
+    );
     expect(res.locals.audit.metadata).toEqual({
       groupId: ids.groupId,
       name: "Agents Bamako",
@@ -279,6 +339,12 @@ describe("remote agent payout controller", () => {
         payload: expect.objectContaining({ transactionPin: "123456" }),
       });
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].data.members[0]).toEqual(
+      expect.objectContaining({
+        agentName: "Moussa Keita",
+        agentEmail: "moussa@example.com",
+      }),
+    );
     expect(res.locals.audit.metadata).toEqual({
       groupId: ids.groupId,
       name: "Agents Bamako",
@@ -311,6 +377,7 @@ function createGroupRecord({
   companyId,
   groupId,
   payAgentMembershipId,
+  payAgentUserId,
 }) {
   return {
     _id: groupId,
@@ -322,7 +389,17 @@ function createGroupRecord({
     status: "active",
     members: [
       {
-        membership: payAgentMembershipId,
+        membership: {
+          _id: payAgentMembershipId,
+          user: {
+            _id: payAgentUserId,
+            name: "Moussa Keita",
+            email: "moussa@example.com",
+          },
+          role: "employee",
+          status: "active",
+          currency: "FCFA",
+        },
         role: "agent",
         permissions: ["remote_payout:view", "remote_payout:pay"],
         status: "active",
