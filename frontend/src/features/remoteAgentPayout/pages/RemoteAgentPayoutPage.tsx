@@ -14,6 +14,7 @@ import {
   useCreateRemoteAgentGroup,
   useCreateRemoteAgentPayout,
   useLookupRemoteAgentPayout,
+  useMyRemoteAgentGroups,
   usePayRemoteAgentPayout,
   useRecordRemoteAgentGroupDeposit,
   useRemoteAgentGroups,
@@ -139,15 +140,18 @@ export function RemoteAgentPayoutPage() {
   )
   const isManager = activeMembership?.role === 'manager'
   const isEmployee = activeMembership?.role === 'employee'
-  const groupsQuery = useRemoteAgentGroups(
+  const managerGroupsQuery = useRemoteAgentGroups(
     LIST_PARAMS,
-    Boolean(isManager || isEmployee),
+    Boolean(isManager),
   )
+  const myGroupsQuery = useMyRemoteAgentGroups(Boolean(isEmployee))
   const payoutsQuery = useRemoteAgentPayouts(
     LIST_PARAMS,
     Boolean(isManager || isEmployee),
   )
-  const groups = groupsQuery.data?.data ?? EMPTY_GROUPS
+  const managerGroups = managerGroupsQuery.data?.data ?? EMPTY_GROUPS
+  const agentGroups = myGroupsQuery.data?.data ?? EMPTY_GROUPS
+  const groups = isManager ? managerGroups : agentGroups
   const payouts = payoutsQuery.data?.data ?? EMPTY_PAYOUTS
   const model = useMemo(
     () =>
@@ -160,8 +164,8 @@ export function RemoteAgentPayoutPage() {
     [activeMembership?.membershipId, activeMembership?.role, groups, payouts],
   )
   const capabilities = useMemo(
-    () => getAgentCapabilities(groups, activeMembership?.membershipId),
-    [activeMembership?.membershipId, groups],
+    () => getAgentCapabilities(agentGroups, activeMembership?.membershipId),
+    [activeMembership?.membershipId, agentGroups],
   )
   const isCheckingAccess = Boolean(activeCompanyId) && meQuery.isLoading
 
@@ -204,12 +208,12 @@ export function RemoteAgentPayoutPage() {
       {isManager ? (
         <ManagerView
           activeTab={managerTab}
-          groups={groups}
-          groupsError={groupsQuery.error}
-          isGroupsLoading={groupsQuery.isLoading}
+          groups={managerGroups}
+          groupsError={managerGroupsQuery.error}
+          isGroupsLoading={managerGroupsQuery.isLoading}
           isPayoutsLoading={payoutsQuery.isLoading}
           model={model}
-          onRefreshGroups={() => void groupsQuery.refetch()}
+          onRefreshGroups={() => void managerGroupsQuery.refetch()}
           onRefreshPayouts={() => void payoutsQuery.refetch()}
           onTabChange={setManagerTab}
           payouts={payouts}
@@ -222,11 +226,11 @@ export function RemoteAgentPayoutPage() {
           activeMembershipId={activeMembership.membershipId}
           activeTab={agentTab}
           capabilities={capabilities}
-          groupFetchError={groupsQuery.error}
+          groupFetchError={myGroupsQuery.error}
           groups={model.activeAgentGroups}
-          isGroupsLoading={groupsQuery.isLoading}
+          isGroupsLoading={myGroupsQuery.isLoading}
           isPayoutsLoading={payoutsQuery.isLoading}
-          onRefreshGroups={() => void groupsQuery.refetch()}
+          onRefreshGroups={() => void myGroupsQuery.refetch()}
           onRefreshPayouts={() => void payoutsQuery.refetch()}
           onTabChange={setAgentTab}
           payouts={payouts}
@@ -381,6 +385,7 @@ function AgentView({
         <RecordDepositSection
           capabilities={capabilities}
           groupFetchError={groupFetchError}
+          groups={groups}
           isGroupsLoading={isGroupsLoading}
         />
       ) : null}
@@ -1392,7 +1397,7 @@ function AgentGroupsSection({
       {error ? <AgentGroupsUnavailable error={error} /> : null}
       {!isLoading && !error && groups.length === 0 ? (
         <InlineState title="Aucun groupe actif">
-          Aucun groupe d'agents actif n'est disponible pour ce compte.
+          Vous n'êtes membre d'aucun groupe d'agents actif.
         </InlineState>
       ) : null}
       {!isLoading && !error && groups.length > 0 ? (
@@ -1401,6 +1406,9 @@ function AgentGroupsSection({
             const member = group.members.find(
               (entry) => entry.membership === activeMembershipId,
             )
+            const currentRole = member?.role ?? group.currentMemberRole
+            const currentPermissions =
+              member?.permissions ?? group.currentMemberPermissions ?? []
 
             return (
               <div
@@ -1419,10 +1427,10 @@ function AgentGroupsSection({
                   </div>
                   <StatusBadge status={group.status} />
                 </div>
-                {member ? (
+                {currentRole || currentPermissions.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge>{formatRole(member.role)}</Badge>
-                    {member.permissions.map((permission) => (
+                    {currentRole ? <Badge>{formatRole(currentRole)}</Badge> : null}
+                    {currentPermissions.map((permission) => (
                       <Badge key={permission}>
                         {formatPermissionLabel(permission)}
                       </Badge>
@@ -1441,10 +1449,12 @@ function AgentGroupsSection({
 function RecordDepositSection({
   capabilities,
   groupFetchError,
+  groups,
   isGroupsLoading,
 }: {
   capabilities: ReturnType<typeof getAgentCapabilities>
   groupFetchError: unknown
+  groups: RemoteAgentGroup[]
   isGroupsLoading: boolean
 }) {
   if (isGroupsLoading) {
@@ -1459,10 +1469,18 @@ function RecordDepositSection({
     return <AgentGroupsUnavailable error={groupFetchError} />
   }
 
+  if (groups.length === 0) {
+    return (
+      <StateMessage title="Aucun groupe actif">
+        Vous n'êtes membre d'aucun groupe d'agents actif.
+      </StateMessage>
+    )
+  }
+
   if (!capabilities.canDeposit) {
     return (
       <StateMessage title="Dépôt indisponible">
-        Votre membership actif n'a pas la permission Dépôt dans un groupe actif.
+        Vous n'avez pas la permission d'enregistrer un dépôt.
       </StateMessage>
     )
   }
@@ -1597,39 +1615,25 @@ function PayBeneficiarySection({
     )
   }
 
-  const canUseBackendVerifiedLookup = isAccessDenied(groupFetchError)
-
-  if (groupFetchError && !canUseBackendVerifiedLookup) {
+  if (groupFetchError) {
     return <AgentGroupsUnavailable error={groupFetchError} />
   }
 
-  if (!capabilities.canPay && !canUseBackendVerifiedLookup) {
+  if (!capabilities.canPay) {
     return (
       <StateMessage title="Paiement indisponible">
-        Votre membership actif n'a pas la permission Paiement dans un groupe
-        actif.
+        Vous n'avez pas la permission de payer un bénéficiaire.
       </StateMessage>
     )
   }
 
-  return (
-    <PayBeneficiaryForm
-      groups={groups}
-      permissionNote={
-        canUseBackendVerifiedLookup
-          ? "L'API ne liste pas encore vos groupes côté agent. La permission de paiement sera vérifiée lors de la recherche du code."
-          : undefined
-      }
-    />
-  )
+  return <PayBeneficiaryForm groups={groups} />
 }
 
 function PayBeneficiaryForm({
   groups,
-  permissionNote,
 }: {
   groups: RemoteAgentGroup[]
-  permissionNote?: string
 }) {
   const lookupPayout = useLookupRemoteAgentPayout()
   const payPayout = usePayRemoteAgentPayout()
@@ -1719,7 +1723,6 @@ function PayBeneficiaryForm({
           <h2 className="text-base font-semibold text-slate-950">
             Étape 1 : recherche
           </h2>
-          {permissionNote ? <InfoBox>{permissionNote}</InfoBox> : null}
           <FormField
             error={lookupForm.formState.errors.beneficiaryCode?.message}
             label="Code bénéficiaire"
@@ -1802,9 +1805,7 @@ function PayBeneficiaryForm({
 function AgentGroupsUnavailable({ error }: { error: unknown }) {
   return (
     <StateMessage title="Groupes indisponibles">
-      {isAccessDenied(error)
-        ? "L'API actuelle ne permet pas encore à un agent de lister ses groupes. TODO : activer Mes groupes et Dépôts dès qu'un endpoint employé est exposé."
-        : getErrorMessage(error)}
+      {getErrorMessage(error)}
     </StateMessage>
   )
 }

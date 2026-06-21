@@ -39,6 +39,8 @@ export type RemoteAgentGroup = {
   availableBalance: number
   status: RemoteAgentGroupStatus
   members: RemoteAgentGroupMember[]
+  currentMemberRole?: RemoteAgentGroupMemberRole | null
+  currentMemberPermissions?: RemotePayoutPermission[]
   createdAt: string
   updatedAt: string
 }

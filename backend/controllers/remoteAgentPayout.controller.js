@@ -11,6 +11,7 @@ import {
   addRemoteAgentGroupMember,
   createRemoteAgentGroup,
   getRemoteAgentGroup,
+  listMyRemoteAgentGroups,
   listRemoteAgentGroups,
   updateRemoteAgentGroup,
   updateRemoteAgentGroupMember,
@@ -85,6 +86,19 @@ export const listGroups = async (req, res) => {
     success: true,
     pagination: result.pagination,
     data: serializeRemoteAgentGroups(result.groups),
+  });
+};
+
+export const listMyGroups = async (req, res) => {
+  const groups = await listMyRemoteAgentGroups({
+    companyId: req.context.companyId,
+    membershipId: req.context.membershipId,
+    role: req.context.role,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeRemoteAgentGroups(groups),
   });
 };
 

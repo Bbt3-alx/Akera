@@ -120,6 +120,51 @@ describe('remote agent payout view model', () => {
     })
   })
 
+  it('derives active agent groups from my-groups current member metadata', () => {
+    const groups = [
+      createGroup({
+        currentMemberRole: 'agent',
+        currentMemberPermissions: [
+          'remote_payout:view',
+          'remote_payout:deposit',
+          'remote_payout:pay',
+        ],
+        members: [
+          {
+            membership: 'other-membership',
+            agentName: 'Other Agent',
+            agentEmail: 'other@example.com',
+            user: {
+              id: 'user-2',
+              name: 'Other Agent',
+              email: 'other@example.com',
+            },
+            role: 'agent',
+            permissions: ['remote_payout:view'],
+            status: 'active',
+            joinedAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ]
+
+    const model = buildRemoteAgentModuleModel({
+      activeMembershipId: 'agent-membership',
+      groups,
+      payouts: [],
+      role: 'employee',
+    })
+
+    expect(model.activeAgentGroups).toEqual(groups)
+    expect(getAgentCapabilities(groups, 'agent-membership')).toEqual({
+      canDeposit: true,
+      canPay: true,
+      payableGroups: groups,
+      depositGroups: groups,
+    })
+  })
+
   it('uses a generic message for failed beneficiary lookups', () => {
     expect(getGenericLookupErrorMessage()).toBe('Code invalide ou expiré.')
   })

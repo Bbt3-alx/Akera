@@ -35,6 +35,18 @@ export function serializeRemoteAgentGroup(group) {
     ? group.members.map((member) => serializeMember(member))
     : [];
 
+  if (group.currentMemberRole !== undefined) {
+    serialized.currentMemberRole = group.currentMemberRole ?? null;
+  }
+
+  if (group.currentMemberPermissions !== undefined) {
+    serialized.currentMemberPermissions = Array.isArray(
+      group.currentMemberPermissions,
+    )
+      ? [...group.currentMemberPermissions]
+      : [];
+  }
+
   return serialized;
 }
 

@@ -217,11 +217,13 @@ function getActiveAgentGroups(
     return []
   }
 
-  return groups.filter((group) =>
-    group.members.some(
-      (member) =>
-        member.membership === activeMembershipId && member.status === 'active',
-    ),
+  return groups.filter(
+    (group) =>
+      hasCurrentMemberContext(group) ||
+      group.members.some(
+        (member) =>
+          member.membership === activeMembershipId && member.status === 'active',
+      ),
   )
 }
 
@@ -230,10 +232,18 @@ function memberHasPermission(
   activeMembershipId: string | null | undefined,
   permission: RemotePayoutPermission,
 ) {
+  if (hasCurrentMemberContext(group)) {
+    return Boolean(group.currentMemberPermissions?.includes(permission))
+  }
+
   return group.members.some(
     (member) =>
       member.membership === activeMembershipId &&
       member.status === 'active' &&
       member.permissions.includes(permission),
   )
+}
+
+function hasCurrentMemberContext(group: RemoteAgentGroup) {
+  return Array.isArray(group.currentMemberPermissions)
 }

@@ -9,6 +9,7 @@ import {
   getGroup,
   getPayout,
   listGroups,
+  listMyGroups,
   listPayouts,
   lookupPayout,
   payPayout,
@@ -35,6 +36,8 @@ const activeCompanyAccess = [
 ];
 
 router.get("/", activeCompanyAccess, catchAsync(listPayouts));
+
+router.get("/my-groups", activeCompanyAccess, catchAsync(listMyGroups));
 
 router.post(
   "/",

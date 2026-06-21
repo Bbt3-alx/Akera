@@ -9,6 +9,7 @@ import {
   addRemoteAgentGroupMember,
   createRemoteAgentGroup,
   getRemoteAgentGroup,
+  listMyRemoteAgentGroups,
   listRemoteAgentGroups,
   updateRemoteAgentGroup,
   updateRemoteAgentGroupMember,
@@ -147,6 +148,114 @@ describe("remote agent group service", () => {
 
     expect(RemoteAgentGroup.find).toHaveBeenCalledWith({
       company: ids.companyId,
+    });
+  });
+
+  it("lists only active employee member groups for the active company", async () => {
+    const ids = createIds();
+    const groups = [createPopulatedGroup(ids)];
+    const query = createSimpleFindQuery(groups);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+
+    const result = await listMyRemoteAgentGroups({
+      companyId: ids.companyId,
+      membershipId: ids.employeeMembershipId,
+      role: "employee",
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith({
+      company: ids.companyId,
+      status: "active",
+      members: {
+        $elemMatch: {
+          membership: ids.employeeMembershipId,
+          status: "active",
+        },
+      },
+    });
+    expect(query.populate).toHaveBeenCalledWith(expectedMemberPopulate());
+    expect(result).toEqual([
+      expect.objectContaining({
+        currentMemberRole: "agent",
+        currentMemberPermissions: ["remote_payout:view", "remote_payout:pay"],
+      }),
+    ]);
+  });
+
+  it("excludes groups where the employee is not an active member", async () => {
+    const ids = createIds();
+    const query = createSimpleFindQuery([]);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+
+    const result = await listMyRemoteAgentGroups({
+      companyId: ids.companyId,
+      membershipId: ids.employeeMembershipId,
+      role: "employee",
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "active",
+        members: {
+          $elemMatch: {
+            membership: ids.employeeMembershipId,
+            status: "active",
+          },
+        },
+      }),
+    );
+    expect(result).toEqual([]);
+  });
+
+  it("scopes employee my-groups to their active company", async () => {
+    const ids = createIds();
+    const query = createSimpleFindQuery([]);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+
+    await listMyRemoteAgentGroups({
+      companyId: ids.otherCompanyId,
+      membershipId: ids.employeeMembershipId,
+      role: "employee",
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        company: ids.otherCompanyId,
+      }),
+    );
+  });
+
+  it("lists active company groups for managers through my-groups", async () => {
+    const ids = createIds();
+    const groups = [createPopulatedGroup(ids)];
+    const query = createSimpleFindQuery(groups);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+
+    const result = await listMyRemoteAgentGroups({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      role: "manager",
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith({
+      company: ids.companyId,
+      status: "active",
+    });
+    expect(result).toEqual(groups);
+  });
+
+  it("rejects my-groups access for unsupported roles", async () => {
+    const ids = createIds();
+
+    await expect(
+      listMyRemoteAgentGroups({
+        companyId: ids.companyId,
+        membershipId: ids.employeeMembershipId,
+        role: "owner",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      errorCode: "REMOTE_AGENT_GROUP_ACCESS_DENIED",
     });
   });
 
@@ -638,6 +747,14 @@ function createFindQuery(result) {
   };
 }
 
+function createSimpleFindQuery(result) {
+  return {
+    sort: jest.fn().mockReturnThis(),
+    populate: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
 function createLeanQuery(result) {
   return {
     populate: jest.fn().mockReturnThis(),
@@ -691,6 +808,7 @@ function createIds() {
     groupId: new mongoose.Types.ObjectId(),
     managerId: new mongoose.Types.ObjectId(),
     managerMembershipId: new mongoose.Types.ObjectId(),
+    otherCompanyId: new mongoose.Types.ObjectId(),
     secondEmployeeMembershipId: new mongoose.Types.ObjectId(),
   };
 }

@@ -8,6 +8,7 @@ import {
   createPayout,
   getGroup,
   listGroups,
+  listMyGroups,
   payPayout,
   updateGroupMember,
 } from "../../controllers/remoteAgentPayout.controller.js";
@@ -39,6 +40,60 @@ describe("remote agent payout controller", () => {
         agentEmail: "moussa@example.com",
       }),
     );
+  });
+
+  it("lists my groups with direct member names and current member permissions", async () => {
+    const ids = createIds();
+    const group = {
+      ...createGroupRecord(ids),
+      currentMemberRole: "agent",
+      currentMemberPermissions: [
+        "remote_payout:view",
+        "remote_payout:deposit",
+      ],
+      transactionPin: "123456",
+      beneficiaryCode: "87654321",
+    };
+    jest
+      .spyOn(remoteAgentGroupService, "listMyRemoteAgentGroups")
+      .mockResolvedValue([group]);
+    const res = createResponse();
+
+    await listMyGroups(
+      createRequest(ids, {
+        context: {
+          companyId: ids.companyId,
+          membershipId: ids.payAgentMembershipId,
+          role: "employee",
+        },
+      }),
+      res,
+    );
+
+    expect(remoteAgentGroupService.listMyRemoteAgentGroups)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        membershipId: ids.payAgentMembershipId,
+        role: "employee",
+      });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0].data[0]).toEqual(
+      expect.objectContaining({
+        currentMemberRole: "agent",
+        currentMemberPermissions: [
+          "remote_payout:view",
+          "remote_payout:deposit",
+        ],
+      }),
+    );
+    expect(res.json.mock.calls[0][0].data[0].members[0]).toEqual(
+      expect.objectContaining({
+        agentName: "Moussa Keita",
+        agentEmail: "moussa@example.com",
+      }),
+    );
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("123456");
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("87654321");
   });
 
   it("gets a group with direct member agent names", async () => {

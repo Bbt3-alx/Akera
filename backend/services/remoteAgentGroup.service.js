@@ -74,6 +74,53 @@ export async function listRemoteAgentGroups({
   };
 }
 
+export async function listMyRemoteAgentGroups({
+  companyId,
+  membershipId,
+  role,
+}) {
+  if (role === "manager") {
+    return RemoteAgentGroup.find({
+      company: companyId,
+      status: "active",
+    })
+      .sort({ name: 1 })
+      .populate(REMOTE_AGENT_GROUP_MEMBER_POPULATE)
+      .lean();
+  }
+
+  if (role !== "employee") {
+    throw new ApiError(
+      403,
+      "Remote agent group access denied",
+      "REMOTE_AGENT_GROUP_ACCESS_DENIED",
+    );
+  }
+
+  const normalizedMembershipId = normalizeObjectId(
+    membershipId,
+    "Membership ID",
+    "INVALID_REMOTE_AGENT_GROUP_MEMBER",
+  );
+  const groups = await RemoteAgentGroup.find({
+    company: companyId,
+    status: "active",
+    members: {
+      $elemMatch: {
+        membership: normalizedMembershipId,
+        status: "active",
+      },
+    },
+  })
+    .sort({ name: 1 })
+    .populate(REMOTE_AGENT_GROUP_MEMBER_POPULATE)
+    .lean();
+
+  return groups.map((group) =>
+    withCurrentMemberContext(group, normalizedMembershipId),
+  );
+}
+
 export async function getRemoteAgentGroup({ companyId, groupId, role }) {
   assertManager(role);
   const normalizedGroupId = normalizeObjectId(
@@ -616,6 +663,26 @@ function findGroupMember(group, membershipId) {
   return group.members?.find((member) => idsEqual(member.membership, membershipId));
 }
 
+function withCurrentMemberContext(group, membershipId) {
+  const currentMember = group.members?.find(
+    (member) =>
+      member.status === "active" &&
+      idsEqual(member.membership, membershipId),
+  );
+
+  if (!currentMember) {
+    return group;
+  }
+
+  return {
+    ...group,
+    currentMemberRole: currentMember.role,
+    currentMemberPermissions: Array.isArray(currentMember.permissions)
+      ? [...currentMember.permissions]
+      : [],
+  };
+}
+
 function normalizeGroupName(value) {
   const name = normalizeRequiredString(
     value,
@@ -762,5 +829,21 @@ function assertManager(role) {
 }
 
 function idsEqual(left, right) {
-  return left?.toString?.() === right?.toString?.();
+  return normalizeIdString(left) === normalizeIdString(right);
+}
+
+function normalizeIdString(value) {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value.toHexString === "function") {
+    return value.toHexString();
+  }
+
+  if (typeof value === "object") {
+    return normalizeIdString(value._id ?? value.id ?? value.toString?.());
+  }
+
+  return value.toString();
 }

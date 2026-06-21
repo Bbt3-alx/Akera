@@ -8,6 +8,7 @@ import {
   createRemoteAgentGroup,
   createRemoteAgentPayout,
   getRemoteAgentGroup,
+  listMyRemoteAgentGroups,
   listRemoteAgentGroups,
   listRemoteAgentPayouts,
   lookupRemoteAgentPayout,
@@ -56,6 +57,8 @@ export const remoteAgentPayoutKeys = {
     activeCompanyId: ActiveCompanyId,
     params?: RemoteAgentListParams,
   ) => [...remoteAgentPayoutKeys.groups(activeCompanyId), params ?? {}] as const,
+  myGroups: (activeCompanyId: ActiveCompanyId) =>
+    [...remoteAgentPayoutKeys.groups(activeCompanyId), 'my-groups'] as const,
   groupDetail: (activeCompanyId: ActiveCompanyId, groupId: string) =>
     [...remoteAgentPayoutKeys.groups(activeCompanyId), 'detail', groupId] as const,
   payouts: (activeCompanyId: ActiveCompanyId) =>
@@ -75,6 +78,16 @@ export function useRemoteAgentGroups(
   return useQuery({
     queryKey: remoteAgentPayoutKeys.groupList(activeCompanyId, params),
     queryFn: () => listRemoteAgentGroups(params),
+    enabled: Boolean(activeCompanyId && enabled),
+  })
+}
+
+export function useMyRemoteAgentGroups(enabled = true) {
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useQuery({
+    queryKey: remoteAgentPayoutKeys.myGroups(activeCompanyId),
+    queryFn: listMyRemoteAgentGroups,
     enabled: Boolean(activeCompanyId && enabled),
   })
 }

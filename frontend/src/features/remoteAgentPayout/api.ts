@@ -59,7 +59,21 @@ export async function listRemoteAgentGroups(
   const response = await http.get<
     PaginatedApiResponse<RemoteAgentGroup>,
     PaginatedApiResponse<RemoteAgentGroup>
-  >('/remote-agent-payouts/groups', { params })
+  >('/remote-agent-payouts/groups', {
+    params: normalizeRemoteAgentListParams(params),
+  })
+
+  return normalizeRemoteAgentListResponse<
+    RemoteAgentGroup,
+    RemoteAgentGroupsPagination
+  >(response)
+}
+
+export async function listMyRemoteAgentGroups(): Promise<RemoteAgentGroupsResponse> {
+  const response = await http.get<
+    PaginatedApiResponse<RemoteAgentGroup>,
+    PaginatedApiResponse<RemoteAgentGroup>
+  >('/remote-agent-payouts/my-groups')
 
   return normalizeRemoteAgentListResponse<
     RemoteAgentGroup,
@@ -157,7 +171,9 @@ export async function listRemoteAgentPayouts(
   const response = await http.get<
     PaginatedApiResponse<RemoteAgentPayout>,
     PaginatedApiResponse<RemoteAgentPayout>
-  >('/remote-agent-payouts', { params })
+  >('/remote-agent-payouts', {
+    params: normalizeRemoteAgentListParams(params),
+  })
 
   return normalizeRemoteAgentListResponse<
     RemoteAgentPayout,
@@ -261,6 +277,48 @@ export function normalizeRemoteAgentListResponse<
     errorCode: response.errorCode,
     details: response.details,
   })
+}
+
+export function normalizeRemoteAgentListParams(
+  params?: RemoteAgentListParams | null,
+): RemoteAgentListParams {
+  if (!params) {
+    return {}
+  }
+
+  const normalized: RemoteAgentListParams = {}
+
+  if (params.page !== undefined && params.page !== null) {
+    normalized.page = params.page
+  }
+
+  if (params.limit !== undefined && params.limit !== null) {
+    normalized.limit = params.limit
+  }
+
+  const status = normalizeOptionalListString(params.status)
+
+  if (status) {
+    normalized.status = status as RemoteAgentListParams['status']
+  }
+
+  const search = normalizeOptionalListString(params.search)
+
+  if (search) {
+    normalized.search = search
+  }
+
+  return normalized
+}
+
+function normalizeOptionalListString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined
+  }
+
+  const trimmed = value.trim()
+
+  return trimmed || undefined
 }
 
 function unwrapApiResponse<T>(response: ApiResponse<T>): T {

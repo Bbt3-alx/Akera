@@ -1,13 +1,63 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { http } from '../../shared/api/http.ts'
 import { AppApiError } from '../../shared/api/types.ts'
 import {
+  listRemoteAgentGroups,
+  listMyRemoteAgentGroups,
+  normalizeRemoteAgentListParams,
   normalizeRemoteAgentCreatePayoutResponse,
   normalizeRemoteAgentListResponse,
 } from './api.ts'
-import type { RemoteAgentPayout } from './types.ts'
+import type { RemoteAgentGroup, RemoteAgentListParams, RemoteAgentPayout } from './types.ts'
 
 describe('remote agent payout API helpers', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('calls the employee my-groups endpoint', async () => {
+    const get = vi.spyOn(http, 'get').mockResolvedValue({
+      success: true,
+      data: [createGroup()],
+    })
+
+    const response = await listMyRemoteAgentGroups()
+
+    expect(get).toHaveBeenCalledWith('/remote-agent-payouts/my-groups')
+    expect(response.data[0].name).toBe('Agents Bamako')
+  })
+
+  it('keeps manager group listing on the manager groups endpoint', async () => {
+    const get = vi.spyOn(http, 'get').mockResolvedValue({
+      success: true,
+      data: [createGroup()],
+    })
+
+    await listRemoteAgentGroups({ status: 'active' })
+
+    expect(get).toHaveBeenCalledWith('/remote-agent-payouts/groups', {
+      params: { status: 'active' },
+    })
+  })
+
+  it('omits empty optional status query params', () => {
+    expect(
+      normalizeRemoteAgentListParams({
+        page: 1,
+        limit: 50,
+        status: '' as RemoteAgentListParams['status'],
+        search: ' ',
+      }),
+    ).toEqual({ page: 1, limit: 50 })
+
+    expect(
+      normalizeRemoteAgentListParams({
+        status: null as unknown as RemoteAgentListParams['status'],
+      }),
+    ).toEqual({})
+  })
+
   it('normalizes paginated list responses from totalPages to pages', () => {
     const response = normalizeRemoteAgentListResponse({
       success: true,
@@ -71,6 +121,21 @@ function createPayout(): RemoteAgentPayout {
     paidAt: null,
     canceledAt: null,
     cancelReason: null,
+    createdAt: '2026-06-01T00:00:00.000Z',
+    updatedAt: '2026-06-01T00:00:00.000Z',
+  }
+}
+
+function createGroup(): RemoteAgentGroup {
+  return {
+    id: 'group-1',
+    name: 'Agents Bamako',
+    currency: 'FCFA',
+    balance: 100_000,
+    reservedBalance: 25_000,
+    availableBalance: 75_000,
+    status: 'active',
+    members: [],
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
   }

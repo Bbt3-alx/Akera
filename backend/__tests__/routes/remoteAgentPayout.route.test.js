@@ -9,6 +9,7 @@ describe("remote agent payout routes", () => {
     for (const [path, method] of [
       ["/", "get"],
       ["/", "post"],
+      ["/my-groups", "get"],
       ["/groups", "get"],
       ["/groups", "post"],
       ["/groups/:groupId", "get"],
@@ -29,6 +30,7 @@ describe("remote agent payout routes", () => {
     for (const [path, method] of [
       ["/", "get"],
       ["/", "post"],
+      ["/my-groups", "get"],
       ["/groups", "get"],
       ["/groups", "post"],
       ["/groups/:groupId", "get"],
@@ -72,12 +74,17 @@ describe("remote agent payout routes", () => {
   });
 
   it("does not require transaction PIN for group read endpoints", () => {
+    const myGroupsRoute = findRoute("/my-groups", "get");
     const listRoute = findRoute("/groups", "get");
     const detailRoute = findRoute("/groups/:groupId", "get");
     const createRoute = findRoute("/groups", "post");
 
+    expect(myGroupsRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(listRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(detailRoute.stack.length).toBeLessThan(createRoute.stack.length);
+    expect(myGroupsRoute.stack.map((layer) => layer.handle)).not.toContain(
+      verifyTransactionPin,
+    );
     expect(listRoute.stack.map((layer) => layer.handle)).not.toContain(
       verifyTransactionPin,
     );
@@ -107,6 +114,15 @@ describe("remote agent payout routes", () => {
         (layer) => layer.handle,
       ),
     ).not.toContain(requireManagerContext);
+    expect(
+      findRoute("/my-groups", "get").stack.map((layer) => layer.handle),
+    ).not.toContain(requireManagerContext);
+  });
+
+  it("registers my-groups before payoutCode routes", () => {
+    expect(findRouteIndex("/my-groups", "get")).toBeLessThan(
+      findRouteIndex("/:payoutCode", "get"),
+    );
   });
 });
 
@@ -119,4 +135,15 @@ function findRoute(path, method) {
   expect(layer).toBeDefined();
 
   return layer.route;
+}
+
+function findRouteIndex(path, method) {
+  const index = remoteAgentPayoutRoutes.stack.findIndex(
+    (candidate) =>
+      candidate.route?.path === path && candidate.route?.methods?.[method],
+  );
+
+  expect(index).toBeGreaterThanOrEqual(0);
+
+  return index;
 }

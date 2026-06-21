@@ -34,6 +34,8 @@ describe("remote agent group serializer", () => {
           auditMetadata: { ipAddress: "127.0.0.1" },
         },
       ],
+      currentMemberRole: "agent",
+      currentMemberPermissions: ["remote_payout:view", "remote_payout:pay"],
       idempotencyKey: "secret-idem",
       transactionPin: "123456",
       auditMetadata: { ipAddress: "127.0.0.1" },
@@ -67,6 +69,8 @@ describe("remote agent group serializer", () => {
           updatedAt: "2026-06-20T10:00:00.000Z",
         },
       ],
+      currentMemberRole: "agent",
+      currentMemberPermissions: ["remote_payout:view", "remote_payout:pay"],
       createdAt: "2026-06-20T08:00:00.000Z",
       updatedAt: "2026-06-20T11:00:00.000Z",
     });
