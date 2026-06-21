@@ -32,7 +32,7 @@ export async function listRemoteAgentGroups({
   const filter = {
     company: companyId,
   };
-  const status = normalizeOptionalStatus(filters.status, {
+  const status = normalizeOptionalEnumFilter(filters.status, {
     allowed: VALID_GROUP_STATUSES,
     errorCode: "INVALID_REMOTE_AGENT_GROUP_STATUS",
     label: "Group status",
@@ -700,6 +700,28 @@ function normalizeOptionalStatus(value, { allowed, errorCode, label }) {
     `${label} is required`,
     errorCode,
   );
+
+  if (!allowed.has(normalized)) {
+    throw new ApiError(400, `${label} is invalid`, errorCode);
+  }
+
+  return normalized;
+}
+
+function normalizeOptionalEnumFilter(value, { allowed, errorCode, label }) {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== "string" && typeof value !== "number") {
+    throw new ApiError(400, `${label} must be a string`, errorCode);
+  }
+
+  const normalized = String(value).trim();
+
+  if (!normalized) {
+    return undefined;
+  }
 
   if (!allowed.has(normalized)) {
     throw new ApiError(400, `${label} is invalid`, errorCode);

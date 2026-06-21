@@ -67,6 +67,89 @@ describe("remote agent group service", () => {
     });
   });
 
+  it("lists manager-scoped company groups without a status filter", async () => {
+    const ids = createIds();
+    const groups = [
+      createPopulatedGroup(ids),
+      createPopulatedGroup(ids, {
+        _id: new mongoose.Types.ObjectId(),
+        name: "Agents Kayes",
+        status: "inactive",
+      }),
+    ];
+    const query = createFindQuery(groups);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+    jest.spyOn(RemoteAgentGroup, "countDocuments").mockResolvedValue(2);
+
+    const result = await listRemoteAgentGroups({
+      companyId: ids.companyId,
+      role: "manager",
+      filters: {},
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith({
+      company: ids.companyId,
+    });
+    expect(result.groups).toHaveLength(2);
+    expect(result.pagination.total).toBe(2);
+  });
+
+  it.each([
+    ["active", "active"],
+    ["inactive", "inactive"],
+  ])("filters manager-scoped groups by %s status", async (_label, status) => {
+    const ids = createIds();
+    const groups = [createPopulatedGroup(ids, { status })];
+    const query = createFindQuery(groups);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+    jest.spyOn(RemoteAgentGroup, "countDocuments").mockResolvedValue(1);
+
+    const result = await listRemoteAgentGroups({
+      companyId: ids.companyId,
+      role: "manager",
+      filters: { status },
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith({
+      company: ids.companyId,
+      status,
+    });
+    expect(result.groups).toEqual(groups);
+  });
+
+  it("rejects invalid group list status filters", async () => {
+    const ids = createIds();
+
+    await expect(
+      listRemoteAgentGroups({
+        companyId: ids.companyId,
+        role: "manager",
+        filters: { status: "archived" },
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "INVALID_REMOTE_AGENT_GROUP_STATUS",
+    });
+  });
+
+  it("treats blank group list status filters like no status filter", async () => {
+    const ids = createIds();
+    const groups = [createPopulatedGroup(ids)];
+    const query = createFindQuery(groups);
+    jest.spyOn(RemoteAgentGroup, "find").mockReturnValue(query);
+    jest.spyOn(RemoteAgentGroup, "countDocuments").mockResolvedValue(1);
+
+    await listRemoteAgentGroups({
+      companyId: ids.companyId,
+      role: "manager",
+      filters: { status: " " },
+    });
+
+    expect(RemoteAgentGroup.find).toHaveBeenCalledWith({
+      company: ids.companyId,
+    });
+  });
+
   it("gets a group only when it belongs to the company", async () => {
     const ids = createIds();
     const group = createPopulatedGroup(ids);
