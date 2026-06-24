@@ -38,6 +38,7 @@ import type {
   RemotePayoutStatus,
 } from '../types.ts'
 import {
+  buildRemoteAgentMemberNameMap,
   buildRemoteAgentMemberPayload,
   buildCreatePayoutResult,
   buildRemoteAgentModuleModel,
@@ -51,6 +52,7 @@ import {
   getGenericLookupErrorMessage,
   getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  getRemoteAgentPayoutPaidByLabel,
   parseFcfaAmountInput,
 } from '../viewModel.ts'
 
@@ -1475,7 +1477,10 @@ function PayoutsSection({
     () => new Map(groups.map((group) => [group.id, group.name])),
     [groups],
   )
-  const memberNames = useMemo(() => buildMemberNameMap(groups), [groups])
+  const memberNames = useMemo(
+    () => buildRemoteAgentMemberNameMap(groups),
+    [groups],
+  )
 
   return (
     <Panel
@@ -1550,9 +1555,7 @@ function PayoutsSection({
                     ****{payout.beneficiaryCodeLast4}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                    {payout.paidByMembership
-                      ? memberNames.get(payout.paidByMembership) ?? 'Agent payé'
-                      : '—'}
+                    {getRemoteAgentPayoutPaidByLabel(payout, memberNames)}
                   </td>
                   <td className="min-w-48 px-4 py-3 text-slate-600">
                     <p>Créé : {formatDate(payout.createdAt)}</p>
@@ -2572,23 +2575,6 @@ function formatOptionLabel(value: string) {
   }
 
   return labels[value] ?? value
-}
-
-function buildMemberNameMap(groups: RemoteAgentGroup[]) {
-  const memberNames = new Map<string, string>()
-
-  for (const group of groups) {
-    for (const member of group.members) {
-      memberNames.set(
-        member.membership,
-        member.agentEmail
-          ? `${getMemberDisplayName(member)} (${member.agentEmail})`
-          : getMemberDisplayName(member),
-      )
-    }
-  }
-
-  return memberNames
 }
 
 function isAccessDenied(error: unknown) {

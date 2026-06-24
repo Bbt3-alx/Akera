@@ -19,7 +19,7 @@ const REMOTE_AGENT_GROUP_MEMBER_POPULATE = {
   select: "user role status currency",
   populate: {
     path: "user",
-    select: "name email",
+    select: "name firstName lastName email",
   },
 };
 

@@ -593,10 +593,11 @@ function createGroupRecord({
         membership: {
           _id: payAgentMembershipId,
           user: {
-            _id: payAgentUserId,
-            name: "Moussa Keita",
-            email: "moussa@example.com",
-          },
+          _id: payAgentUserId,
+          firstName: "Moussa",
+          lastName: "Keita",
+          email: "moussa@example.com",
+        },
           role: "employee",
           status: "active",
           currency: "FCFA",

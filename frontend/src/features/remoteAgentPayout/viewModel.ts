@@ -215,6 +215,31 @@ export function getMemberDisplayName(
   )
 }
 
+export function buildRemoteAgentMemberNameMap(
+  groups: RemoteAgentGroup[],
+): Map<string, string> {
+  const memberNames = new Map<string, string>()
+
+  for (const group of groups) {
+    for (const member of group.members) {
+      memberNames.set(member.membership, getRemoteAgentPaidByMemberLabel(member))
+    }
+  }
+
+  return memberNames
+}
+
+export function getRemoteAgentPayoutPaidByLabel(
+  payout: Pick<RemoteAgentPayout, 'paidByMembership'>,
+  memberNames: ReadonlyMap<string, string>,
+): string {
+  if (!payout.paidByMembership) {
+    return '—'
+  }
+
+  return memberNames.get(payout.paidByMembership) ?? 'Agent payé'
+}
+
 export function buildCreatePayoutResult({
   beneficiaryCode,
   payout,
@@ -543,6 +568,18 @@ function memberHasPermission(
 
 function hasCurrentMemberContext(group: RemoteAgentGroup) {
   return Array.isArray(group.currentMemberPermissions)
+}
+
+function getRemoteAgentPaidByMemberLabel(
+  member: RemoteAgentGroupMember,
+): string {
+  return (
+    member.agentName?.trim() ||
+    member.user?.name?.trim() ||
+    member.agentEmail?.trim() ||
+    member.user?.email?.trim() ||
+    'Agent payé'
+  )
 }
 
 function countOperations(

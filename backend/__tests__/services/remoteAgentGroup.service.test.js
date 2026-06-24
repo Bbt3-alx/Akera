@@ -55,8 +55,12 @@ describe("remote agent group service", () => {
       status: "active",
     });
     expect(query.populate).toHaveBeenCalledWith(expectedMemberPopulate());
-    expect(result.groups[0].members[0].membership.user.name).toBe(
-      "Moussa Keita",
+    expect(result.groups[0].members[0].membership.user).toEqual(
+      expect.objectContaining({
+        firstName: "Moussa",
+        lastName: "Keita",
+        email: "moussa@example.com",
+      }),
     );
     expect(result).toEqual({
       groups,
@@ -481,7 +485,13 @@ describe("remote agent group service", () => {
       company: ids.companyId,
     });
     expect(query.populate).toHaveBeenCalledWith(expectedMemberPopulate());
-    expect(group.members[0].membership.user.name).toBe("Moussa Keita");
+    expect(group.members[0].membership.user).toEqual(
+      expect.objectContaining({
+        firstName: "Moussa",
+        lastName: "Keita",
+        email: "moussa@example.com",
+      }),
+    );
   });
 
   it("creates an empty active FCFA group without mutating company balance", async () => {
@@ -563,7 +573,13 @@ describe("remote agent group service", () => {
       },
     });
 
-    expect(result.members[0].membership.user.name).toBe("Moussa Keita");
+    expect(result.members[0].membership.user).toEqual(
+      expect.objectContaining({
+        firstName: "Moussa",
+        lastName: "Keita",
+        email: "moussa@example.com",
+      }),
+    );
     expect(CompanyMembership.find).toHaveBeenCalledWith({
       _id: { $in: [ids.employeeMembershipId] },
       company: ids.companyId,
@@ -759,7 +775,13 @@ describe("remote agent group service", () => {
     });
 
     expect(result).toBe(responseGroup);
-    expect(result.members[0].membership.user.name).toBe("Moussa Keita");
+    expect(result.members[0].membership.user).toEqual(
+      expect.objectContaining({
+        firstName: "Moussa",
+        lastName: "Keita",
+        email: "moussa@example.com",
+      }),
+    );
     expect(group.members).toEqual([
       expect.objectContaining({
         membership: ids.employeeMembershipId,
@@ -881,7 +903,13 @@ describe("remote agent group service", () => {
       },
     });
 
-    expect(result.members[0].membership.user.name).toBe("Moussa Keita");
+    expect(result.members[0].membership.user).toEqual(
+      expect.objectContaining({
+        firstName: "Moussa",
+        lastName: "Keita",
+        email: "moussa@example.com",
+      }),
+    );
     expect(group.members[0]).toEqual(expect.objectContaining({
       role: "supervisor",
       permissions: ["remote_payout:view", "remote_payout:deposit"],
@@ -1006,7 +1034,7 @@ function expectedMemberPopulate() {
     select: "user role status currency",
     populate: {
       path: "user",
-      select: "name email",
+      select: "name firstName lastName email",
     },
   };
 }
@@ -1098,7 +1126,8 @@ function createPopulatedGroup(
             _id: employeeMembershipId,
             user: {
               _id: employeeUserId,
-              name: "Moussa Keita",
+              firstName: "Moussa",
+              lastName: "Keita",
               email: "moussa@example.com",
             },
             role: "employee",

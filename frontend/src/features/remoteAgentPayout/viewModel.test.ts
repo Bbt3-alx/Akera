@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildRemoteAgentDashboardModel,
+  buildRemoteAgentMemberNameMap,
   buildRemoteAgentOperationDisplayRow,
   buildCreatePayoutResult,
   buildRemoteAgentModuleModel,
@@ -15,6 +16,7 @@ import {
   getGenericLookupErrorMessage,
   getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  getRemoteAgentPayoutPaidByLabel,
   getRemoteAgentOperationTypeLabel,
   REMOTE_AGENT_OPERATION_COLUMNS,
   parseFcfaAmountInput,
@@ -101,6 +103,65 @@ describe('remote agent payout view model', () => {
         createGroup().members[0],
       ),
     ).toBe('Awa Traore')
+  })
+
+  it('builds paid-by labels from agentName before email and never raw ids', () => {
+    const memberNames = buildRemoteAgentMemberNameMap([
+      createGroup({
+        members: [
+          {
+            ...createGroup().members[0],
+            membership: 'membership-raw-id',
+            agentName: 'Moussa Keita',
+            agentEmail: 'moussa@example.com',
+          },
+          {
+            ...createGroup().members[0],
+            membership: 'membership-email-only',
+            agentName: null,
+            agentEmail: 'fallback@example.com',
+            user: {
+              id: 'user-email-only',
+              name: null,
+              email: 'fallback@example.com',
+            },
+          },
+          {
+            ...createGroup().members[0],
+            membership: 'membership-no-display',
+            agentName: null,
+            agentEmail: null,
+            user: {
+              id: 'user-no-display',
+              name: null,
+              email: null,
+            },
+          },
+        ],
+      }),
+    ])
+
+    expect(
+      getRemoteAgentPayoutPaidByLabel(
+        createPayout({ paidByMembership: 'membership-raw-id' }),
+        memberNames,
+      ),
+    ).toBe('Moussa Keita')
+    expect(
+      getRemoteAgentPayoutPaidByLabel(
+        createPayout({ paidByMembership: 'membership-email-only' }),
+        memberNames,
+      ),
+    ).toBe('fallback@example.com')
+    expect(
+      getRemoteAgentPayoutPaidByLabel(
+        createPayout({ paidByMembership: 'membership-no-display' }),
+        memberNames,
+      ),
+    ).toBe('Agent payé')
+    expect([...memberNames.values()].join(' ')).not.toContain(
+      'membership-raw-id',
+    )
   })
 
   it('keeps the created beneficiary code in a one-time success result', () => {
