@@ -16,6 +16,10 @@ import type {
   RemoteAgentGroupsPagination,
   RemoteAgentGroupsResponse,
   RemoteAgentGroupUpdatePayload,
+  RemoteAgentOperation,
+  RemoteAgentOperationListParams,
+  RemoteAgentOperationsPagination,
+  RemoteAgentOperationsResponse,
   RemoteAgentListParams,
   RemoteAgentPayout,
   RemoteAgentPayoutCancelPayload,
@@ -196,6 +200,22 @@ export async function listRemoteAgentPayouts(
   >(response)
 }
 
+export async function listRemoteAgentOperations(
+  params?: RemoteAgentOperationListParams,
+): Promise<RemoteAgentOperationsResponse> {
+  const response = await http.get<
+    PaginatedApiResponse<RemoteAgentOperation>,
+    PaginatedApiResponse<RemoteAgentOperation>
+  >('/remote-agent-payouts/operations', {
+    params: normalizeRemoteAgentOperationListParams(params),
+  })
+
+  return normalizeRemoteAgentListResponse<
+    RemoteAgentOperation,
+    RemoteAgentOperationsPagination
+  >(response)
+}
+
 export async function createRemoteAgentPayout(
   payload: RemoteAgentPayoutCreatePayload,
 ): Promise<RemoteAgentPayoutCreateResponse> {
@@ -321,6 +341,42 @@ export function normalizeRemoteAgentListParams(
 
   if (search) {
     normalized.search = search
+  }
+
+  return normalized
+}
+
+export function normalizeRemoteAgentOperationListParams(
+  params?: RemoteAgentOperationListParams | null,
+): RemoteAgentOperationListParams {
+  if (!params) {
+    return {}
+  }
+
+  const normalized: RemoteAgentOperationListParams = {}
+
+  if (params.page !== undefined && params.page !== null) {
+    normalized.page = params.page
+  }
+
+  if (params.limit !== undefined && params.limit !== null) {
+    normalized.limit = params.limit
+  }
+
+  const search = normalizeOptionalListString(params.search)
+  const status = normalizeOptionalListString(params.status)
+  const type = normalizeOptionalListString(params.type)
+
+  if (search) {
+    normalized.search = search
+  }
+
+  if (status) {
+    normalized.status = status
+  }
+
+  if (type) {
+    normalized.type = type as RemoteAgentOperationListParams['type']
   }
 
   return normalized

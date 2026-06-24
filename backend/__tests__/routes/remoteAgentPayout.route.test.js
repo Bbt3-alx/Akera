@@ -11,6 +11,7 @@ describe("remote agent payout routes", () => {
       ["/", "post"],
       ["/eligible-agents", "get"],
       ["/my-groups", "get"],
+      ["/operations", "get"],
       ["/groups", "get"],
       ["/groups", "post"],
       ["/groups/:groupId", "get"],
@@ -33,6 +34,7 @@ describe("remote agent payout routes", () => {
       ["/", "post"],
       ["/eligible-agents", "get"],
       ["/my-groups", "get"],
+      ["/operations", "get"],
       ["/groups", "get"],
       ["/groups", "post"],
       ["/groups/:groupId", "get"],
@@ -78,18 +80,23 @@ describe("remote agent payout routes", () => {
   it("does not require transaction PIN for group read endpoints", () => {
     const eligibleAgentsRoute = findRoute("/eligible-agents", "get");
     const myGroupsRoute = findRoute("/my-groups", "get");
+    const operationsRoute = findRoute("/operations", "get");
     const listRoute = findRoute("/groups", "get");
     const detailRoute = findRoute("/groups/:groupId", "get");
     const createRoute = findRoute("/groups", "post");
 
     expect(eligibleAgentsRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(myGroupsRoute.stack.length).toBeLessThan(createRoute.stack.length);
+    expect(operationsRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(listRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(detailRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(eligibleAgentsRoute.stack.map((layer) => layer.handle)).not.toContain(
       verifyTransactionPin,
     );
     expect(myGroupsRoute.stack.map((layer) => layer.handle)).not.toContain(
+      verifyTransactionPin,
+    );
+    expect(operationsRoute.stack.map((layer) => layer.handle)).not.toContain(
       verifyTransactionPin,
     );
     expect(listRoute.stack.map((layer) => layer.handle)).not.toContain(
@@ -125,6 +132,9 @@ describe("remote agent payout routes", () => {
     expect(
       findRoute("/my-groups", "get").stack.map((layer) => layer.handle),
     ).not.toContain(requireManagerContext);
+    expect(
+      findRoute("/operations", "get").stack.map((layer) => layer.handle),
+    ).not.toContain(requireManagerContext);
   });
 
   it("registers my-groups before payoutCode routes", () => {
@@ -135,6 +145,12 @@ describe("remote agent payout routes", () => {
 
   it("registers eligible-agents before payoutCode routes", () => {
     expect(findRouteIndex("/eligible-agents", "get")).toBeLessThan(
+      findRouteIndex("/:payoutCode", "get"),
+    );
+  });
+
+  it("registers operations before payoutCode routes", () => {
+    expect(findRouteIndex("/operations", "get")).toBeLessThan(
       findRouteIndex("/:payoutCode", "get"),
     );
   });

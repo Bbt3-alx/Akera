@@ -5,6 +5,8 @@ import type {
   RemoteAgentGroupMember,
   RemoteAgentGroupMemberPayload,
   RemoteAgentGroupMemberRole,
+  RemoteAgentOperation,
+  RemoteAgentOperationType,
   RemoteAgentPayout,
   RemotePayoutPermission,
 } from './types.ts'
@@ -99,8 +101,78 @@ type EligibleAgentVisibleIdentity = {
   secondary: string | null
 }
 
+type RemoteAgentOperationDisplayRow = {
+  actorLabel: string
+  amountLabel: string
+  beneficiaryLabel: string
+  dateLabel: string
+  groupLabel: string
+  referenceLabel: string
+  statusLabel: string
+  typeLabel: string
+}
+
+type RemoteAgentManagerDashboardMetrics = {
+  activeGroupCount: number
+  depositsTodayAmount: number
+  paidTodayAmount: number
+  paidTodayCount: number
+  pendingPayoutCount: number
+  totalAvailableBalance: number
+  totalBalance: number
+  totalReservedBalance: number
+}
+
+type RemoteAgentDashboardAgentMetrics = {
+  activeGroupCount: number
+  myDepositsTodayAmount: number
+  myPaidTodayAmount: number
+  myPaidTodayCount: number
+  permissionLabels: string[]
+  permissions: RemotePayoutPermission[]
+  transactionPinConfigured: boolean
+}
+
+type RemoteAgentDashboardModel = {
+  activeGroups: RemoteAgentGroup[]
+  agentMetrics: RemoteAgentDashboardAgentMetrics
+  managerMetrics: RemoteAgentManagerDashboardMetrics
+  recentOperations: RemoteAgentOperationDisplayRow[]
+  role: AuthRole | undefined
+}
+
+type BuildRemoteAgentDashboardModelInput = {
+  activeMembershipId?: string | null
+  groups: RemoteAgentGroup[]
+  now?: Date
+  operations: RemoteAgentOperation[]
+  role: AuthRole | undefined
+  transactionPinConfigured: boolean
+}
+
 export const FCFA_INTEGER_AMOUNT_MESSAGE =
   'Le montant FCFA doit être un nombre entier.'
+
+export const REMOTE_AGENT_OPERATION_COLUMNS = [
+  'Date',
+  'Type',
+  'Référence',
+  'Groupe',
+  'Acteur',
+  'Bénéficiaire',
+  'Montant',
+  'Statut',
+] as const
+
+export const REMOTE_AGENT_OPERATION_TYPE_LABELS: Record<
+  RemoteAgentOperationType,
+  string
+> = {
+  remote_agent_deposit: 'Dépôt agent',
+  remote_payout_created: 'Paiement créé',
+  remote_payout_paid: 'Paiement payé',
+  remote_payout_canceled: 'Paiement annulé',
+}
 
 export const REMOTE_PAYOUT_PERMISSION_LABELS: Record<
   RemotePayoutPermission,
@@ -293,6 +365,108 @@ export function formatPermissionLabel(permission: RemotePayoutPermission) {
   return REMOTE_PAYOUT_PERMISSION_LABELS[permission] ?? permission
 }
 
+export function getRemoteAgentOperationTypeLabel(
+  type: RemoteAgentOperationType,
+) {
+  return REMOTE_AGENT_OPERATION_TYPE_LABELS[type] ?? type
+}
+
+export function getRemoteAgentOperationStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    completed: 'Terminé',
+    pending: 'En attente',
+    paid: 'Payé',
+    canceled: 'Annulé',
+  }
+
+  return labels[status] ?? status
+}
+
+export function buildRemoteAgentOperationDisplayRow(
+  operation: RemoteAgentOperation,
+): RemoteAgentOperationDisplayRow {
+  return {
+    actorLabel:
+      operation.actorName?.trim() ||
+      operation.actor?.name?.trim() ||
+      operation.actorEmail?.trim() ||
+      operation.actor?.email?.trim() ||
+      'Acteur non renseigné',
+    amountLabel: formatFcfaAmount(operation.amount),
+    beneficiaryLabel: operation.beneficiaryName?.trim() || 'Non applicable',
+    dateLabel: formatOperationDate(operation.date),
+    groupLabel:
+      operation.groupName?.trim() ||
+      operation.group?.name?.trim() ||
+      'Groupe autorisé',
+    referenceLabel: operation.reference?.trim() || 'Sans référence',
+    statusLabel: getRemoteAgentOperationStatusLabel(operation.status),
+    typeLabel: getRemoteAgentOperationTypeLabel(operation.type),
+  }
+}
+
+export function buildRemoteAgentDashboardModel({
+  activeMembershipId,
+  groups,
+  now = new Date(),
+  operations,
+  role,
+  transactionPinConfigured,
+}: BuildRemoteAgentDashboardModelInput): RemoteAgentDashboardModel {
+  const activeGroups = groups.filter((group) => group.status === 'active')
+  const todayOperations = operations.filter((operation) =>
+    isSameLocalDay(operation.date, now),
+  )
+  const myTodayOperations = todayOperations.filter(
+    (operation) => operation.actor?.membershipId === activeMembershipId,
+  )
+  const sortedOperations = [...operations]
+    .sort((left, right) => getTime(right.date) - getTime(left.date))
+    .slice(0, 5)
+  const permissions = getDashboardPermissions(activeGroups, activeMembershipId)
+
+  return {
+    activeGroups,
+    agentMetrics: {
+      activeGroupCount: activeGroups.length,
+      myDepositsTodayAmount: sumOperations(
+        myTodayOperations,
+        'remote_agent_deposit',
+      ),
+      myPaidTodayAmount: sumOperations(
+        myTodayOperations,
+        'remote_payout_paid',
+      ),
+      myPaidTodayCount: countOperations(
+        myTodayOperations,
+        'remote_payout_paid',
+      ),
+      permissionLabels: permissions.map(formatPermissionLabel),
+      permissions,
+      transactionPinConfigured,
+    },
+    managerMetrics: {
+      activeGroupCount: activeGroups.length,
+      depositsTodayAmount: sumOperations(
+        todayOperations,
+        'remote_agent_deposit',
+      ),
+      paidTodayAmount: sumOperations(todayOperations, 'remote_payout_paid'),
+      paidTodayCount: countOperations(todayOperations, 'remote_payout_paid'),
+      pendingPayoutCount: operations.filter(
+        (operation) =>
+          operation.type === 'remote_payout_created' &&
+          operation.status === 'pending',
+      ).length,
+      totalAvailableBalance: sumGroups(activeGroups, 'availableBalance'),
+      totalBalance: sumGroups(activeGroups, 'balance'),
+      totalReservedBalance: sumGroups(activeGroups, 'reservedBalance'),
+    },
+    recentOperations: sortedOperations.map(buildRemoteAgentOperationDisplayRow),
+    role,
+  }
+}
+
 function toGroupRow(group: RemoteAgentGroup): RemoteAgentGroupRow {
   return {
     id: group.id,
@@ -369,4 +543,81 @@ function memberHasPermission(
 
 function hasCurrentMemberContext(group: RemoteAgentGroup) {
   return Array.isArray(group.currentMemberPermissions)
+}
+
+function countOperations(
+  operations: RemoteAgentOperation[],
+  type: RemoteAgentOperationType,
+) {
+  return operations.filter((operation) => operation.type === type).length
+}
+
+function sumOperations(
+  operations: RemoteAgentOperation[],
+  type: RemoteAgentOperationType,
+) {
+  return operations
+    .filter((operation) => operation.type === type)
+    .reduce((sum, operation) => sum + operation.amount, 0)
+}
+
+function getDashboardPermissions(
+  groups: RemoteAgentGroup[],
+  activeMembershipId?: string | null,
+) {
+  const permissions = new Set<RemotePayoutPermission>()
+
+  for (const group of groups) {
+    if (hasCurrentMemberContext(group)) {
+      group.currentMemberPermissions?.forEach((permission) =>
+        permissions.add(permission),
+      )
+      continue
+    }
+
+    const member = group.members.find(
+      (groupMember) =>
+        groupMember.membership === activeMembershipId &&
+        groupMember.status === 'active',
+    )
+
+    member?.permissions.forEach((permission) => permissions.add(permission))
+  }
+
+  return [...permissions]
+}
+
+function formatOperationDate(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function isSameLocalDay(value: string, now: Date) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return false
+  }
+
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+
+  return date >= start && date < end
+}
+
+function getTime(value: string) {
+  const time = new Date(value).getTime()
+
+  return Number.isNaN(time) ? 0 : time
 }

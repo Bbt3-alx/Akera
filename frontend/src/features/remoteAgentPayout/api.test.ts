@@ -4,6 +4,7 @@ import { http } from '../../shared/api/http.ts'
 import { AppApiError } from '../../shared/api/types.ts'
 import {
   listEligibleRemoteAgents,
+  listRemoteAgentOperations,
   listRemoteAgentGroups,
   listMyRemoteAgentGroups,
   normalizeRemoteAgentListParams,
@@ -61,6 +62,38 @@ describe('remote agent payout API helpers', () => {
         limit: 50,
       },
     })
+  })
+
+  it('calls the operations endpoint with search, type, status and pagination params', async () => {
+    const get = vi.spyOn(http, 'get').mockResolvedValue({
+      success: true,
+      data: [createOperation()],
+      pagination: {
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+      },
+    })
+
+    const response = await listRemoteAgentOperations({
+      page: 1,
+      limit: 20,
+      search: 'awa',
+      status: 'paid',
+      type: 'remote_payout_paid',
+    })
+
+    expect(get).toHaveBeenCalledWith('/remote-agent-payouts/operations', {
+      params: {
+        page: 1,
+        limit: 20,
+        search: 'awa',
+        status: 'paid',
+        type: 'remote_payout_paid',
+      },
+    })
+    expect(response.data[0].actorName).toBe('Moussa Keita')
   })
 
   it('omits empty optional status query params', () => {
@@ -160,5 +193,31 @@ function createGroup(): RemoteAgentGroup {
     members: [],
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
+  }
+}
+
+function createOperation() {
+  return {
+    id: 'remote_payout_paid:payout-1',
+    date: '2026-06-24T10:00:00.000Z',
+    type: 'remote_payout_paid',
+    reference: 'RAP-0001',
+    group: {
+      id: 'group-1',
+      name: 'Agents Bamako',
+    },
+    groupName: 'Agents Bamako',
+    actor: {
+      membershipId: 'membership-1',
+      name: 'Moussa Keita',
+      email: 'moussa@example.com',
+      role: 'employee',
+    },
+    actorName: 'Moussa Keita',
+    actorEmail: 'moussa@example.com',
+    beneficiaryName: 'Awa Traore',
+    amount: 25_000,
+    currency: 'FCFA',
+    status: 'paid',
   }
 }

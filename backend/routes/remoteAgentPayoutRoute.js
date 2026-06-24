@@ -11,6 +11,7 @@ import {
   listEligibleAgents,
   listGroups,
   listMyGroups,
+  listOperations,
   listPayouts,
   lookupPayout,
   payPayout,
@@ -39,6 +40,8 @@ const activeCompanyAccess = [
 router.get("/", activeCompanyAccess, catchAsync(listPayouts));
 
 router.get("/my-groups", activeCompanyAccess, catchAsync(listMyGroups));
+
+router.get("/operations", activeCompanyAccess, catchAsync(listOperations));
 
 router.get(
   "/eligible-agents",

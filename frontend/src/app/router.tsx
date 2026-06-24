@@ -10,6 +10,7 @@ import { DashboardPage } from '../features/dashboard/pages/DashboardPage.tsx'
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
 import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInvitationsPage.tsx'
 import { MyInvitationsPage } from '../features/invitations/pages/MyInvitationsPage.tsx'
+import { OperationsPage } from '../features/remoteAgentPayout/pages/OperationsPage.tsx'
 import { RemoteAgentPayoutPage } from '../features/remoteAgentPayout/pages/RemoteAgentPayoutPage.tsx'
 import { TransactionPinPage } from '../features/security/pages/TransactionPinPage.tsx'
 import { CreateTransactionPage } from '../features/transactions/pages/CreateTransactionPage.tsx'
@@ -162,6 +163,14 @@ export const router = createBrowserRouter([
         element: (
           <ModuleGate moduleName="remote_agent_payout">
             <RemoteAgentPayoutPage />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'operations',
+        element: (
+          <ModuleGate moduleName="remote_agent_payout">
+            <OperationsPage />
           </ModuleGate>
         ),
       },

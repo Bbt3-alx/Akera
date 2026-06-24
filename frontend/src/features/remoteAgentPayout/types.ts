@@ -99,6 +99,50 @@ export type RemoteAgentPayoutsResponse = {
   pagination?: RemoteAgentPayoutsPagination
 }
 
+export type RemoteAgentOperationType =
+  | 'remote_agent_deposit'
+  | 'remote_payout_created'
+  | 'remote_payout_paid'
+  | 'remote_payout_canceled'
+
+export type RemoteAgentOperationActor = {
+  membershipId: string | null
+  name: string | null
+  email: string | null
+  role: string | null
+}
+
+export type RemoteAgentOperation = {
+  id: string
+  date: string
+  type: RemoteAgentOperationType
+  reference: string | null
+  group: {
+    id: string | null
+    name: string | null
+  }
+  groupName: string | null
+  actor: RemoteAgentOperationActor
+  actorName: string | null
+  actorEmail: string | null
+  beneficiaryName: string | null
+  amount: number
+  currency: 'FCFA'
+  status: string
+}
+
+export type RemoteAgentOperationsPagination = {
+  page: number
+  limit: number
+  total: number
+  pages?: number
+}
+
+export type RemoteAgentOperationsResponse = {
+  data: RemoteAgentOperation[]
+  pagination?: RemoteAgentOperationsPagination
+}
+
 export type RemoteAgentDeposit = {
   id: string
   operationCode?: string
@@ -183,6 +227,14 @@ export type RemoteAgentListParams = {
   limit?: number
   status?: RemotePayoutStatus | RemoteAgentGroupStatus
   search?: string
+}
+
+export type RemoteAgentOperationListParams = {
+  page?: number
+  limit?: number
+  search?: string
+  status?: string
+  type?: RemoteAgentOperationType
 }
 
 export type RemoteEligibleAgentListParams = {

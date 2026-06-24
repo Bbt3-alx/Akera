@@ -7,6 +7,7 @@ import {
   lookupRemoteAgentPayoutByBeneficiaryCode,
   payRemoteAgentPayout,
 } from "../services/remoteAgentPayout.service.js";
+import { listRemoteAgentOperations } from "../services/remoteAgentOperation.service.js";
 import {
   addRemoteAgentGroupMember,
   createRemoteAgentGroup,
@@ -26,6 +27,7 @@ import {
   serializeRemoteAgentPayout,
   serializeRemoteAgentPayouts,
 } from "../serializers/remoteAgentPayout.serializer.js";
+import { serializeRemoteAgentOperations } from "../serializers/remoteAgentOperation.serializer.js";
 import { serializeAccountOperation } from "../serializers/accountOperation.serializer.js";
 
 export const listPayouts = async (req, res) => {
@@ -41,6 +43,22 @@ export const listPayouts = async (req, res) => {
     code: 200,
     pagination: result.pagination,
     data: serializeRemoteAgentPayouts(result.payouts),
+  });
+};
+
+export const listOperations = async (req, res) => {
+  const result = await listRemoteAgentOperations({
+    companyId: req.context.companyId,
+    membershipId: req.context.membershipId,
+    role: req.context.role,
+    query: req.query,
+  });
+
+  res.status(200).json({
+    success: true,
+    code: 200,
+    pagination: result.pagination,
+    data: serializeRemoteAgentOperations(result.operations),
   });
 };
 

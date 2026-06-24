@@ -3,7 +3,10 @@ import {
   hasAnyTransferModule,
   hasCompanyModule,
 } from '../../features/companies/companyModules.ts'
-import type { CompanyModule } from '../../features/companies/types.ts'
+import type {
+  CompanyModule,
+  CompanyTransferWorkflow,
+} from '../../features/companies/types.ts'
 
 export type NavigationItem = {
   count?: number
@@ -20,22 +23,25 @@ type BuildNavigationSectionsInput = {
   enabledModules: readonly CompanyModule[]
   isManager: boolean
   pendingInvitationCount: number
+  transferWorkflows?: readonly CompanyTransferWorkflow[]
 }
 
 export function buildNavigationSections({
   enabledModules,
   isManager,
   pendingInvitationCount,
+  transferWorkflows,
 }: BuildNavigationSectionsInput): NavigationSection[] {
   const hasTransfer = hasAnyTransferModule(enabledModules)
   const hasGold = hasAnyGoldModule(enabledModules)
   const isMixed = hasTransfer && hasGold
-  const transferItems = getTransferItems(enabledModules)
+  const transferItems = getTransferItems(enabledModules, transferWorkflows)
   const goldItems = getGoldItems(enabledModules, isMixed)
   const administrationItems = getAdministrationItems({
     enabledModules,
     isManager,
     pendingInvitationCount,
+    transferWorkflows,
   })
 
   if (isMixed) {
@@ -56,23 +62,36 @@ export function buildNavigationSections({
 
 function getTransferItems(
   enabledModules: readonly CompanyModule[],
+  transferWorkflows: readonly CompanyTransferWorkflow[] = [],
 ): NavigationItem[] {
   const items: NavigationItem[] = []
+  const hasRemoteAgentPayout = hasCompanyModule(
+    enabledModules,
+    'remote_agent_payout',
+  )
+  const hasWorkflowMetadata = transferWorkflows.length > 0
+  const hasLegacyTransferWorkflow = hasWorkflowMetadata
+    ? transferWorkflows.includes('correspondent_collection')
+    : hasCompanyModule(enabledModules, 'transfers')
 
   if (hasAnyTransferModule(enabledModules)) {
     items.push({ label: 'Dashboard', to: '/app/dashboard' })
   }
 
-  if (hasCompanyModule(enabledModules, 'transfers')) {
+  if (hasCompanyModule(enabledModules, 'transfers') && hasLegacyTransferWorkflow) {
     items.push({ label: 'Transactions', to: '/app/transactions' })
   }
 
-  if (hasCompanyModule(enabledModules, 'correspondent_collections')) {
+  if (
+    hasCompanyModule(enabledModules, 'correspondent_collections') &&
+    hasLegacyTransferWorkflow
+  ) {
     items.push({ label: 'Collections', to: '/app/collections' })
   }
 
-  if (hasCompanyModule(enabledModules, 'remote_agent_payout')) {
+  if (hasRemoteAgentPayout) {
     items.push({ label: 'Paiements agents', to: '/app/remote-agent-payout' })
+    items.push({ label: 'Opérations', to: '/app/operations' })
   }
 
   if (hasCompanyModule(enabledModules, 'account_operations')) {

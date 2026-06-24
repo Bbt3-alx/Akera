@@ -1,13 +1,30 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useMe } from '../../auth/hooks.ts'
+import type { Membership } from '../../auth/types.ts'
 import {
   getEnabledModulesForMembership,
   hasAnyGoldModule,
   hasAnyTransferModule,
+  hasCompanyModule,
 } from '../../companies/companyModules.ts'
+import type { CompanyModule, CompanyTransferWorkflow } from '../../companies/types.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
+import {
+  useMyRemoteAgentGroups,
+  useRemoteAgentGroups,
+  useRemoteAgentOperations,
+} from '../../remoteAgentPayout/hooks.ts'
+import type {
+  RemoteAgentGroup,
+  RemoteAgentOperation,
+} from '../../remoteAgentPayout/types.ts'
+import {
+  buildRemoteAgentDashboardModel,
+  formatPermissionLabel,
+} from '../../remoteAgentPayout/viewModel.ts'
+import { useTransactionPinStatus } from '../../security/hooks.ts'
 import { TransactionCodeDisplay } from '../../transactions/components/TransactionCodeDisplay.tsx'
 import { useCompanyDashboard } from '../hooks.ts'
 import type {
@@ -37,6 +54,9 @@ const STATUS_STYLES: Record<string, string> = {
   reversing: 'bg-purple-50 text-purple-700 ring-purple-200',
   reversed: 'bg-slate-100 text-slate-700 ring-slate-200',
 }
+const REMOTE_DASHBOARD_LIST_PARAMS = { page: 1, limit: 50 } as const
+const EMPTY_REMOTE_AGENT_GROUPS: RemoteAgentGroup[] = []
+const EMPTY_REMOTE_AGENT_OPERATIONS: RemoteAgentOperation[] = []
 
 export function DashboardPage() {
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
@@ -47,8 +67,19 @@ export function DashboardPage() {
       membership.status === 'active',
   )
   const enabledModules = getEnabledModulesForMembership(activeMembership)
+  const transferWorkflows =
+    activeMembership?.company?.transferWorkflows ??
+    activeMembership?.companyTransferWorkflows ??
+    []
   const hasTransfer = hasAnyTransferModule(enabledModules)
   const hasGold = hasAnyGoldModule(enabledModules)
+  const hasRemoteAgentPayout = hasCompanyModule(
+    enabledModules,
+    'remote_agent_payout',
+  )
+  const isRemoteAgentPrimary =
+    hasRemoteAgentPayout &&
+    !hasLegacyTransferWorkflow(enabledModules, transferWorkflows)
 
   if (!activeCompanyId) {
     return (
@@ -64,6 +95,10 @@ export function DashboardPage() {
 
   if (hasGold && hasTransfer) {
     return <MixedDashboard />
+  }
+
+  if (isRemoteAgentPrimary && activeMembership) {
+    return <RemoteAgentDashboard activeMembership={activeMembership} />
   }
 
   return <TransferDashboard />
@@ -176,6 +211,446 @@ function TransferDashboard() {
         </div>
       </div>
     </section>
+  )
+}
+
+function RemoteAgentDashboard({
+  activeMembership,
+}: {
+  activeMembership: Membership
+}) {
+  const isManager = activeMembership.role === 'manager'
+  const isEmployee = activeMembership.role === 'employee'
+  const transactionPinStatusQuery = useTransactionPinStatus(
+    Boolean(isManager || isEmployee),
+  )
+  const managerGroupsQuery = useRemoteAgentGroups(
+    REMOTE_DASHBOARD_LIST_PARAMS,
+    isManager,
+  )
+  const myGroupsQuery = useMyRemoteAgentGroups(isEmployee)
+  const operationsQuery = useRemoteAgentOperations(
+    REMOTE_DASHBOARD_LIST_PARAMS,
+    Boolean(isManager || isEmployee),
+  )
+  const groups = isManager
+    ? managerGroupsQuery.data?.data ?? EMPTY_REMOTE_AGENT_GROUPS
+    : myGroupsQuery.data?.data ?? EMPTY_REMOTE_AGENT_GROUPS
+  const operations =
+    operationsQuery.data?.data ?? EMPTY_REMOTE_AGENT_OPERATIONS
+  const model = useMemo(
+    () =>
+      buildRemoteAgentDashboardModel({
+        activeMembershipId: activeMembership.membershipId,
+        groups,
+        operations,
+        role: activeMembership.role,
+        transactionPinConfigured:
+          transactionPinStatusQuery.data?.configured ?? false,
+      }),
+    [
+      activeMembership.membershipId,
+      activeMembership.role,
+      groups,
+      operations,
+      transactionPinStatusQuery.data?.configured,
+    ],
+  )
+  const isLoading =
+    operationsQuery.isLoading ||
+    (isManager && managerGroupsQuery.isLoading) ||
+    (isEmployee && myGroupsQuery.isLoading) ||
+    transactionPinStatusQuery.isLoading
+  const error =
+    operationsQuery.error ??
+    (isManager ? managerGroupsQuery.error : myGroupsQuery.error) ??
+    transactionPinStatusQuery.error
+
+  if (!isManager && !isEmployee) {
+    return (
+      <StateMessage title="Remote agent dashboard unavailable">
+        This dashboard is reserved for managers and authorized employees.
+      </StateMessage>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <StateMessage title="Chargement du dashboard agents">
+        Calcul des caisses, permissions et opérations récentes.
+      </StateMessage>
+    )
+  }
+
+  if (error) {
+    return (
+      <StateMessage title="Dashboard agents indisponible">
+        {getErrorMessage(error)}
+      </StateMessage>
+    )
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-medium capitalize text-slate-500">
+            {activeMembership.role}
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+            Dashboard paiements agents
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm text-slate-600">
+            Suivez les caisses de groupes, les dépôts et les paiements agents
+            autorisés pour cette société.
+          </p>
+        </div>
+        <button
+          className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={
+            operationsQuery.isFetching ||
+            managerGroupsQuery.isFetching ||
+            myGroupsQuery.isFetching
+          }
+          onClick={() => {
+            void operationsQuery.refetch()
+            if (isManager) {
+              void managerGroupsQuery.refetch()
+            }
+            if (isEmployee) {
+              void myGroupsQuery.refetch()
+            }
+          }}
+          type="button"
+        >
+          {operationsQuery.isFetching ? 'Actualisation' : 'Actualiser'}
+        </button>
+      </div>
+
+      {isManager ? (
+        <RemoteManagerDashboard
+          groups={model.activeGroups}
+          model={model}
+        />
+      ) : (
+        <RemoteAgentEmployeeDashboard
+          activeMembershipId={activeMembership.membershipId}
+          groups={model.activeGroups}
+          model={model}
+        />
+      )}
+    </section>
+  )
+}
+
+function RemoteManagerDashboard({
+  groups,
+  model,
+}: {
+  groups: RemoteAgentGroup[]
+  model: ReturnType<typeof buildRemoteAgentDashboardModel>
+}) {
+  const metrics = model.managerMetrics
+
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+        <MetricCard
+          label="Solde total des caisses"
+          value={formatAmount(metrics.totalBalance, 'FCFA')}
+        />
+        <MetricCard
+          label="Solde réservé"
+          value={formatAmount(metrics.totalReservedBalance, 'FCFA')}
+        />
+        <MetricCard
+          label="Solde disponible"
+          value={formatAmount(metrics.totalAvailableBalance, 'FCFA')}
+        />
+        <MetricCard
+          label="Paiements en attente"
+          value={formatNumber(metrics.pendingPayoutCount)}
+        />
+        <MetricCard
+          label="Paiements payés aujourd’hui"
+          value={formatAmount(metrics.paidTodayAmount, 'FCFA')}
+        />
+        <MetricCard
+          label="Dépôts du jour"
+          value={formatAmount(metrics.depositsTodayAmount, 'FCFA')}
+        />
+        <MetricCard
+          label="Groupes actifs"
+          value={formatNumber(metrics.activeGroupCount)}
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <RemoteGroupCashPanel groups={groups} title="Groupes actifs" />
+          <RemoteRecentOperations operations={model.recentOperations} />
+        </div>
+        <RemoteQuickActions
+          actions={[
+            { label: 'Créer un paiement agent', to: '/app/remote-agent-payout' },
+            { label: 'Voir les opérations', to: '/app/operations' },
+            { label: 'Configurer le PIN', to: '/app/security/transaction-pin' },
+          ]}
+        />
+      </div>
+    </>
+  )
+}
+
+function RemoteAgentEmployeeDashboard({
+  activeMembershipId,
+  groups,
+  model,
+}: {
+  activeMembershipId: string
+  groups: RemoteAgentGroup[]
+  model: ReturnType<typeof buildRemoteAgentDashboardModel>
+}) {
+  const metrics = model.agentMetrics
+
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <MetricCard
+          label="PIN de transaction"
+          value={metrics.transactionPinConfigured ? 'Configuré' : 'À configurer'}
+        />
+        <MetricCard
+          label="Mes groupes actifs"
+          value={formatNumber(metrics.activeGroupCount)}
+        />
+        <MetricCard
+          label="Mes permissions"
+          value={
+            metrics.permissionLabels.length > 0
+              ? metrics.permissionLabels.join(', ')
+              : 'Aucune'
+          }
+        />
+        <MetricCard
+          label="Montant déposé aujourd’hui par moi"
+          value={formatAmount(metrics.myDepositsTodayAmount, 'FCFA')}
+        />
+        <MetricCard
+          label="Montant payé aujourd’hui par moi"
+          value={formatAmount(metrics.myPaidTodayAmount, 'FCFA')}
+        />
+        <MetricCard
+          label="Paiements effectués aujourd’hui"
+          value={formatNumber(metrics.myPaidTodayCount)}
+        />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
+          <RemoteAgentGroupsPanel
+            activeMembershipId={activeMembershipId}
+            groups={groups}
+          />
+          <RemoteRecentOperations operations={model.recentOperations} />
+        </div>
+        <RemoteQuickActions
+          actions={[
+            { label: 'Enregistrer un dépôt', to: '/app/remote-agent-payout' },
+            { label: 'Payer par code bénéficiaire', to: '/app/remote-agent-payout' },
+            { label: 'Voir mes opérations', to: '/app/operations' },
+            { label: 'Gérer mon PIN', to: '/app/security/transaction-pin' },
+          ]}
+        />
+      </div>
+    </>
+  )
+}
+
+function RemoteGroupCashPanel({
+  groups,
+  title,
+}: {
+  groups: RemoteAgentGroup[]
+  title: string
+}) {
+  return (
+    <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+      </div>
+      {groups.length === 0 ? (
+        <div className="px-4 py-10 text-center text-sm text-slate-600">
+          Aucun groupe actif pour le moment.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Groupe</th>
+                <th className="px-4 py-3">Caisse</th>
+                <th className="px-4 py-3">Réservé</th>
+                <th className="px-4 py-3">Disponible</th>
+                <th className="px-4 py-3">Membres</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {groups.map((group) => (
+                <tr className="hover:bg-slate-50" key={group.id}>
+                  <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-950">
+                    {group.name}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                    {formatAmount(group.balance, group.currency)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                    {formatAmount(group.reservedBalance, group.currency)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                    {formatAmount(group.availableBalance, group.currency)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-700">
+                    {formatNumber(group.members.length)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RemoteAgentGroupsPanel({
+  activeMembershipId,
+  groups,
+}: {
+  activeMembershipId: string
+  groups: RemoteAgentGroup[]
+}) {
+  return (
+    <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-slate-950">Mes groupes</h2>
+      </div>
+      {groups.length === 0 ? (
+        <div className="px-4 py-10 text-center text-sm text-slate-600">
+          Aucun groupe actif autorisé pour le moment.
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {groups.map((group) => (
+            <li className="px-4 py-4" key={group.id}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="font-medium text-slate-950">{group.name}</h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {formatAmount(group.availableBalance, group.currency)} disponible
+                  </p>
+                </div>
+                <div className="text-sm text-slate-600 lg:text-right">
+                  <p className="font-medium text-slate-950">
+                    {getRemoteAgentGroupRoleLabel(group, activeMembershipId)}
+                  </p>
+                  <p className="mt-1">
+                    {getRemoteAgentGroupPermissionLabels(
+                      group,
+                      activeMembershipId,
+                    )}
+                  </p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function RemoteRecentOperations({
+  operations,
+}: {
+  operations: ReturnType<typeof buildRemoteAgentDashboardModel>['recentOperations']
+}) {
+  return (
+    <div className="overflow-hidden rounded border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950">
+            Opérations récentes
+          </h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Dernières opérations autorisées.
+          </p>
+        </div>
+        <Link
+          className="shrink-0 text-sm font-medium text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-slate-950 hover:decoration-slate-700"
+          to="/app/operations"
+        >
+          Voir tout
+        </Link>
+      </div>
+      {operations.length === 0 ? (
+        <div className="px-4 py-10 text-center text-sm text-slate-600">
+          Aucune opération pour le moment.
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {operations.map((operation, index) => (
+            <li className="px-4 py-4" key={`${operation.referenceLabel}-${index}`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-slate-950">
+                      {operation.referenceLabel}
+                    </span>
+                    <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                      {operation.typeLabel}
+                    </span>
+                  </div>
+                  <p className="mt-2 break-words text-sm text-slate-600">
+                    {operation.groupLabel} - {operation.actorLabel}
+                    {operation.beneficiaryLabel !== 'Non applicable'
+                      ? ` - ${operation.beneficiaryLabel}`
+                      : ''}
+                  </p>
+                </div>
+                <div className="shrink-0 text-sm text-slate-600 lg:text-right">
+                  <p className="font-medium text-slate-950">
+                    {operation.amountLabel}
+                  </p>
+                  <p className="mt-1">
+                    {operation.statusLabel} - {operation.dateLabel}
+                  </p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function RemoteQuickActions({
+  actions,
+}: {
+  actions: Array<{ label: string; to: string }>
+}) {
+  return (
+    <div className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-sm font-semibold text-slate-950">Actions rapides</h2>
+      <div className="mt-4 grid gap-2">
+        {actions.map((action) => (
+          <ActionLink key={action.to + action.label} to={action.to}>
+            {action.label}
+          </ActionLink>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -714,6 +1189,52 @@ function formatUnknownBalance(value: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function hasLegacyTransferWorkflow(
+  enabledModules: readonly CompanyModule[],
+  transferWorkflows: readonly CompanyTransferWorkflow[],
+) {
+  if (transferWorkflows.length > 0) {
+    return transferWorkflows.includes('correspondent_collection')
+  }
+
+  return (
+    hasCompanyModule(enabledModules, 'correspondent_collections') ||
+    (hasCompanyModule(enabledModules, 'transfers') &&
+      !hasCompanyModule(enabledModules, 'remote_agent_payout'))
+  )
+}
+
+function getRemoteAgentGroupRoleLabel(
+  group: RemoteAgentGroup,
+  activeMembershipId: string,
+) {
+  const role =
+    group.currentMemberRole ??
+    group.members.find((member) => member.membership === activeMembershipId)
+      ?.role
+  const labels: Record<string, string> = {
+    agent: 'Agent',
+    supervisor: 'Superviseur',
+  }
+
+  return role ? labels[role] ?? role : 'Membre'
+}
+
+function getRemoteAgentGroupPermissionLabels(
+  group: RemoteAgentGroup,
+  activeMembershipId: string,
+) {
+  const permissions =
+    group.currentMemberPermissions ??
+    group.members.find((member) => member.membership === activeMembershipId)
+      ?.permissions ??
+    []
+
+  return permissions.length > 0
+    ? permissions.map(formatPermissionLabel).join(', ')
+    : 'Aucune permission'
 }
 
 function getErrorMessage(error: unknown) {

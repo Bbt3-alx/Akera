@@ -9,11 +9,13 @@ import {
   getGroup,
   listEligibleAgents,
   listGroups,
+  listOperations,
   listMyGroups,
   payPayout,
   updateGroupMember,
 } from "../../controllers/remoteAgentPayout.controller.js";
 import * as remoteAgentGroupService from "../../services/remoteAgentGroup.service.js";
+import * as remoteAgentOperationService from "../../services/remoteAgentOperation.service.js";
 import * as remoteAgentPayoutService from "../../services/remoteAgentPayout.service.js";
 
 describe("remote agent payout controller", () => {
@@ -159,6 +161,85 @@ describe("remote agent payout controller", () => {
     expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain(
       "secret-pin-hash",
     );
+  });
+
+  it("lists operations with actor fields and without sensitive metadata", async () => {
+    const ids = createIds();
+    jest
+      .spyOn(remoteAgentOperationService, "listRemoteAgentOperations")
+      .mockResolvedValue({
+        pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+        operations: [
+          {
+            id: "remote_payout_paid:payout-1",
+            date: "2026-06-24T10:00:00.000Z",
+            type: "remote_payout_paid",
+            reference: "RAP-260624-ABCD",
+            group: { id: ids.groupId.toHexString(), name: "Agents Bamako" },
+            groupName: "Agents Bamako",
+            actor: {
+              membershipId: ids.payAgentMembershipId.toHexString(),
+              name: "Moussa Keita",
+              email: "moussa@example.com",
+              role: "employee",
+            },
+            actorName: "Moussa Keita",
+            actorEmail: "moussa@example.com",
+            beneficiaryName: "Awa Traore",
+            amount: 25000,
+            currency: "FCFA",
+            status: "paid",
+            beneficiaryCodeHash: "secret-hash",
+            paymentIdempotencyKey: "pay-1",
+          },
+        ],
+      });
+    const res = createResponse();
+
+    await listOperations(
+      createRequest(ids, {
+        context: {
+          companyId: ids.companyId,
+          membershipId: ids.payAgentMembershipId,
+          role: "employee",
+        },
+        query: {
+          search: "RAP",
+          type: "remote_payout_paid",
+          status: "paid",
+        },
+      }),
+      res,
+    );
+
+    expect(remoteAgentOperationService.listRemoteAgentOperations)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        membershipId: ids.payAgentMembershipId,
+        role: "employee",
+        query: {
+          search: "RAP",
+          type: "remote_payout_paid",
+          status: "paid",
+        },
+      });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      code: 200,
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      data: [
+        expect.objectContaining({
+          type: "remote_payout_paid",
+          actorName: "Moussa Keita",
+          actorEmail: "moussa@example.com",
+        }),
+      ],
+    });
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain(
+      "secret-hash",
+    );
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("pay-1");
   });
 
   it("gets a group with direct member agent names", async () => {

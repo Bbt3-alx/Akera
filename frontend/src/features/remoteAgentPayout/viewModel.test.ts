@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildRemoteAgentDashboardModel,
+  buildRemoteAgentOperationDisplayRow,
   buildCreatePayoutResult,
   buildRemoteAgentModuleModel,
   buildRemoteAgentMemberPayload,
@@ -13,11 +15,14 @@ import {
   getGenericLookupErrorMessage,
   getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  getRemoteAgentOperationTypeLabel,
+  REMOTE_AGENT_OPERATION_COLUMNS,
   parseFcfaAmountInput,
 } from './viewModel.ts'
 import type {
   RemoteEligibleAgent,
   RemoteAgentGroup,
+  RemoteAgentOperation,
   RemoteAgentPayout,
 } from './types.ts'
 
@@ -282,6 +287,145 @@ describe('remote agent payout view model', () => {
   it('uses a generic message for failed beneficiary lookups', () => {
     expect(getGenericLookupErrorMessage()).toBe('Code invalide ou expiré.')
   })
+
+  it('uses actor-facing operation columns and friendly operation labels', () => {
+    expect(REMOTE_AGENT_OPERATION_COLUMNS).toEqual([
+      'Date',
+      'Type',
+      'Référence',
+      'Groupe',
+      'Acteur',
+      'Bénéficiaire',
+      'Montant',
+      'Statut',
+    ])
+    expect(REMOTE_AGENT_OPERATION_COLUMNS).not.toContain('Agent')
+    expect(getRemoteAgentOperationTypeLabel('remote_agent_deposit')).toBe(
+      'Dépôt agent',
+    )
+    expect(getRemoteAgentOperationTypeLabel('remote_payout_created')).toBe(
+      'Paiement créé',
+    )
+    expect(getRemoteAgentOperationTypeLabel('remote_payout_paid')).toBe(
+      'Paiement payé',
+    )
+    expect(getRemoteAgentOperationTypeLabel('remote_payout_canceled')).toBe(
+      'Paiement annulé',
+    )
+  })
+
+  it('builds operation display rows without raw ids as primary labels', () => {
+    const row = buildRemoteAgentOperationDisplayRow(
+      createOperation({
+        actor: {
+          membershipId: 'membership-raw-id',
+          name: 'Moussa Keita',
+          email: 'moussa@example.com',
+          role: 'employee',
+        },
+        actorName: 'Moussa Keita',
+        actorEmail: 'moussa@example.com',
+      }),
+    )
+
+    expect(row).toEqual(
+      expect.objectContaining({
+        typeLabel: 'Paiement payé',
+        referenceLabel: 'RAP-0001',
+        groupLabel: 'Agents Bamako',
+        actorLabel: 'Moussa Keita',
+        beneficiaryLabel: 'Awa Traore',
+        amountLabel: '25\u202f000 FCFA',
+        statusLabel: 'Payé',
+      }),
+    )
+    expect(Object.values(row).join(' ')).not.toContain('membership-raw-id')
+  })
+
+  it('builds manager and agent dashboard metrics from authorized operations', () => {
+    const today = new Date('2026-06-24T12:00:00.000Z')
+    const operations: RemoteAgentOperation[] = [
+      createOperation({
+        id: 'remote_agent_deposit:deposit-1',
+        type: 'remote_agent_deposit',
+        date: '2026-06-24T08:00:00.000Z',
+        reference: 'DEP-0001',
+        actor: {
+          membershipId: 'agent-membership',
+          name: 'Awa Traore',
+          email: 'awa@example.com',
+          role: 'employee',
+        },
+        actorName: 'Awa Traore',
+        actorEmail: 'awa@example.com',
+        beneficiaryName: null,
+        amount: 10_000,
+        status: 'completed',
+      }),
+      createOperation({
+        id: 'remote_payout_paid:payout-1',
+        type: 'remote_payout_paid',
+        date: '2026-06-24T10:00:00.000Z',
+        actor: {
+          membershipId: 'agent-membership',
+          name: 'Awa Traore',
+          email: 'awa@example.com',
+          role: 'employee',
+        },
+        actorName: 'Awa Traore',
+        actorEmail: 'awa@example.com',
+      }),
+      createOperation({
+        id: 'remote_payout_created:payout-2',
+        type: 'remote_payout_created',
+        date: '2026-06-24T09:00:00.000Z',
+        reference: 'RAP-0002',
+        beneficiaryName: 'Hidden Pending Beneficiary',
+        amount: 40_000,
+        status: 'pending',
+      }),
+    ]
+
+    const manager = buildRemoteAgentDashboardModel({
+      activeMembershipId: 'manager-membership',
+      groups: [createGroup()],
+      now: today,
+      operations,
+      role: 'manager',
+      transactionPinConfigured: true,
+    })
+
+    expect(manager.managerMetrics).toEqual(
+      expect.objectContaining({
+        activeGroupCount: 1,
+        depositsTodayAmount: 10_000,
+        paidTodayCount: 1,
+        paidTodayAmount: 25_000,
+        pendingPayoutCount: 1,
+        totalAvailableBalance: 70_000,
+      }),
+    )
+
+    const agent = buildRemoteAgentDashboardModel({
+      activeMembershipId: 'agent-membership',
+      groups: [createGroup()],
+      now: today,
+      operations,
+      role: 'employee',
+      transactionPinConfigured: false,
+    })
+
+    expect(agent.agentMetrics).toEqual(
+      expect.objectContaining({
+        activeGroupCount: 1,
+        myDepositsTodayAmount: 10_000,
+        myPaidTodayAmount: 25_000,
+        myPaidTodayCount: 1,
+        transactionPinConfigured: false,
+      }),
+    )
+    expect(JSON.stringify(agent)).not.toContain('pendingBeneficiaries')
+  })
 })
 
 function createGroup(
@@ -341,6 +485,35 @@ function createPayout(
     cancelReason: null,
     createdAt: '2026-06-01T00:00:00.000Z',
     updatedAt: '2026-06-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function createOperation(
+  overrides: Partial<RemoteAgentOperation> = {},
+): RemoteAgentOperation {
+  return {
+    id: 'remote_payout_paid:payout-1',
+    date: '2026-06-24T10:00:00.000Z',
+    type: 'remote_payout_paid',
+    reference: 'RAP-0001',
+    group: {
+      id: 'group-1',
+      name: 'Agents Bamako',
+    },
+    groupName: 'Agents Bamako',
+    actor: {
+      membershipId: 'membership-1',
+      name: 'Moussa Keita',
+      email: 'moussa@example.com',
+      role: 'employee',
+    },
+    actorName: 'Moussa Keita',
+    actorEmail: 'moussa@example.com',
+    beneficiaryName: 'Awa Traore',
+    amount: 25_000,
+    currency: 'FCFA',
+    status: 'paid',
     ...overrides,
   }
 }

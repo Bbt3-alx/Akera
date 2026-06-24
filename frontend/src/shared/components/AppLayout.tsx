@@ -46,6 +46,9 @@ export function AppLayout() {
     enabledModules: getEnabledModulesForMembership(activeMembership),
     isManager: canManageCompanySettings,
     pendingInvitationCount,
+    transferWorkflows:
+      activeMembership?.company?.transferWorkflows ??
+      activeMembership?.companyTransferWorkflows,
   })
 
   function handleLogout() {
