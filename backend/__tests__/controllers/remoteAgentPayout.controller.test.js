@@ -7,6 +7,7 @@ import {
   createGroup,
   createPayout,
   getGroup,
+  listEligibleAgents,
   listGroups,
   listMyGroups,
   payPayout,
@@ -94,6 +95,70 @@ describe("remote agent payout controller", () => {
     );
     expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("123456");
     expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("87654321");
+  });
+
+  it("lists eligible agents with safe display identity fields", async () => {
+    const ids = createIds();
+    const eligibleAgent = {
+      membershipId: ids.payAgentMembershipId.toHexString(),
+      userId: ids.payAgentUserId.toHexString(),
+      name: "Moussa Keita",
+      email: "moussa@example.com",
+      role: "employee",
+      status: "active",
+      currency: "FCFA",
+      isAlreadyInGroup: false,
+      groupMemberStatus: null,
+      password: "secret-password",
+      transactionPinHash: "secret-pin-hash",
+    };
+    jest
+      .spyOn(remoteAgentGroupService, "listEligibleRemoteAgents")
+      .mockResolvedValue([eligibleAgent]);
+    const res = createResponse();
+
+    await listEligibleAgents(
+      createRequest(ids, {
+        query: {
+          search: "moussa",
+          groupId: ids.groupId.toHexString(),
+          limit: "50",
+        },
+      }),
+      res,
+    );
+
+    expect(remoteAgentGroupService.listEligibleRemoteAgents)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        role: "manager",
+        search: "moussa",
+        groupId: ids.groupId.toHexString(),
+        limit: "50",
+      });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json.mock.calls[0][0]).toEqual({
+      success: true,
+      data: [
+        {
+          membershipId: ids.payAgentMembershipId.toHexString(),
+          userId: ids.payAgentUserId.toHexString(),
+          name: "Moussa Keita",
+          email: "moussa@example.com",
+          role: "employee",
+          status: "active",
+          currency: "FCFA",
+          isAlreadyInGroup: false,
+          groupMemberStatus: null,
+        },
+      ],
+    });
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain(
+      "secret-password",
+    );
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain(
+      "secret-pin-hash",
+    );
   });
 
   it("gets a group with direct member agent names", async () => {

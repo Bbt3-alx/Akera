@@ -142,6 +142,96 @@ describe("remote agent payout service", () => {
     expect(companyFindOneAndUpdate).not.toHaveBeenCalled();
   });
 
+  it("accepts integer FCFA deposit amounts such as 1000000", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const updatedGroup = createAgentGroup(ids, {
+      balance: 1100000,
+      reservedBalance: 0,
+    });
+    const operation = createAccountOperation(ids, {
+      amount: 1000000,
+      currentBalance: 1100000,
+      previousBalance: 100000,
+      type: "deposit",
+    });
+    jest.spyOn(AccountOperation, "findOne").mockReturnValue(
+      createSessionLeanQuery(null),
+    );
+    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
+      createSessionQuery(createAgentGroup(ids)),
+    );
+    jest
+      .spyOn(RemoteAgentGroup, "findOneAndUpdate")
+      .mockResolvedValue(updatedGroup);
+    jest.spyOn(AccountOperation, "create").mockResolvedValue([operation]);
+    jest.spyOn(LedgerEntry, "insertMany").mockResolvedValue([
+      { _id: ids.debitLedgerId },
+      { _id: ids.creditLedgerId },
+    ]);
+
+    await createRemoteAgentDeposit({
+      companyId: ids.companyId,
+      membershipId: ids.depositorMembershipId,
+      userId: ids.depositorUserId,
+      role: "employee",
+      groupId: ids.groupId.toString(),
+      payload: depositPayload({ amount: "1000000" }),
+    });
+
+    expect(RemoteAgentGroup.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.any(Object),
+      { $inc: { balance: 1000000 } },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(AccountOperation.create).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          amount: 1000000,
+          idempotencyPayload: expect.objectContaining({
+            amount: 1000000,
+          }),
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+  });
+
+  it("rejects non-integer FCFA deposit amounts", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    jest.spyOn(AccountOperation, "findOne").mockReturnValue(
+      createSessionLeanQuery(null),
+    );
+    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
+      createSessionQuery(createAgentGroup(ids)),
+    );
+    jest
+      .spyOn(RemoteAgentGroup, "findOneAndUpdate")
+      .mockResolvedValue(createAgentGroup(ids));
+    jest.spyOn(AccountOperation, "create").mockResolvedValue([
+      createAccountOperation(ids, { amount: 999999.99 }),
+    ]);
+    jest.spyOn(LedgerEntry, "insertMany").mockResolvedValue([
+      { _id: ids.debitLedgerId },
+      { _id: ids.creditLedgerId },
+    ]);
+
+    await expect(
+      createRemoteAgentDeposit({
+        companyId: ids.companyId,
+        membershipId: ids.depositorMembershipId,
+        userId: ids.depositorUserId,
+        role: "employee",
+        groupId: ids.groupId.toString(),
+        payload: depositPayload({ amount: 999999.99 }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "INVALID_AGENT_DEPOSIT_AMOUNT",
+    });
+  });
+
   it("rejects deposits from group members without deposit permission", async () => {
     mockMongooseSession();
     const ids = createIds();
@@ -245,6 +335,81 @@ describe("remote agent payout service", () => {
     expect(JSON.stringify(payoutCreate.mock.calls[0][0][0])).not.toContain(
       "123456",
     );
+  });
+
+  it("accepts integer FCFA payout amounts such as 1000000", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const reservedGroup = createAgentGroup(ids, {
+      balance: 2000000,
+      reservedBalance: 1000000,
+    });
+    const payout = createPayout(ids, { amount: 1000000 });
+    jest.spyOn(RemoteAgentPayout, "findOne").mockReturnValue(
+      createSessionLeanQuery(null),
+    );
+    jest
+      .spyOn(RemoteAgentGroup, "findOneAndUpdate")
+      .mockResolvedValue(reservedGroup);
+    jest
+      .spyOn(RemoteAgentPayout, "create")
+      .mockResolvedValue([payout]);
+
+    await createRemoteAgentPayout({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      userId: ids.managerId,
+      role: "manager",
+      payload: payoutPayload(ids, { amount: "1000000" }),
+    });
+
+    expect(RemoteAgentGroup.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $expr: expect.objectContaining({
+          $gte: [expect.any(Object), 1000000],
+        }),
+      }),
+      { $inc: { reservedBalance: 1000000 } },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(RemoteAgentPayout.create).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          amount: 1000000,
+          idempotencyPayload: expect.objectContaining({
+            amount: 1000000,
+          }),
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+  });
+
+  it("rejects non-integer FCFA payout amounts", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    jest.spyOn(RemoteAgentPayout, "findOne").mockReturnValue(
+      createSessionLeanQuery(null),
+    );
+    jest
+      .spyOn(RemoteAgentGroup, "findOneAndUpdate")
+      .mockResolvedValue(createAgentGroup(ids));
+    jest
+      .spyOn(RemoteAgentPayout, "create")
+      .mockResolvedValue([createPayout(ids, { amount: 999999.99 })]);
+
+    await expect(
+      createRemoteAgentPayout({
+        companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
+        userId: ids.managerId,
+        role: "manager",
+        payload: payoutPayload(ids, { amount: 999999.99 }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "INVALID_REMOTE_PAYOUT_AMOUNT",
+    });
   });
 
   it("prevents two payout creations from reserving more than available group balance", async () => {

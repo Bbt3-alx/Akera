@@ -54,6 +54,28 @@ export function serializeRemoteAgentGroups(groups) {
   return groups.map((group) => serializeRemoteAgentGroup(group));
 }
 
+export function serializeEligibleRemoteAgent(agent) {
+  if (!agent) {
+    return null;
+  }
+
+  return {
+    membershipId: serializeId(agent.membershipId),
+    userId: serializeId(agent.userId),
+    name: agent.name ?? null,
+    email: agent.email ?? null,
+    role: agent.role,
+    status: agent.status,
+    currency: agent.currency,
+    isAlreadyInGroup: Boolean(agent.isAlreadyInGroup),
+    groupMemberStatus: agent.groupMemberStatus ?? null,
+  };
+}
+
+export function serializeEligibleRemoteAgents(agents) {
+  return agents.map((agent) => serializeEligibleRemoteAgent(agent));
+}
+
 function serializeMember(member) {
   const user = serializeUser(member.membership?.user ?? member.user);
 

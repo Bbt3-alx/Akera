@@ -825,6 +825,10 @@ function normalizeAmount(value, message, errorCode) {
     throw new ApiError(400, message, errorCode);
   }
 
+  if (!Number.isInteger(amount)) {
+    throw new ApiError(400, "FCFA amount must be an integer", errorCode);
+  }
+
   return amount;
 }
 

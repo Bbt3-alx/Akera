@@ -10,40 +10,11 @@ import {
   useSetupTransactionPin,
   useTransactionPinStatus,
 } from '../hooks.ts'
-
-const PIN_PATTERN = /^\d{6}$/
-
-const setupTransactionPinSchema = z
-  .object({
-    transactionPin: z
-      .string()
-      .regex(PIN_PATTERN, 'Transaction PIN must contain exactly 6 digits'),
-    confirmTransactionPin: z.string(),
-    currentPassword: z.string().min(1, 'Current password is required'),
-  })
-  .refine((values) => values.transactionPin === values.confirmTransactionPin, {
-    message: 'PIN confirmation must match',
-    path: ['confirmTransactionPin'],
-  })
-
-const changeTransactionPinSchema = z
-  .object({
-    currentTransactionPin: z
-      .string()
-      .regex(PIN_PATTERN, 'Current PIN must contain exactly 6 digits'),
-    newTransactionPin: z
-      .string()
-      .regex(PIN_PATTERN, 'New PIN must contain exactly 6 digits'),
-    confirmNewTransactionPin: z.string(),
-    currentPassword: z.string().min(1, 'Current password is required'),
-  })
-  .refine(
-    (values) => values.newTransactionPin === values.confirmNewTransactionPin,
-    {
-      message: 'PIN confirmation must match',
-      path: ['confirmNewTransactionPin'],
-    },
-  )
+import {
+  canUseTransactionPinSelfService,
+  changeTransactionPinSchema,
+  setupTransactionPinSchema,
+} from '../viewModel.ts'
 
 type SetupTransactionPinFormValues = z.infer<
   typeof setupTransactionPinSchema
@@ -62,8 +33,10 @@ export function TransactionPinPage() {
       membership.companyId === activeCompanyId &&
       membership.status === 'active',
   )
-  const isManager = activeMembership?.role === 'manager'
-  const transactionPinStatusQuery = useTransactionPinStatus(isManager)
+  const canUseSelfService = canUseTransactionPinSelfService(
+    activeMembership?.role,
+  )
+  const transactionPinStatusQuery = useTransactionPinStatus(canUseSelfService)
   const isCheckingAccess = Boolean(activeCompanyId) && meQuery.isLoading
 
   if (isCheckingAccess) {
@@ -90,10 +63,10 @@ export function TransactionPinPage() {
     )
   }
 
-  if (!isManager) {
+  if (!activeMembership || !canUseSelfService) {
     return (
-      <StateMessage title="Only managers can configure a transaction PIN.">
-        Your active company role cannot manage transaction PIN settings.
+      <StateMessage title="Transaction PIN unavailable">
+        Your active company membership cannot configure a transaction PIN.
       </StateMessage>
     )
   }

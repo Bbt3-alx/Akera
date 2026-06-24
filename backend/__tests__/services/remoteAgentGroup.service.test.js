@@ -9,6 +9,7 @@ import {
   addRemoteAgentGroupMember,
   createRemoteAgentGroup,
   getRemoteAgentGroup,
+  listEligibleRemoteAgents,
   listMyRemoteAgentGroups,
   listRemoteAgentGroups,
   updateRemoteAgentGroup,
@@ -257,6 +258,209 @@ describe("remote agent group service", () => {
       statusCode: 403,
       errorCode: "REMOTE_AGENT_GROUP_ACCESS_DENIED",
     });
+  });
+
+  it("lists eligible active FCFA employee agents with safe identity fields", async () => {
+    const ids = createIds();
+    const memberships = [
+      createEligibleMembership(ids, {
+        user: {
+          _id: ids.employeeUserId,
+          name: "Awa Traore",
+          firstName: "Awa",
+          lastName: "Traore",
+          email: "awa@example.com",
+          password: "secret-password",
+          transactionPinHash: "secret-pin-hash",
+        },
+      }),
+    ];
+    const query = createPopulateLeanQuery(memberships);
+    jest.spyOn(CompanyMembership, "find").mockReturnValue(query);
+
+    const result = await listEligibleRemoteAgents({
+      companyId: ids.companyId,
+      role: "manager",
+      limit: "20",
+    });
+
+    expect(CompanyMembership.find).toHaveBeenCalledWith({
+      company: ids.companyId,
+      role: "employee",
+      status: "active",
+      currency: "FCFA",
+    });
+    expect(query.populate).toHaveBeenCalledWith({
+      path: "user",
+      select: "name firstName lastName email",
+    });
+    expect(result).toEqual([
+      {
+        membershipId: ids.employeeMembershipId.toHexString(),
+        userId: ids.employeeUserId.toHexString(),
+        name: "Awa Traore",
+        email: "awa@example.com",
+        role: "employee",
+        status: "active",
+        currency: "FCFA",
+        isAlreadyInGroup: false,
+        groupMemberStatus: null,
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("secret-password");
+    expect(JSON.stringify(result)).not.toContain("secret-pin-hash");
+  });
+
+  it("rejects non-manager eligible agent listing", async () => {
+    const ids = createIds();
+
+    await expect(
+      listEligibleRemoteAgents({
+        companyId: ids.companyId,
+        role: "employee",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      errorCode: "REMOTE_AGENT_GROUP_MANAGER_REQUIRED",
+    });
+  });
+
+  it("searches eligible agents by populated name or email and caps limit at 50", async () => {
+    const ids = createIds();
+    const memberships = [
+      createEligibleMembership(ids, {
+        _id: ids.employeeMembershipId,
+        user: {
+          _id: ids.employeeUserId,
+          firstName: "Awa",
+          lastName: "Traore",
+          email: "awa@example.com",
+        },
+      }),
+      createEligibleMembership(ids, {
+        _id: ids.secondEmployeeMembershipId,
+        user: {
+          _id: ids.secondEmployeeUserId,
+          firstName: "Moussa",
+          lastName: "Keita",
+          email: "moussa@example.com",
+        },
+      }),
+    ];
+    jest.spyOn(CompanyMembership, "find").mockReturnValue(
+      createPopulateLeanQuery(memberships),
+    );
+
+    const result = await listEligibleRemoteAgents({
+      companyId: ids.companyId,
+      role: "manager",
+      search: "moussa",
+      limit: "100",
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(
+      expect.objectContaining({
+        membershipId: ids.secondEmployeeMembershipId.toHexString(),
+        name: "Moussa Keita",
+        email: "moussa@example.com",
+      }),
+    );
+  });
+
+  it("uses default eligible agent limit of 20", async () => {
+    const ids = createIds();
+    const memberships = Array.from({ length: 25 }, (_value, index) =>
+      createEligibleMembership(ids, {
+        _id: new mongoose.Types.ObjectId(),
+        user: {
+          _id: new mongoose.Types.ObjectId(),
+          firstName: "Agent",
+          lastName: `${String(index).padStart(2, "0")}`,
+          email: `agent${index}@example.com`,
+        },
+      }),
+    );
+    jest.spyOn(CompanyMembership, "find").mockReturnValue(
+      createPopulateLeanQuery(memberships),
+    );
+
+    const result = await listEligibleRemoteAgents({
+      companyId: ids.companyId,
+      role: "manager",
+    });
+
+    expect(result).toHaveLength(20);
+  });
+
+  it("annotates eligible agents with active and inactive group member status", async () => {
+    const ids = createIds();
+    const inactiveMembershipId = new mongoose.Types.ObjectId();
+    const inactiveUserId = new mongoose.Types.ObjectId();
+    const memberships = [
+      createEligibleMembership(ids, {
+        _id: ids.employeeMembershipId,
+        user: {
+          _id: ids.employeeUserId,
+          firstName: "Awa",
+          lastName: "Traore",
+          email: "awa@example.com",
+        },
+      }),
+      createEligibleMembership(ids, {
+        _id: inactiveMembershipId,
+        user: {
+          _id: inactiveUserId,
+          firstName: "Mariama",
+          lastName: "Diallo",
+          email: "mariama@example.com",
+        },
+      }),
+    ];
+    jest.spyOn(CompanyMembership, "find").mockReturnValue(
+      createPopulateLeanQuery(memberships),
+    );
+    jest.spyOn(RemoteAgentGroup, "findOne").mockReturnValue(
+      createLeanQuery(createGroup(ids, {
+        members: [
+          {
+            membership: ids.employeeMembershipId,
+            role: "agent",
+            permissions: ["remote_payout:view"],
+            status: "active",
+          },
+          {
+            membership: inactiveMembershipId,
+            role: "agent",
+            permissions: ["remote_payout:view"],
+            status: "inactive",
+          },
+        ],
+      })),
+    );
+
+    const result = await listEligibleRemoteAgents({
+      companyId: ids.companyId,
+      role: "manager",
+      groupId: ids.groupId.toHexString(),
+    });
+
+    expect(RemoteAgentGroup.findOne).toHaveBeenCalledWith({
+      _id: ids.groupId,
+      company: ids.companyId,
+    });
+    expect(result).toEqual([
+      expect.objectContaining({
+        membershipId: ids.employeeMembershipId.toHexString(),
+        isAlreadyInGroup: true,
+        groupMemberStatus: "active",
+      }),
+      expect.objectContaining({
+        membershipId: inactiveMembershipId.toHexString(),
+        isAlreadyInGroup: false,
+        groupMemberStatus: "inactive",
+      }),
+    ]);
   });
 
   it("gets a group only when it belongs to the company", async () => {
@@ -755,6 +959,13 @@ function createSimpleFindQuery(result) {
   };
 }
 
+function createPopulateLeanQuery(result) {
+  return {
+    populate: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
 function createLeanQuery(result) {
   return {
     populate: jest.fn().mockReturnThis(),
@@ -810,6 +1021,7 @@ function createIds() {
     managerMembershipId: new mongoose.Types.ObjectId(),
     otherCompanyId: new mongoose.Types.ObjectId(),
     secondEmployeeMembershipId: new mongoose.Types.ObjectId(),
+    secondEmployeeUserId: new mongoose.Types.ObjectId(),
   };
 }
 
@@ -821,6 +1033,26 @@ function createMembership(
     _id: employeeMembershipId,
     company: companyId,
     user: employeeUserId,
+    role: "employee",
+    status: "active",
+    currency: "FCFA",
+    ...override,
+  };
+}
+
+function createEligibleMembership(
+  { companyId, employeeMembershipId, employeeUserId },
+  override = {},
+) {
+  return {
+    _id: employeeMembershipId,
+    company: companyId,
+    user: {
+      _id: employeeUserId,
+      firstName: "Awa",
+      lastName: "Traore",
+      email: "awa@example.com",
+    },
     role: "employee",
     status: "active",
     currency: "FCFA",

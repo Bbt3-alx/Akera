@@ -8,6 +8,7 @@ import {
   createPayout,
   getGroup,
   getPayout,
+  listEligibleAgents,
   listGroups,
   listMyGroups,
   listPayouts,
@@ -38,6 +39,13 @@ const activeCompanyAccess = [
 router.get("/", activeCompanyAccess, catchAsync(listPayouts));
 
 router.get("/my-groups", activeCompanyAccess, catchAsync(listMyGroups));
+
+router.get(
+  "/eligible-agents",
+  activeCompanyAccess,
+  requireManagerContext,
+  catchAsync(listEligibleAgents),
+);
 
 router.post(
   "/",

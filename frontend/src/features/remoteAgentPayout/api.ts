@@ -5,6 +5,8 @@ import {
   type ApiResponse,
 } from '../../shared/api/types.ts'
 import type {
+  RemoteEligibleAgent,
+  RemoteEligibleAgentListParams,
   RemoteAgentDeposit,
   RemoteAgentDepositPayload,
   RemoteAgentGroup,
@@ -79,6 +81,19 @@ export async function listMyRemoteAgentGroups(): Promise<RemoteAgentGroupsRespon
     RemoteAgentGroup,
     RemoteAgentGroupsPagination
   >(response)
+}
+
+export async function listEligibleRemoteAgents(
+  params?: RemoteEligibleAgentListParams,
+): Promise<RemoteEligibleAgent[]> {
+  const response = await http.get<
+    ApiResponse<RemoteEligibleAgent[]>,
+    ApiResponse<RemoteEligibleAgent[]>
+  >('/remote-agent-payouts/eligible-agents', {
+    params: normalizeRemoteEligibleAgentListParams(params),
+  })
+
+  return unwrapApiResponse(response)
 }
 
 export async function getRemoteAgentGroup(
@@ -306,6 +321,32 @@ export function normalizeRemoteAgentListParams(
 
   if (search) {
     normalized.search = search
+  }
+
+  return normalized
+}
+
+export function normalizeRemoteEligibleAgentListParams(
+  params?: RemoteEligibleAgentListParams | null,
+): RemoteEligibleAgentListParams {
+  if (!params) {
+    return {}
+  }
+
+  const normalized: RemoteEligibleAgentListParams = {}
+  const search = normalizeOptionalListString(params.search)
+  const groupId = normalizeOptionalListString(params.groupId)
+
+  if (search) {
+    normalized.search = search
+  }
+
+  if (groupId) {
+    normalized.groupId = groupId
+  }
+
+  if (params.limit !== undefined && params.limit !== null) {
+    normalized.limit = params.limit
   }
 
   return normalized

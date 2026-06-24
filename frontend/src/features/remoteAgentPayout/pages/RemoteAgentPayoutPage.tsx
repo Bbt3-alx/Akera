@@ -8,11 +8,18 @@ import { AppApiError } from '../../../shared/api/types.ts'
 import { createIdempotencyKey } from '../../../shared/utils/idempotency.ts'
 import { useMe } from '../../auth/hooks.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
+import { TransactionPinSetupCard } from '../../security/components/TransactionPinSetupCard.tsx'
+import { useTransactionPinStatus } from '../../security/hooks.ts'
+import {
+  getTransactionPinRequiredContent,
+  isTransactionPinNotConfiguredError,
+} from '../../security/viewModel.ts'
 import {
   useAddRemoteAgentGroupMember,
   useCancelRemoteAgentPayout,
   useCreateRemoteAgentGroup,
   useCreateRemoteAgentPayout,
+  useEligibleRemoteAgents,
   useLookupRemoteAgentPayout,
   useMyRemoteAgentGroups,
   usePayRemoteAgentPayout,
@@ -23,6 +30,7 @@ import {
   useUpdateRemoteAgentGroupMember,
 } from '../hooks.ts'
 import type {
+  RemoteEligibleAgent,
   RemoteAgentGroup,
   RemoteAgentGroupMember,
   RemoteAgentPayout,
@@ -30,13 +38,20 @@ import type {
   RemotePayoutStatus,
 } from '../types.ts'
 import {
+  buildRemoteAgentMemberPayload,
   buildCreatePayoutResult,
   buildRemoteAgentModuleModel,
   canSubmitBeneficiaryPayment,
+  FCFA_INTEGER_AMOUNT_MESSAGE,
+  formatFcfaAmount,
   formatPermissionLabel,
   getAgentCapabilities,
+  getEligibleAgentGroupStatusLabel,
+  getEligibleAgentVisibleIdentity,
   getGenericLookupErrorMessage,
+  getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  parseFcfaAmountInput,
 } from '../viewModel.ts'
 
 const PIN_PATTERN = /^\d{6}$/
@@ -66,10 +81,22 @@ const updateGroupSchema = z.object({
 })
 
 const addMemberSchema = z.object({
-  membershipId: z.string().trim().min(1, 'Identifiant membre requis'),
+  selectedMembershipId: z.string().trim().optional(),
+  manualMembershipId: z.string().trim().optional(),
   role: z.enum(MEMBER_ROLES),
   permissions: z.array(z.enum(REMOTE_PAYOUT_PERMISSIONS)).min(1),
   transactionPin: z.string().regex(PIN_PATTERN, 'PIN de transaction invalide'),
+})
+
+const fcfaAmountSchema = z.string().superRefine((value, context) => {
+  const parsed = parseFcfaAmountInput(value)
+
+  if (parsed.error) {
+    context.addIssue({
+      code: 'custom',
+      message: FCFA_INTEGER_AMOUNT_MESSAGE,
+    })
+  }
 })
 
 const updateMemberSchema = z.object({
@@ -81,10 +108,7 @@ const updateMemberSchema = z.object({
 
 const createPayoutSchema = z.object({
   assignedAgentGroupId: z.string().trim().min(1, 'Groupe requis'),
-  amount: z
-    .number({ error: 'Montant requis' })
-    .refine(Number.isFinite, 'Montant invalide')
-    .positive('Le montant doit être supérieur à 0'),
+  amount: fcfaAmountSchema,
   beneficiaryName: z.string().trim().min(2, 'Nom bénéficiaire requis'),
   beneficiaryPhone: z.string().trim().max(40).optional(),
   note: z.string().trim().max(300).optional(),
@@ -93,10 +117,7 @@ const createPayoutSchema = z.object({
 
 const depositSchema = z.object({
   groupId: z.string().trim().min(1, 'Groupe requis'),
-  amount: z
-    .number({ error: 'Montant requis' })
-    .refine(Number.isFinite, 'Montant invalide')
-    .positive('Le montant doit être supérieur à 0'),
+  amount: fcfaAmountSchema,
   method: z.enum(DEPOSIT_METHODS),
   reference: z.string().trim().max(100).optional(),
   note: z.string().trim().max(300).optional(),
@@ -131,6 +152,7 @@ type AgentTab = 'my-groups' | 'record-deposit' | 'pay-beneficiary' | 'history'
 export function RemoteAgentPayoutPage() {
   const [managerTab, setManagerTab] = useState<ManagerTab>('overview')
   const [agentTab, setAgentTab] = useState<AgentTab>('my-groups')
+  const [isPinSetupOpen, setIsPinSetupOpen] = useState(false)
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const meQuery = useMe()
   const activeMembership = meQuery.data?.memberships.find(
@@ -140,6 +162,9 @@ export function RemoteAgentPayoutPage() {
   )
   const isManager = activeMembership?.role === 'manager'
   const isEmployee = activeMembership?.role === 'employee'
+  const transactionPinStatusQuery = useTransactionPinStatus(
+    Boolean(activeCompanyId && activeMembership && (isManager || isEmployee)),
+  )
   const managerGroupsQuery = useRemoteAgentGroups(
     LIST_PARAMS,
     Boolean(isManager),
@@ -205,6 +230,22 @@ export function RemoteAgentPayoutPage() {
     <section className="space-y-6">
       <PageHeader />
 
+      {transactionPinStatusQuery.data?.configured === false ? (
+        <TransactionPinRequiredCard
+          onConfigure={() => setIsPinSetupOpen(true)}
+        />
+      ) : null}
+
+      {isPinSetupOpen ? (
+        <TransactionPinSetupCard
+          onCancel={() => setIsPinSetupOpen(false)}
+          onConfigured={() => {
+            setIsPinSetupOpen(false)
+            void transactionPinStatusQuery.refetch()
+          }}
+        />
+      ) : null}
+
       {isManager ? (
         <ManagerView
           activeTab={managerTab}
@@ -252,6 +293,32 @@ function PageHeader() {
         des bénéficiaires par code.
       </p>
     </div>
+  )
+}
+
+function TransactionPinRequiredCard({
+  onConfigure,
+}: {
+  onConfigure: () => void
+}) {
+  const content = getTransactionPinRequiredContent()
+
+  return (
+    <section className="rounded border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-semibold">{content.title}</h2>
+          <p className="mt-1">{content.description}</p>
+        </div>
+        <button
+          className="h-9 rounded bg-amber-900 px-3 text-sm font-medium text-white transition hover:bg-amber-800"
+          onClick={onConfigure}
+          type="button"
+        >
+          {content.actionLabel}
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -360,6 +427,12 @@ function AgentView({
 }: AgentViewProps) {
   return (
     <div className="space-y-4">
+      <AgentDashboardSummary
+        capabilities={capabilities}
+        groups={groups}
+        isLoading={isGroupsLoading || isPayoutsLoading}
+        payouts={payouts}
+      />
       <TabList
         activeTab={activeTab}
         onTabChange={(tab) => onTabChange(tab as AgentTab)}
@@ -428,7 +501,14 @@ function OverviewSection({ isLoading, overview }: OverviewSectionProps) {
   }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="space-y-4">
+      {!overview.hasData ? (
+        <InlineState title="Aucune donnée pour le moment">
+          Aucune donnée pour le moment. Enregistrez un dépôt ou créez un
+          paiement pour alimenter ce tableau.
+        </InlineState>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
       <MetricCard
         label="Caisse du groupe"
         value={formatMoney(overview.totalBalance)}
@@ -449,6 +529,15 @@ function OverviewSection({ isLoading, overview }: OverviewSectionProps) {
         label="Paiements en attente"
         value={String(overview.pendingPayoutCount)}
       />
+      <MetricCard
+        label="Paiements payés"
+        value={String(overview.paidPayoutCount)}
+      />
+      <MetricCard
+        label="Paiements annulés"
+        value={String(overview.canceledPayoutCount)}
+      />
+      </div>
     </div>
   )
 }
@@ -632,6 +721,7 @@ function CreateGroupForm() {
 }
 
 function GroupDetailPanel({ group }: { group: RemoteAgentGroup | null }) {
+  const [isAddingMember, setIsAddingMember] = useState(false)
   const [editingMember, setEditingMember] =
     useState<RemoteAgentGroupMember | null>(null)
 
@@ -663,9 +753,26 @@ function GroupDetailPanel({ group }: { group: RemoteAgentGroup | null }) {
       </Panel>
 
       <UpdateGroupForm group={group} key={group.id} />
-      <AddMemberForm groupId={group.id} />
+      {isAddingMember ? (
+        <AddMemberForm
+          groupId={group.id}
+          key={`${group.id}-add-member`}
+          onCancel={() => setIsAddingMember(false)}
+        />
+      ) : null}
 
-      <Panel title="Membres">
+      <Panel
+        action={
+          <button
+            className="h-8 rounded border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+            onClick={() => setIsAddingMember((current) => !current)}
+            type="button"
+          >
+            {isAddingMember ? 'Fermer' : 'Ajouter un agent'}
+          </button>
+        }
+        title="Membres"
+      >
         {group.members.length === 0 ? (
           <InlineState title="Aucun membre">
             Ajoutez un employé autorisé à ce groupe.
@@ -797,9 +904,23 @@ function UpdateGroupForm({ group }: { group: RemoteAgentGroup }) {
   )
 }
 
-function AddMemberForm({ groupId }: { groupId: string }) {
+function AddMemberForm({
+  groupId,
+  onCancel,
+}: {
+  groupId: string
+  onCancel: () => void
+}) {
   const addMember = useAddRemoteAgentGroupMember()
+  const [search, setSearch] = useState('')
+  const [selectedAgent, setSelectedAgent] = useState<RemoteEligibleAgent | null>(
+    null,
+  )
+  const [useManualMembershipId, setUseManualMembershipId] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const eligibleAgentsQuery = useEligibleRemoteAgents(groupId, search, 20, true)
+  const eligibleAgents = eligibleAgentsQuery.data ?? []
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
@@ -809,7 +930,8 @@ function AddMemberForm({ groupId }: { groupId: string }) {
   } = useForm<AddMemberFormValues>({
     resolver: zodResolver(addMemberSchema),
     defaultValues: {
-      membershipId: '',
+      selectedMembershipId: '',
+      manualMembershipId: '',
       role: 'agent',
       permissions: ['remote_payout:view'],
       transactionPin: '',
@@ -818,23 +940,51 @@ function AddMemberForm({ groupId }: { groupId: string }) {
   const isSaving = isSubmitting || addMember.isPending
 
   const onSubmit = handleSubmit(async (values) => {
+    const useManual =
+      useManualMembershipId && Boolean(values.manualMembershipId?.trim())
+    const payload = buildRemoteAgentMemberPayload({
+      manualMembershipId: values.manualMembershipId ?? '',
+      permissions: values.permissions,
+      role: values.role,
+      selectedAgent,
+      transactionPin: values.transactionPin,
+      useManualMembershipId: useManual,
+    })
+
     setSuccessMessage(null)
+    setFormError(null)
     addMember.reset()
+
+    if (!payload) {
+      setFormError(
+        useManualMembershipId
+          ? 'Saisissez un identifiant membership valide ou sélectionnez un employé.'
+          : 'Sélectionnez un employé éligible.',
+      )
+      setValue('transactionPin', '')
+
+      return
+    }
+
+    if (!useManual && selectedAgent?.isAlreadyInGroup) {
+      setFormError('Cet employé est déjà membre actif du groupe.')
+      setValue('transactionPin', '')
+
+      return
+    }
 
     try {
       await addMember.mutateAsync({
         groupId,
-        payload: {
-          membershipId: values.membershipId.trim(),
-          role: values.role,
-          permissions: values.permissions,
-          transactionPin: values.transactionPin,
-        },
+        payload,
       })
 
-      setSuccessMessage('Membre ajouté au groupe.')
+      setSuccessMessage('Agent ajouté au groupe.')
+      setSelectedAgent(null)
+      setSearch('')
       reset({
-        membershipId: '',
+        selectedMembershipId: '',
+        manualMembershipId: '',
         role: 'agent',
         permissions: ['remote_payout:view'],
         transactionPin: '',
@@ -847,18 +997,52 @@ function AddMemberForm({ groupId }: { groupId: string }) {
   })
 
   return (
-    <Panel title="Ajouter un membre">
+    <Panel
+      action={
+        <button
+          className="h-8 rounded border border-slate-300 px-3 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+          onClick={onCancel}
+          type="button"
+        >
+          Fermer
+        </button>
+      }
+      title="Ajouter un agent existant"
+    >
       <form className="space-y-4" onSubmit={onSubmit}>
-        <InfoBox>
-          MVP : saisissez l'identifiant de membership employé. Un sélecteur
-          employé pourra remplacer ce champ quand l'endpoint de recherche sera
-          disponible.
-        </InfoBox>
-        <FormField
-          error={errors.membershipId?.message}
-          label="Identifiant membership"
-          registration={register('membershipId')}
+        <input type="hidden" {...register('selectedMembershipId')} />
+        <div>
+          <label
+            className="block text-sm font-medium text-slate-700"
+            htmlFor="eligible-agent-search"
+          >
+            Rechercher un employé
+          </label>
+          <input
+            className="mt-1 h-10 w-full rounded border border-slate-300 px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
+            id="eligible-agent-search"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Nom ou email"
+            type="search"
+            value={search}
+          />
+        </div>
+
+        <EligibleAgentSelector
+          agents={eligibleAgents}
+          error={eligibleAgentsQuery.error}
+          isLoading={eligibleAgentsQuery.isLoading}
+          onSelect={(agent) => {
+            setSelectedAgent(agent)
+            setFormError(null)
+            setValue('selectedMembershipId', agent.membershipId, {
+              shouldDirty: true,
+              shouldValidate: true,
+            })
+          }}
+          selectedAgent={selectedAgent}
         />
+
         <SelectField
           error={errors.role?.message}
           label="Rôle"
@@ -869,6 +1053,27 @@ function AddMemberForm({ groupId }: { groupId: string }) {
           error={errors.permissions?.message}
           registration={register('permissions')}
         />
+        <details
+          className="rounded border border-slate-200 bg-slate-50 p-3"
+          onToggle={(event) =>
+            setUseManualMembershipId(event.currentTarget.open)
+          }
+        >
+          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            {getManualMembershipFallbackLabel()}
+          </summary>
+          <div className="mt-3 space-y-3">
+            <InfoBox>
+              Option avancée/debug : utilisez cette saisie uniquement si vous
+              connaissez déjà l'identifiant membership interne.
+            </InfoBox>
+            <FormField
+              error={errors.manualMembershipId?.message}
+              label="Identifiant membership (avancé/debug)"
+              registration={register('manualMembershipId')}
+            />
+          </div>
+        </details>
         <FormField
           autoComplete="off"
           error={errors.transactionPin?.message}
@@ -877,12 +1082,116 @@ function AddMemberForm({ groupId }: { groupId: string }) {
           registration={register('transactionPin')}
           type="password"
         />
+        {formError ? (
+          <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {formError}
+          </p>
+        ) : null}
         <MutationMessage error={addMember.error} success={successMessage} />
         <PrimaryButton disabled={isSaving}>
-          {isSaving ? 'Ajout' : 'Ajouter le membre'}
+          {isSaving ? 'Ajout' : 'Ajouter au groupe'}
         </PrimaryButton>
       </form>
     </Panel>
+  )
+}
+
+function EligibleAgentSelector({
+  agents,
+  error,
+  isLoading,
+  onSelect,
+  selectedAgent,
+}: {
+  agents: RemoteEligibleAgent[]
+  error: unknown
+  isLoading: boolean
+  onSelect: (agent: RemoteEligibleAgent) => void
+  selectedAgent: RemoteEligibleAgent | null
+}) {
+  if (isLoading) {
+    return (
+      <InlineState title="Recherche">
+        Chargement des employés éligibles.
+      </InlineState>
+    )
+  }
+
+  if (error) {
+    return (
+      <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {getErrorMessage(error)}
+      </p>
+    )
+  }
+
+  if (agents.length === 0) {
+    return <EligibleAgentEmptyState />
+  }
+
+  return (
+    <div className="space-y-2">
+      {agents.map((agent) => {
+        const identity = getEligibleAgentVisibleIdentity(agent)
+        const groupStatusLabel = getEligibleAgentGroupStatusLabel(agent)
+        const isSelected =
+          selectedAgent?.membershipId === agent.membershipId
+        const isDisabled = agent.groupMemberStatus === 'active'
+
+        return (
+          <button
+            className={[
+              'w-full rounded border px-3 py-3 text-left transition',
+              isSelected
+                ? 'border-slate-950 bg-slate-100'
+                : 'border-slate-200 bg-white hover:bg-slate-50',
+              isDisabled ? 'cursor-not-allowed opacity-60' : '',
+            ].join(' ')}
+            disabled={isDisabled}
+            key={agent.membershipId}
+            onClick={() => onSelect(agent)}
+            type="button"
+          >
+            <span className="block text-sm font-medium text-slate-950">
+              {identity.primary}
+            </span>
+            {identity.secondary ? (
+              <span className="mt-0.5 block text-sm text-slate-600">
+                {identity.secondary}
+              </span>
+            ) : null}
+            <span className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+              <Badge>{formatStatus(agent.status)}</Badge>
+              <Badge>{agent.currency}</Badge>
+              {groupStatusLabel ? <Badge>{groupStatusLabel}</Badge> : null}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function EligibleAgentEmptyState() {
+  return (
+    <div className="rounded border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+      <p className="font-medium text-slate-950">
+        Aucun employé éligible trouvé.
+      </p>
+      <div className="mt-3">
+        <Link
+          className="inline-flex h-9 items-center rounded border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+          to="/app/company/invitations"
+        >
+          Inviter un nouvel agent
+        </Link>
+      </div>
+      <p className="mt-3 text-slate-600">
+        L'invitation complète d'un nouvel agent sera ajoutée dans une prochaine
+        étape. Pour l'instant, créez d'abord l'employé dans l'entreprise, puis
+        ajoutez-le au groupe.
+      </p>
+    </div>
   )
 }
 
@@ -1000,7 +1309,7 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
     resolver: zodResolver(createPayoutSchema),
     defaultValues: {
       assignedAgentGroupId: '',
-      amount: undefined,
+      amount: '',
       beneficiaryName: '',
       beneficiaryPhone: '',
       note: '',
@@ -1016,9 +1325,15 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
     createPayout.reset()
 
     try {
+      const parsedAmount = parseFcfaAmountInput(values.amount)
+
+      if (parsedAmount.amount === null) {
+        return
+      }
+
       const response = await createPayout.mutateAsync({
         assignedAgentGroupId: values.assignedAgentGroupId,
-        amount: values.amount,
+        amount: parsedAmount.amount,
         currency: 'FCFA',
         beneficiaryName: values.beneficiaryName.trim(),
         beneficiaryPhone: toOptionalString(values.beneficiaryPhone),
@@ -1030,7 +1345,7 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
       setSecureResult(buildCreatePayoutResult(response))
       reset({
         assignedAgentGroupId: '',
-        amount: undefined,
+        amount: '',
         beneficiaryName: '',
         beneficiaryPhone: '',
         note: '',
@@ -1067,10 +1382,9 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
         />
         <FormField
           error={errors.amount?.message}
-          inputMode="decimal"
+          inputMode="numeric"
           label="Montant FCFA"
-          registration={register('amount', { setValueAs: toOptionalNumber })}
-          type="number"
+          registration={register('amount')}
         />
         <FormField
           error={errors.beneficiaryName?.message}
@@ -1368,6 +1682,61 @@ type AgentGroupsSectionProps = {
   onRefresh: () => void
 }
 
+function AgentDashboardSummary({
+  capabilities,
+  groups,
+  isLoading,
+  payouts,
+}: {
+  capabilities: ReturnType<typeof getAgentCapabilities>
+  groups: RemoteAgentGroup[]
+  isLoading: boolean
+  payouts: RemoteAgentPayout[]
+}) {
+  const activeGroupCount = groups.filter((group) => group.status === 'active')
+    .length
+  const hasAnyData = groups.length > 0 || payouts.length > 0
+
+  if (isLoading) {
+    return (
+      <Panel title="Tableau de bord agent">
+        <InlineState title="Chargement">
+          Chargement de vos groupes et paiements récents.
+        </InlineState>
+      </Panel>
+    )
+  }
+
+  return (
+    <Panel title="Tableau de bord agent">
+      {!hasAnyData ? (
+        <InlineState title="Aucune donnée pour le moment">
+          Aucune donnée pour le moment. Enregistrez un dépôt ou créez un
+          paiement pour alimenter ce tableau.
+        </InlineState>
+      ) : null}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="Mes groupes actifs"
+          value={String(activeGroupCount)}
+        />
+        <MetricCard
+          label="Permissions dépôt"
+          value={String(capabilities.depositGroups.length)}
+        />
+        <MetricCard
+          label="Permissions paiement"
+          value={String(capabilities.payableGroups.length)}
+        />
+        <MetricCard
+          label="Paiements récents"
+          value={String(payouts.length)}
+        />
+      </div>
+    </Panel>
+  )
+}
+
 function AgentGroupsSection({
   activeMembershipId,
   error,
@@ -1501,7 +1870,7 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
     resolver: zodResolver(depositSchema),
     defaultValues: {
       groupId: '',
-      amount: undefined,
+      amount: '',
       method: 'cash',
       reference: '',
       note: '',
@@ -1515,10 +1884,16 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
     recordDeposit.reset()
 
     try {
+      const parsedAmount = parseFcfaAmountInput(values.amount)
+
+      if (parsedAmount.amount === null) {
+        return
+      }
+
       const deposit = await recordDeposit.mutateAsync({
         groupId: values.groupId,
         payload: {
-          amount: values.amount,
+          amount: parsedAmount.amount,
           currency: 'FCFA',
           method: values.method,
           reference: toOptionalString(values.reference),
@@ -1533,7 +1908,7 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
       )
       reset({
         groupId: '',
-        amount: undefined,
+        amount: '',
         method: 'cash',
         reference: '',
         note: '',
@@ -1558,10 +1933,9 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
         />
         <FormField
           error={errors.amount?.message}
-          inputMode="decimal"
+          inputMode="numeric"
           label="Montant FCFA"
-          registration={register('amount', { setValueAs: toOptionalNumber })}
-          type="number"
+          registration={register('amount')}
         />
         <SelectField
           error={errors.method?.message}
@@ -2085,12 +2459,13 @@ function MutationMessage({
   success?: string | null
 }) {
   if (error) {
-    const pinNotConfigured =
-      error instanceof AppApiError && error.errorCode === 'PIN_NOT_CONFIGURED'
+    const pinNotConfigured = isTransactionPinNotConfiguredError(error)
 
     return (
       <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        {getErrorMessage(error)}
+        {pinNotConfigured
+          ? 'Vous devez configurer votre PIN de transaction avant de continuer.'
+          : getErrorMessage(error)}
         {pinNotConfigured ? (
           <>
             {' '}
@@ -2098,7 +2473,7 @@ function MutationMessage({
               className="font-medium underline decoration-red-400 underline-offset-2 hover:text-red-900"
               to="/app/security/transaction-pin"
             >
-              Configurer le PIN
+              Configurer mon PIN
             </Link>
           </>
         ) : null}
@@ -2135,20 +2510,16 @@ function InlineState({ children, title }: { children: ReactNode; title: string }
   )
 }
 
-function toOptionalNumber(value: unknown) {
-  if (value === '' || value === null || typeof value === 'undefined') {
-    return undefined
-  }
-
-  return Number(value)
-}
-
 function toOptionalString(value: string | undefined) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : undefined
 }
 
 function formatMoney(amount: number, currency: 'FCFA' = 'FCFA') {
+  if (currency === 'FCFA') {
+    return formatFcfaAmount(amount)
+  }
+
   return `${new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 2,
   }).format(amount)} ${currency}`

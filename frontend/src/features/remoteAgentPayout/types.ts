@@ -30,6 +30,18 @@ export type RemoteAgentGroupMember = {
   updatedAt: string
 }
 
+export type RemoteEligibleAgent = {
+  membershipId: string
+  userId: string | null
+  name: string | null
+  email: string | null
+  role: 'employee'
+  status: 'active'
+  currency: 'FCFA'
+  isAlreadyInGroup?: boolean
+  groupMemberStatus?: RemoteAgentGroupMemberStatus | null
+}
+
 export type RemoteAgentGroup = {
   id: string
   name: string
@@ -171,4 +183,10 @@ export type RemoteAgentListParams = {
   limit?: number
   status?: RemotePayoutStatus | RemoteAgentGroupStatus
   search?: string
+}
+
+export type RemoteEligibleAgentListParams = {
+  search?: string
+  groupId?: string
+  limit?: number
 }

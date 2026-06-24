@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { http } from '../../shared/api/http.ts'
 import { AppApiError } from '../../shared/api/types.ts'
 import {
+  listEligibleRemoteAgents,
   listRemoteAgentGroups,
   listMyRemoteAgentGroups,
   normalizeRemoteAgentListParams,
@@ -38,6 +39,27 @@ describe('remote agent payout API helpers', () => {
 
     expect(get).toHaveBeenCalledWith('/remote-agent-payouts/groups', {
       params: { status: 'active' },
+    })
+  })
+
+  it('calls the eligible agents endpoint with search, group and limit params', async () => {
+    const get = vi.spyOn(http, 'get').mockResolvedValue({
+      success: true,
+      data: [],
+    })
+
+    await listEligibleRemoteAgents({
+      search: 'awa',
+      groupId: 'group-1',
+      limit: 50,
+    })
+
+    expect(get).toHaveBeenCalledWith('/remote-agent-payouts/eligible-agents', {
+      params: {
+        search: 'awa',
+        groupId: 'group-1',
+        limit: 50,
+      },
     })
   })
 

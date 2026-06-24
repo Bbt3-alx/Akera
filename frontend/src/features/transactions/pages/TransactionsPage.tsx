@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useMe } from '../../auth/hooks.ts'
+import { getEnabledModulesForMembership } from '../../companies/companyModules.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
 import { TransactionCodeDisplay } from '../components/TransactionCodeDisplay.tsx'
 import { useTransactions } from '../hooks.ts'
@@ -10,6 +11,7 @@ import type {
   TransactionCurrency,
   TransactionStatus,
 } from '../types.ts'
+import { getTransactionsEmptyStateContent } from '../viewModel.ts'
 
 const STATUS_FILTERS = [
   { label: 'All', value: 'all' },
@@ -60,6 +62,8 @@ export function TransactionsPage() {
     activeMembership?.role === 'employee' ||
     activeMembership?.role === 'partner'
   const canListTransactions = canSearchTransactions
+  const enabledModules = getEnabledModulesForMembership(activeMembership)
+  const emptyState = getTransactionsEmptyStateContent({ enabledModules })
 
   return (
     <section className="space-y-6">
@@ -151,8 +155,18 @@ export function TransactionsPage() {
         !isLoading &&
         !isError &&
         transactions.length === 0 ? (
-          <StateMessage title="No transactions found">
-            Transactions matching this filter will appear here.
+          <StateMessage title={emptyState.title}>
+            <>
+              {emptyState.description}
+              {emptyState.actionTo ? (
+                <Link
+                  className="mt-4 inline-flex h-9 items-center justify-center rounded border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                  to={emptyState.actionTo}
+                >
+                  {emptyState.actionLabel}
+                </Link>
+              ) : null}
+            </>
           </StateMessage>
         ) : null}
 

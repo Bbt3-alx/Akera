@@ -3,7 +3,6 @@ import verifyToken from "../middlewares/verifyToken.js";
 import { catchAsync } from "../middlewares/errorHandler.js";
 import { audit } from "../middlewares/audit.js";
 import { requireVerifiedUser } from "../middlewares/requireVerifiedUser.js";
-import { requireManagerContext } from "../middlewares/requireManagerContext.js";
 import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
 import { transactionPinLimiter } from "../middlewares/transactionPinRateLimit.js";
 import {
@@ -14,22 +13,21 @@ import {
 
 const router = express.Router();
 
-const activeManagerAccess = [
+const activeUserSecurityAccess = [
     verifyToken,
     requireVerifiedUser,
     resolveCompanyContext,
-    requireManagerContext,
 ];
 
 router.get(
     "/transaction-pin/status",
-    activeManagerAccess,
+    activeUserSecurityAccess,
     catchAsync(getTransactionPinStatus),
 );
 
 router.post(
     "/transaction-pin/setup",
-    activeManagerAccess,
+    activeUserSecurityAccess,
     transactionPinLimiter,
     audit("SECURITY_TRANSACTION_PIN_SETUP", "User"),
     catchAsync(setupTransactionPin),
@@ -37,7 +35,7 @@ router.post(
 
 router.patch(
     "/transaction-pin/change",
-    activeManagerAccess,
+    activeUserSecurityAccess,
     transactionPinLimiter,
     audit("SECURITY_TRANSACTION_PIN_CHANGE", "User"),
     catchAsync(changeTransactionPin),
@@ -46,7 +44,7 @@ router.patch(
 // Legacy setup route kept as an alias to the canonical transaction-pin setup flow.
 router.post(
     "/setup-transaction-pin",
-    activeManagerAccess,
+    activeUserSecurityAccess,
     transactionPinLimiter,
     audit("SECURITY_TRANSACTION_PIN_SETUP", "User"),
     catchAsync(setupTransactionPin),

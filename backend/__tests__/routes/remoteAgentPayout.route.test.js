@@ -9,6 +9,7 @@ describe("remote agent payout routes", () => {
     for (const [path, method] of [
       ["/", "get"],
       ["/", "post"],
+      ["/eligible-agents", "get"],
       ["/my-groups", "get"],
       ["/groups", "get"],
       ["/groups", "post"],
@@ -30,6 +31,7 @@ describe("remote agent payout routes", () => {
     for (const [path, method] of [
       ["/", "get"],
       ["/", "post"],
+      ["/eligible-agents", "get"],
       ["/my-groups", "get"],
       ["/groups", "get"],
       ["/groups", "post"],
@@ -74,14 +76,19 @@ describe("remote agent payout routes", () => {
   });
 
   it("does not require transaction PIN for group read endpoints", () => {
+    const eligibleAgentsRoute = findRoute("/eligible-agents", "get");
     const myGroupsRoute = findRoute("/my-groups", "get");
     const listRoute = findRoute("/groups", "get");
     const detailRoute = findRoute("/groups/:groupId", "get");
     const createRoute = findRoute("/groups", "post");
 
+    expect(eligibleAgentsRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(myGroupsRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(listRoute.stack.length).toBeLessThan(createRoute.stack.length);
     expect(detailRoute.stack.length).toBeLessThan(createRoute.stack.length);
+    expect(eligibleAgentsRoute.stack.map((layer) => layer.handle)).not.toContain(
+      verifyTransactionPin,
+    );
     expect(myGroupsRoute.stack.map((layer) => layer.handle)).not.toContain(
       verifyTransactionPin,
     );
@@ -101,6 +108,7 @@ describe("remote agent payout routes", () => {
       ["/groups/:groupId", "patch"],
       ["/groups/:groupId/members", "post"],
       ["/groups/:groupId/members/:membershipId", "patch"],
+      ["/eligible-agents", "get"],
     ]) {
       const route = findRoute(path, method);
 
@@ -121,6 +129,12 @@ describe("remote agent payout routes", () => {
 
   it("registers my-groups before payoutCode routes", () => {
     expect(findRouteIndex("/my-groups", "get")).toBeLessThan(
+      findRouteIndex("/:payoutCode", "get"),
+    );
+  });
+
+  it("registers eligible-agents before payoutCode routes", () => {
+    expect(findRouteIndex("/eligible-agents", "get")).toBeLessThan(
       findRouteIndex("/:payoutCode", "get"),
     );
   });

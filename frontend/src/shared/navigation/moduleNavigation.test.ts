@@ -84,7 +84,6 @@ describe('module-aware navigation', () => {
   it('shows remote payout navigation without collection-only links', () => {
     const sections = buildNavigationSections({
       enabledModules: [
-        'transfers',
         'remote_agent_payout',
         'account_operations',
         'company_cash',
@@ -96,14 +95,26 @@ describe('module-aware navigation', () => {
     expect(flattenLabels(sections)).toEqual(
       expect.arrayContaining([
         'Dashboard',
-        'Transactions',
-        'Remote Agent Payout',
+        'Paiements agents',
         'Account Operations / Withdrawals',
         'Company Cash',
       ]),
     )
+    expect(flattenLabels(sections)).not.toContain('Transactions')
     expect(flattenLabels(sections)).not.toContain('Collections')
     expect(flattenLabels(sections)).not.toContain('Exchange Rate')
+  })
+
+  it('keeps legacy transactions visible when transfers are enabled with remote payouts', () => {
+    const sections = buildNavigationSections({
+      enabledModules: ['transfers', 'remote_agent_payout'],
+      isManager: true,
+      pendingInvitationCount: 0,
+    })
+
+    expect(flattenLabels(sections)).toEqual(
+      expect.arrayContaining(['Transactions', 'Paiements agents']),
+    )
   })
 })
 

@@ -11,12 +11,14 @@ import {
   addRemoteAgentGroupMember,
   createRemoteAgentGroup,
   getRemoteAgentGroup,
+  listEligibleRemoteAgents,
   listMyRemoteAgentGroups,
   listRemoteAgentGroups,
   updateRemoteAgentGroup,
   updateRemoteAgentGroupMember,
 } from "../services/remoteAgentGroup.service.js";
 import {
+  serializeEligibleRemoteAgents,
   serializeRemoteAgentGroup,
   serializeRemoteAgentGroups,
 } from "../serializers/remoteAgentGroup.serializer.js";
@@ -99,6 +101,21 @@ export const listMyGroups = async (req, res) => {
   res.status(200).json({
     success: true,
     data: serializeRemoteAgentGroups(groups),
+  });
+};
+
+export const listEligibleAgents = async (req, res) => {
+  const agents = await listEligibleRemoteAgents({
+    companyId: req.context.companyId,
+    role: req.context.role,
+    search: req.query.search,
+    groupId: req.query.groupId,
+    limit: req.query.limit,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeEligibleRemoteAgents(agents),
   });
 };
 

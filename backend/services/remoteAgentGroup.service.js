@@ -12,6 +12,8 @@ const DEFAULT_MEMBER_PERMISSIONS = ["remote_payout:view"];
 const VALID_GROUP_STATUSES = new Set(["active", "inactive"]);
 const VALID_MEMBER_ROLES = new Set(["agent", "supervisor"]);
 const VALID_MEMBER_STATUSES = new Set(["active", "inactive"]);
+const DEFAULT_ELIGIBLE_AGENT_LIMIT = 20;
+const MAX_ELIGIBLE_AGENT_LIMIT = 50;
 const REMOTE_AGENT_GROUP_MEMBER_POPULATE = {
   path: "members.membership",
   select: "user role status currency",
@@ -119,6 +121,55 @@ export async function listMyRemoteAgentGroups({
   return groups.map((group) =>
     withCurrentMemberContext(group, normalizedMembershipId),
   );
+}
+
+export async function listEligibleRemoteAgents({
+  companyId,
+  groupId,
+  limit,
+  role,
+  search,
+}) {
+  assertManager(role);
+
+  const normalizedLimit = normalizeEligibleAgentLimit(limit);
+  const normalizedSearch = normalizeOptionalString({
+    errorCode: "INVALID_REMOTE_AGENT_ELIGIBLE_AGENT_SEARCH",
+    label: "Search",
+    maxLength: 100,
+    value: search,
+  });
+  const normalizedGroupId = normalizeOptionalObjectId(
+    groupId,
+    "Group ID",
+    "INVALID_REMOTE_AGENT_GROUP",
+  );
+  const groupMemberStatuses = normalizedGroupId
+    ? await getGroupMemberStatuses({ companyId, groupId: normalizedGroupId })
+    : new Map();
+
+  const memberships = await CompanyMembership.find({
+    company: companyId,
+    role: "employee",
+    status: "active",
+    currency: "FCFA",
+  })
+    .populate({
+      path: "user",
+      select: "name firstName lastName email",
+    })
+    .lean();
+
+  return memberships
+    .map((membership) =>
+      toEligibleAgentResponse(
+        membership,
+        groupMemberStatuses.get(normalizeIdString(membership._id)) ?? null,
+      ),
+    )
+    .filter((agent) => matchesEligibleAgentSearch(agent, normalizedSearch))
+    .sort(compareEligibleAgents)
+    .slice(0, normalizedLimit);
 }
 
 export async function getRemoteAgentGroup({ companyId, groupId, role }) {
@@ -423,6 +474,28 @@ async function findRemoteAgentGroupForResponse({ companyId, groupId, session }) 
     .lean();
 }
 
+async function getGroupMemberStatuses({ companyId, groupId }) {
+  const group = await RemoteAgentGroup.findOne({
+    _id: groupId,
+    company: companyId,
+  }).lean();
+
+  if (!group) {
+    throw new ApiError(
+      404,
+      "Remote agent group not found",
+      "REMOTE_AGENT_GROUP_NOT_FOUND",
+    );
+  }
+
+  return new Map(
+    (group.members ?? []).map((member) => [
+      normalizeIdString(member.membership),
+      member.status,
+    ]),
+  );
+}
+
 function normalizeCreatePayload(payload) {
   return {
     name: normalizeGroupName(payload.name),
@@ -721,6 +794,19 @@ function normalizeObjectId(value, label, errorCode) {
   return new Types.ObjectId(value);
 }
 
+function normalizeOptionalObjectId(value, label, errorCode) {
+  const normalized = normalizeOptionalString({
+    errorCode,
+    label,
+    maxLength: 100,
+    value,
+  });
+
+  return normalized
+    ? normalizeObjectId(normalized, label, errorCode)
+    : undefined;
+}
+
 function normalizeRequiredString(value, message, errorCode) {
   if (typeof value !== "string" && typeof value !== "number") {
     throw new ApiError(400, message, errorCode);
@@ -804,6 +890,13 @@ function normalizePagination(pagination) {
   };
 }
 
+function normalizeEligibleAgentLimit(value) {
+  return Math.min(
+    normalizePositiveInteger(value, DEFAULT_ELIGIBLE_AGENT_LIMIT),
+    MAX_ELIGIBLE_AGENT_LIMIT,
+  );
+}
+
 function normalizePositiveInteger(value, fallback) {
   const parsed = Number(value);
 
@@ -826,6 +919,70 @@ function assertManager(role) {
       "REMOTE_AGENT_GROUP_MANAGER_REQUIRED",
     );
   }
+}
+
+function toEligibleAgentResponse(membership, groupMemberStatus) {
+  const user = membership.user;
+
+  return {
+    membershipId: normalizeIdString(membership._id),
+    userId: normalizeIdString(user),
+    name: resolveEligibleAgentName(user),
+    email: typeof user?.email === "string" ? user.email : null,
+    role: membership.role,
+    status: membership.status,
+    currency: membership.currency,
+    isAlreadyInGroup: groupMemberStatus === "active",
+    groupMemberStatus,
+  };
+}
+
+function resolveEligibleAgentName(user) {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+
+  if (typeof user.name === "string" && user.name.trim()) {
+    return user.name.trim();
+  }
+
+  const fullName = [user.firstName, user.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (fullName) {
+    return fullName;
+  }
+
+  if (typeof user.email === "string" && user.email.trim()) {
+    return user.email.trim();
+  }
+
+  return null;
+}
+
+function matchesEligibleAgentSearch(agent, search) {
+  if (!search) {
+    return true;
+  }
+
+  const needle = search.toLowerCase();
+  const haystack = [agent.name, agent.email]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(needle);
+}
+
+function compareEligibleAgents(left, right) {
+  const leftName = left.name ?? left.email ?? "";
+  const rightName = right.name ?? right.email ?? "";
+
+  return leftName.localeCompare(rightName, "fr", {
+    sensitivity: "base",
+  });
 }
 
 function idsEqual(left, right) {

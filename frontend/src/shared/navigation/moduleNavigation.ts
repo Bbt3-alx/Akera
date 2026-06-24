@@ -72,7 +72,7 @@ function getTransferItems(
   }
 
   if (hasCompanyModule(enabledModules, 'remote_agent_payout')) {
-    items.push({ label: 'Remote Agent Payout', to: '/app/remote-agent-payout' })
+    items.push({ label: 'Paiements agents', to: '/app/remote-agent-payout' })
   }
 
   if (hasCompanyModule(enabledModules, 'account_operations')) {

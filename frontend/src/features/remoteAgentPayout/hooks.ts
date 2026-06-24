@@ -8,6 +8,7 @@ import {
   createRemoteAgentGroup,
   createRemoteAgentPayout,
   getRemoteAgentGroup,
+  listEligibleRemoteAgents,
   listMyRemoteAgentGroups,
   listRemoteAgentGroups,
   listRemoteAgentPayouts,
@@ -23,6 +24,7 @@ import type {
   RemoteAgentGroupMemberPayload,
   RemoteAgentGroupMemberUpdatePayload,
   RemoteAgentGroupUpdatePayload,
+  RemoteEligibleAgentListParams,
   RemoteAgentListParams,
   RemoteAgentPayoutCancelPayload,
   RemoteAgentPayoutCreatePayload,
@@ -61,6 +63,15 @@ export const remoteAgentPayoutKeys = {
     [...remoteAgentPayoutKeys.groups(activeCompanyId), 'my-groups'] as const,
   groupDetail: (activeCompanyId: ActiveCompanyId, groupId: string) =>
     [...remoteAgentPayoutKeys.groups(activeCompanyId), 'detail', groupId] as const,
+  eligibleAgents: (
+    activeCompanyId: ActiveCompanyId,
+    params?: RemoteEligibleAgentListParams,
+  ) =>
+    [
+      ...remoteAgentPayoutKeys.groups(activeCompanyId),
+      'eligible-agents',
+      params ?? {},
+    ] as const,
   payouts: (activeCompanyId: ActiveCompanyId) =>
     [...remoteAgentPayoutKeys.all(activeCompanyId), 'payouts'] as const,
   payoutList: (
@@ -99,6 +110,26 @@ export function useRemoteAgentGroup(groupId?: string, enabled = true) {
     queryKey: remoteAgentPayoutKeys.groupDetail(activeCompanyId, groupId ?? ''),
     queryFn: () => getRemoteAgentGroup(groupId ?? ''),
     enabled: Boolean(activeCompanyId && groupId && enabled),
+  })
+}
+
+export function useEligibleRemoteAgents(
+  groupId?: string,
+  search?: string,
+  limit = 20,
+  enabled = true,
+) {
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+  const params: RemoteEligibleAgentListParams = {
+    groupId,
+    search,
+    limit,
+  }
+
+  return useQuery({
+    queryKey: remoteAgentPayoutKeys.eligibleAgents(activeCompanyId, params),
+    queryFn: () => listEligibleRemoteAgents(params),
+    enabled: Boolean(activeCompanyId && enabled),
   })
 }
 
