@@ -52,6 +52,7 @@ import {
   getGenericLookupErrorMessage,
   getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  getRemoteAgentPayoutErrorMessage,
   getRemoteAgentPayoutPaidByLabel,
   parseFcfaAmountInput,
 } from '../viewModel.ts'
@@ -701,9 +702,8 @@ function CreateGroupForm() {
           registration={register('name')}
         />
         <InfoBox>
-          Ajout initial de membres : aucun sélecteur employé n'est disponible
-          dans le frontend actuel. Créez le groupe, puis ajoutez un membre par
-          identifiant de membership.
+          Créez le groupe, puis utilisez Ajouter un agent pour rechercher les
+          employés éligibles et attribuer leurs permissions.
         </InfoBox>
         <FormField
           autoComplete="off"
@@ -960,7 +960,7 @@ function AddMemberForm({
     if (!payload) {
       setFormError(
         useManualMembershipId
-          ? 'Saisissez un identifiant membership valide ou sélectionnez un employé.'
+          ? 'Saisissez une référence membre interne valide ou sélectionnez un employé.'
           : 'Sélectionnez un employé éligible.',
       )
       setValue('transactionPin', '')
@@ -1066,12 +1066,12 @@ function AddMemberForm({
           </summary>
           <div className="mt-3 space-y-3">
             <InfoBox>
-              Option avancée/debug : utilisez cette saisie uniquement si vous
-              connaissez déjà l'identifiant membership interne.
+              Option réservée au support : utilisez cette saisie uniquement si
+              un administrateur vous fournit la référence membre interne.
             </InfoBox>
             <FormField
               error={errors.manualMembershipId?.message}
-              label="Identifiant membership (avancé/debug)"
+              label="Référence membre interne"
               registration={register('manualMembershipId')}
             />
           </div>
@@ -1505,7 +1505,7 @@ function PayoutsSection({
       {error ? (
         <InlineState title="Historique indisponible">
           {isAccessDenied(error)
-            ? "L'historique complet dépend des permissions exposées par l'API. TODO : affiner l'historique agent si l'endpoint ne retourne pas les paiements pertinents."
+            ? "Vous n'avez pas accès à cet historique."
             : getErrorMessage(error)}
         </InlineState>
       ) : null}
@@ -2586,19 +2586,5 @@ function isAccessDenied(error: unknown) {
 }
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof AppApiError) {
-    if (error.errorCode === 'INVALID_PIN') {
-      return 'PIN de transaction invalide.'
-    }
-
-    if (error.errorCode === 'PIN_NOT_CONFIGURED') {
-      return "Le PIN de transaction n'est pas configuré."
-    }
-
-    return error.message
-  }
-
-  return error instanceof Error
-    ? error.message
-    : 'Une erreur est survenue. Réessayez.'
+  return getRemoteAgentPayoutErrorMessage(error)
 }

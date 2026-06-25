@@ -137,4 +137,6 @@ docs/
 !/docs/
 /docs/*
 !/docs/demo-checklist.md
+!/docs/qa/
+!/docs/qa/**
 prevFrontend

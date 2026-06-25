@@ -23,6 +23,7 @@ import type {
 import {
   buildRemoteAgentDashboardModel,
   formatPermissionLabel,
+  getRemoteAgentPayoutErrorMessage,
 } from '../../remoteAgentPayout/viewModel.ts'
 import { useTransactionPinStatus } from '../../security/hooks.ts'
 import { TransactionCodeDisplay } from '../../transactions/components/TransactionCodeDisplay.tsx'
@@ -285,7 +286,7 @@ function RemoteAgentDashboard({
   if (error) {
     return (
       <StateMessage title="Dashboard agents indisponible">
-        {getErrorMessage(error)}
+        {getRemoteAgentPayoutErrorMessage(error)}
       </StateMessage>
     )
   }

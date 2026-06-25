@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { AppApiError } from '../../shared/api/types.ts'
 import {
   buildRemoteAgentDashboardModel,
   buildRemoteAgentMemberNameMap,
@@ -16,6 +17,7 @@ import {
   getGenericLookupErrorMessage,
   getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  getRemoteAgentPayoutErrorMessage,
   getRemoteAgentPayoutPaidByLabel,
   getRemoteAgentOperationTypeLabel,
   REMOTE_AGENT_OPERATION_COLUMNS,
@@ -103,6 +105,20 @@ describe('remote agent payout view model', () => {
         createGroup().members[0],
       ),
     ).toBe('Awa Traore')
+
+    expect(
+      getMemberDisplayName({
+        ...createGroup().members[0],
+        membership: 'membership-raw-id',
+        agentName: null,
+        agentEmail: null,
+        user: {
+          id: 'user-1',
+          name: null,
+          email: null,
+        },
+      }),
+    ).toBe('Agent sans nom')
   })
 
   it('builds paid-by labels from agentName before email and never raw ids', () => {
@@ -316,7 +332,7 @@ describe('remote agent payout view model', () => {
     })
 
     expect(payload?.membershipId).toBe('manual-membership')
-    expect(getManualMembershipFallbackLabel()).toBe('Saisie manuelle avancée')
+    expect(getManualMembershipFallbackLabel()).toBe('Saisie manuelle support')
   })
 
   it('does not expose raw ids as eligible agent visible identity', () => {
@@ -347,6 +363,68 @@ describe('remote agent payout view model', () => {
 
   it('uses a generic message for failed beneficiary lookups', () => {
     expect(getGenericLookupErrorMessage()).toBe('Code invalide ou expiré.')
+  })
+
+  it('maps remote payout API errors to field-friendly French messages', () => {
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new AppApiError({
+          errorCode: 'PIN_NOT_CONFIGURED',
+          message: 'PIN not configured',
+          statusCode: 400,
+        }),
+      ),
+    ).toBe('Configurez votre PIN de transaction avant de continuer.')
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new AppApiError({
+          errorCode: 'INVALID_PIN',
+          message: 'Invalid PIN',
+          statusCode: 400,
+        }),
+      ),
+    ).toBe('PIN de transaction invalide.')
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new AppApiError({
+          errorCode: 'REMOTE_PAYOUT_DEPOSIT_PERMISSION_REQUIRED',
+          message: 'Deposit permission is required',
+          statusCode: 403,
+        }),
+      ),
+    ).toBe("Vous n'avez pas la permission d'enregistrer un dépôt pour ce groupe.")
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new AppApiError({
+          errorCode: 'INSUFFICIENT_AGENT_GROUP_AVAILABLE_BALANCE',
+          message: 'Insufficient balance',
+          statusCode: 400,
+        }),
+      ),
+    ).toBe('Solde disponible du groupe insuffisant.')
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new AppApiError({
+          errorCode: 'MEMBER_ALREADY_IN_GROUP',
+          message: 'Member already belongs',
+          statusCode: 409,
+        }),
+      ),
+    ).toBe('Cet employé est déjà membre actif de ce groupe.')
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new AppApiError({
+          errorCode: 'REMOTE_PAYOUT_ALREADY_PAID',
+          message: 'Already paid',
+          statusCode: 409,
+        }),
+      ),
+    ).toBe('Ce paiement a déjà été payé.')
+    expect(
+      getRemoteAgentPayoutErrorMessage(
+        new Error('Network unavailable'),
+      ),
+    ).toBe('Network unavailable')
   })
 
   it('uses actor-facing operation columns and friendly operation labels', () => {

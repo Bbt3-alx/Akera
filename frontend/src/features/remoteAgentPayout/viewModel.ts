@@ -184,6 +184,51 @@ export const REMOTE_PAYOUT_PERMISSION_LABELS: Record<
   'remote_payout:manage_group': 'Gestion groupe',
 }
 
+const REMOTE_AGENT_ERROR_MESSAGES: Record<string, string> = {
+  PIN_NOT_CONFIGURED: 'Configurez votre PIN de transaction avant de continuer.',
+  TRANSACTION_PIN_NOT_CONFIGURED:
+    'Configurez votre PIN de transaction avant de continuer.',
+  INVALID_PIN: 'PIN de transaction invalide.',
+  INVALID_OR_EXPIRED_PAYOUT_CODE: 'Code invalide ou expiré.',
+  REMOTE_PAYOUT_DEPOSIT_PERMISSION_REQUIRED:
+    "Vous n'avez pas la permission d'enregistrer un dépôt pour ce groupe.",
+  REMOTE_PAYOUT_PAY_PERMISSION_REQUIRED:
+    "Vous n'avez pas la permission de payer un bénéficiaire pour ce groupe.",
+  REMOTE_AGENT_PAYOUT_ACCESS_DENIED:
+    "Vous n'avez pas accès à ce paiement agent.",
+  REMOTE_AGENT_GROUP_ACCESS_DENIED:
+    "Vous n'avez pas accès aux groupes agents de cette société.",
+  REMOTE_AGENT_GROUP_PERMISSION_REQUIRED:
+    "Vous n'avez pas la permission requise sur ce groupe.",
+  REMOTE_AGENT_GROUP_NOT_FOUND: 'Groupe agent actif introuvable.',
+  INVALID_AGENT_GROUP: 'Sélectionnez un groupe agent actif.',
+  INSUFFICIENT_AGENT_GROUP_AVAILABLE_BALANCE:
+    'Solde disponible du groupe insuffisant.',
+  INSUFFICIENT_AGENT_GROUP_RESERVED_BALANCE:
+    'Solde réservé du groupe insuffisant pour confirmer ce paiement.',
+  MEMBER_ALREADY_IN_GROUP: 'Cet employé est déjà membre actif de ce groupe.',
+  GROUP_HAS_RESERVED_BALANCE:
+    'Ce groupe a encore un solde réservé. Libérez les paiements en attente avant de le désactiver.',
+  GROUP_HAS_PENDING_PAYOUTS:
+    'Ce groupe a des paiements en attente. Annulez-les ou payez-les avant de le désactiver.',
+  GROUP_PENDING_PAYOUTS_REQUIRE_PAY_AGENT:
+    'Un groupe avec des paiements en attente doit garder au moins un agent actif autorisé à payer.',
+  REMOTE_PAYOUT_ALREADY_PAID: 'Ce paiement a déjà été payé.',
+  REMOTE_PAYOUT_PAYMENT_IN_PROGRESS:
+    'Ce paiement est déjà en cours de confirmation. Actualisez avant de réessayer.',
+  REMOTE_PAYOUT_CANCEL_IN_PROGRESS:
+    "L'annulation est déjà en cours. Actualisez avant de réessayer.",
+  REMOTE_PAYOUT_CANCEL_NOT_ALLOWED:
+    'Un paiement déjà payé ne peut pas être annulé.',
+  REMOTE_AGENT_PAYOUT_NOT_FOUND: 'Paiement agent introuvable.',
+  REMOTE_PAYOUT_RESERVATION_RELEASE_FAILED:
+    'Impossible de libérer le solde réservé. Actualisez le groupe avant de réessayer.',
+  INVALID_AGENT_DEPOSIT_AMOUNT: FCFA_INTEGER_AMOUNT_MESSAGE,
+  INVALID_REMOTE_PAYOUT_AMOUNT: FCFA_INTEGER_AMOUNT_MESSAGE,
+  IDEMPOTENCY_KEY_CONFLICT:
+    'Cette action a déjà été envoyée avec des données différentes. Actualisez avant de réessayer.',
+}
+
 export function buildRemoteAgentModuleModel({
   activeMembershipId,
   groups,
@@ -211,7 +256,7 @@ export function getMemberDisplayName(
     member.user?.name?.trim() ||
     member.agentEmail?.trim() ||
     member.user?.email?.trim() ||
-    member.membership
+    'Agent sans nom'
   )
 }
 
@@ -339,7 +384,7 @@ export function getEligibleAgentGroupStatusLabel(
 }
 
 export function getManualMembershipFallbackLabel(): string {
-  return 'Saisie manuelle avancée'
+  return 'Saisie manuelle support'
 }
 
 export function parseFcfaAmountInput(value: unknown): {
@@ -384,6 +429,20 @@ export function formatFcfaAmount(amount: number): string {
 
 export function getGenericLookupErrorMessage(): string {
   return 'Code invalide ou expiré.'
+}
+
+export function getRemoteAgentPayoutErrorMessage(error: unknown): string {
+  const errorCode = getErrorCode(error)
+
+  if (errorCode && REMOTE_AGENT_ERROR_MESSAGES[errorCode]) {
+    return REMOTE_AGENT_ERROR_MESSAGES[errorCode]
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+
+  return 'Une erreur est survenue. Réessayez.'
 }
 
 export function formatPermissionLabel(permission: RemotePayoutPermission) {
@@ -580,6 +639,16 @@ function getRemoteAgentPaidByMemberLabel(
     member.user?.email?.trim() ||
     'Agent payé'
   )
+}
+
+function getErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== 'object' || !('errorCode' in error)) {
+    return null
+  }
+
+  const errorCode = (error as { errorCode?: unknown }).errorCode
+
+  return typeof errorCode === 'string' ? errorCode : null
 }
 
 function countOperations(

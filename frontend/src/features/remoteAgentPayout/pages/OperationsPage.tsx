@@ -6,6 +6,7 @@ import {
   buildRemoteAgentOperationDisplayRow,
   getRemoteAgentOperationStatusLabel,
   getRemoteAgentOperationTypeLabel,
+  getRemoteAgentPayoutErrorMessage,
   REMOTE_AGENT_OPERATION_COLUMNS,
 } from '../viewModel.ts'
 
@@ -256,7 +257,5 @@ function StatusBadge({
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : 'Une erreur est survenue. Réessayez.'
+  return getRemoteAgentPayoutErrorMessage(error)
 }
