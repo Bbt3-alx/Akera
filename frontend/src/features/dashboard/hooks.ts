@@ -16,11 +16,18 @@ export const dashboardKeys = {
 export function useCompanyDashboard() {
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
 
-  return useQuery({
+  return useQuery(createCompanyDashboardQueryOptions(activeCompanyId))
+}
+
+export function createCompanyDashboardQueryOptions(
+  activeCompanyId: ActiveCompanyId,
+) {
+  return {
     queryKey: dashboardKeys.all(activeCompanyId),
     queryFn: getCompanyDashboard,
     enabled: Boolean(activeCompanyId),
-  })
+    retry: false as const,
+  }
 }
 
 export async function invalidateCompanyDashboard(

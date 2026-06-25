@@ -1,8 +1,19 @@
 // config.js
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [
+const defaultAllowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://akera.onrender.com",
+];
+
+const envAllowedOrigins = process.env.ALLOWED_ORIGINS?.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [
+  ...new Set([
+    ...defaultAllowedOrigins,
+    ...(envAllowedOrigins?.length ? envAllowedOrigins : []),
+  ]),
 ];
 
 export const CORS_OPTIONS = {

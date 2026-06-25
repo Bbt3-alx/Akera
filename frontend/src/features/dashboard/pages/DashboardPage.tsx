@@ -27,6 +27,7 @@ import {
 } from '../../remoteAgentPayout/viewModel.ts'
 import { useTransactionPinStatus } from '../../security/hooks.ts'
 import { TransactionCodeDisplay } from '../../transactions/components/TransactionCodeDisplay.tsx'
+import { getDashboardErrorMessage } from '../errorMessage.ts'
 import { useCompanyDashboard } from '../hooks.ts'
 import type {
   CompanyDashboard,
@@ -130,7 +131,7 @@ function TransferDashboard() {
   if (dashboardQuery.isError) {
     return (
       <StateMessage title="Unable to load dashboard">
-        {getErrorMessage(dashboardQuery.error)}
+        {getDashboardErrorMessage(dashboardQuery.error)}
       </StateMessage>
     )
   }
@@ -286,7 +287,10 @@ function RemoteAgentDashboard({
   if (error) {
     return (
       <StateMessage title="Dashboard agents indisponible">
-        {getRemoteAgentPayoutErrorMessage(error)}
+        {getDashboardErrorMessage(
+          error,
+          getRemoteAgentPayoutErrorMessage(error),
+        )}
       </StateMessage>
     )
   }
@@ -1236,10 +1240,4 @@ function getRemoteAgentGroupPermissionLabels(
   return permissions.length > 0
     ? permissions.map(formatPermissionLabel).join(', ')
     : 'Aucune permission'
-}
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error
-    ? error.message
-    : 'Check your connection and try again.'
 }

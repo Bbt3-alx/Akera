@@ -39,13 +39,16 @@ dotenv.config();
 const app = express();
 const __dirname = path.resolve();
 
-// Activity looger
+// CORS must run before middleware that can respond to preflight requests.
+app.use(cors(CORS_OPTIONS));
+app.options("*", cors(CORS_OPTIONS));
+
+// Activity logger
 app.use(activityLogger);
 
 // Security Middleware
 app.use(helmet());
 app.use(rateLimit(RATE_LIMIT_OPTIONS));
-app.use(cors(CORS_OPTIONS));
 
 // Body Parsers
 app.use(express.json({ limit: "10kb" }));

@@ -55,4 +55,6 @@ function sanitizeValue(value) {
   return value;
 }
 
-export const activityLogger = morgan(formatActivityLog);
+export const activityLogger = morgan(formatActivityLog, {
+  skip: (req) => req.method === "OPTIONS",
+});
