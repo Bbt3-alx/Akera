@@ -1,7 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMemo, useState, type ReactNode } from 'react'
-import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  useForm,
+  useWatch,
+  type UseFormRegisterReturn,
+} from 'react-hook-form'
+import { Link, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 
 import { AppApiError } from '../../../shared/api/types.ts'
@@ -46,7 +50,9 @@ import {
   FCFA_INTEGER_AMOUNT_MESSAGE,
   formatFcfaAmount,
   formatPermissionLabel,
+  getActiveRemoteAgentGroups,
   getAgentCapabilities,
+  getAutoSelectedRemoteAgentGroupId,
   getEligibleAgentGroupStatusLabel,
   getEligibleAgentVisibleIdentity,
   getGenericLookupErrorMessage,
@@ -55,6 +61,10 @@ import {
   getRemoteAgentPayoutErrorMessage,
   getRemoteAgentPayoutPaidByLabel,
   parseFcfaAmountInput,
+  resolveRemoteAgentTab,
+  type RemoteAgentEmployeeSection,
+  type RemoteAgentManagerSection,
+  type RemoteAgentModuleSection,
 } from '../viewModel.ts'
 
 const PIN_PATTERN = /^\d{6}$/
@@ -149,13 +159,9 @@ type DepositFormValues = z.infer<typeof depositSchema>
 type LookupFormValues = z.infer<typeof lookupSchema>
 type PayFormValues = z.infer<typeof paySchema>
 type CancelPayoutFormValues = z.infer<typeof cancelPayoutSchema>
-type ManagerTab = 'overview' | 'groups' | 'create-payout' | 'payouts'
-type AgentTab = 'my-groups' | 'record-deposit' | 'pay-beneficiary' | 'history'
-
 export function RemoteAgentPayoutPage() {
-  const [managerTab, setManagerTab] = useState<ManagerTab>('overview')
-  const [agentTab, setAgentTab] = useState<AgentTab>('my-groups')
   const [isPinSetupOpen, setIsPinSetupOpen] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const meQuery = useMe()
   const activeMembership = meQuery.data?.memberships.find(
@@ -196,6 +202,20 @@ export function RemoteAgentPayoutPage() {
     [activeMembership?.membershipId, agentGroups],
   )
   const isCheckingAccess = Boolean(activeCompanyId) && meQuery.isLoading
+  const requestedTab = searchParams.get('tab')
+  const managerTab = resolveRemoteAgentTab(
+    'manager',
+    requestedTab,
+  ) as RemoteAgentManagerSection
+  const agentTab = resolveRemoteAgentTab(
+    'employee',
+    requestedTab,
+  ) as RemoteAgentEmployeeSection
+  const handleTabChange = (tab: RemoteAgentModuleSection) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.set('tab', tab)
+    setSearchParams(nextSearchParams)
+  }
 
   if (isCheckingAccess) {
     return (
@@ -259,7 +279,7 @@ export function RemoteAgentPayoutPage() {
           model={model}
           onRefreshGroups={() => void managerGroupsQuery.refetch()}
           onRefreshPayouts={() => void payoutsQuery.refetch()}
-          onTabChange={setManagerTab}
+          onTabChange={handleTabChange}
           payouts={payouts}
           payoutsError={payoutsQuery.error}
         />
@@ -276,7 +296,7 @@ export function RemoteAgentPayoutPage() {
           isPayoutsLoading={payoutsQuery.isLoading}
           onRefreshGroups={() => void myGroupsQuery.refetch()}
           onRefreshPayouts={() => void payoutsQuery.refetch()}
-          onTabChange={setAgentTab}
+          onTabChange={handleTabChange}
           payouts={payouts}
           payoutsError={payoutsQuery.error}
         />
@@ -326,7 +346,7 @@ function TransactionPinRequiredCard({
 }
 
 type ManagerViewProps = {
-  activeTab: ManagerTab
+  activeTab: RemoteAgentManagerSection
   groups: RemoteAgentGroup[]
   groupsError: unknown
   isGroupsLoading: boolean
@@ -334,7 +354,7 @@ type ManagerViewProps = {
   model: ReturnType<typeof buildRemoteAgentModuleModel>
   onRefreshGroups: () => void
   onRefreshPayouts: () => void
-  onTabChange: (tab: ManagerTab) => void
+  onTabChange: (tab: RemoteAgentManagerSection) => void
   payouts: RemoteAgentPayout[]
   payoutsError: unknown
 }
@@ -356,7 +376,7 @@ function ManagerView({
     <div className="space-y-4">
       <TabList
         activeTab={activeTab}
-        onTabChange={(tab) => onTabChange(tab as ManagerTab)}
+        onTabChange={(tab) => onTabChange(tab as RemoteAgentManagerSection)}
         tabs={[
           { label: 'Vue d’ensemble', value: 'overview' },
           { label: 'Groupes d’agents', value: 'groups' },
@@ -401,7 +421,7 @@ function ManagerView({
 
 type AgentViewProps = {
   activeMembershipId: string
-  activeTab: AgentTab
+  activeTab: RemoteAgentEmployeeSection
   capabilities: ReturnType<typeof getAgentCapabilities>
   groupFetchError: unknown
   groups: RemoteAgentGroup[]
@@ -409,7 +429,7 @@ type AgentViewProps = {
   isPayoutsLoading: boolean
   onRefreshGroups: () => void
   onRefreshPayouts: () => void
-  onTabChange: (tab: AgentTab) => void
+  onTabChange: (tab: RemoteAgentEmployeeSection) => void
   payouts: RemoteAgentPayout[]
   payoutsError: unknown
 }
@@ -438,7 +458,7 @@ function AgentView({
       />
       <TabList
         activeTab={activeTab}
-        onTabChange={(tab) => onTabChange(tab as AgentTab)}
+        onTabChange={(tab) => onTabChange(tab as RemoteAgentEmployeeSection)}
         tabs={[
           { label: 'Mes groupes', value: 'my-groups' },
           { label: 'Enregistrer un dépôt', value: 'record-deposit' },
@@ -1302,6 +1322,7 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
   > | null>(null)
   const [copied, setCopied] = useState(false)
   const {
+    control,
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
@@ -1318,8 +1339,24 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
       transactionPin: '',
     },
   })
-  const activeGroups = groups.filter((group) => group.status === 'active')
+  const selectedGroupId =
+    useWatch({ control, name: 'assignedAgentGroupId' }) ?? ''
+  const activeGroups = useMemo(() => getActiveRemoteAgentGroups(groups), [groups])
   const isSaving = isSubmitting || createPayout.isPending
+
+  useEffect(() => {
+    const nextGroupId = getAutoSelectedRemoteAgentGroupId({
+      groups: activeGroups,
+      selectedGroupId,
+    })
+
+    if (nextGroupId !== selectedGroupId) {
+      setValue('assignedAgentGroupId', nextGroupId, {
+        shouldDirty: false,
+        shouldValidate: Boolean(selectedGroupId),
+      })
+    }
+  }, [activeGroups, selectedGroupId, setValue])
 
   const onSubmit = handleSubmit(async (values) => {
     setSecureResult(null)
@@ -1346,7 +1383,10 @@ function CreatePayoutSection({ groups }: { groups: RemoteAgentGroup[] }) {
 
       setSecureResult(buildCreatePayoutResult(response))
       reset({
-        assignedAgentGroupId: '',
+        assignedAgentGroupId: getAutoSelectedRemoteAgentGroupId({
+          groups: activeGroups,
+          selectedGroupId: '',
+        }),
         amount: '',
         beneficiaryName: '',
         beneficiaryPhone: '',
@@ -1864,6 +1904,7 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
   const recordDeposit = useRecordRemoteAgentGroupDeposit()
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const {
+    control,
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
@@ -1880,7 +1921,26 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
       transactionPin: '',
     },
   })
+  const selectedGroupId = useWatch({ control, name: 'groupId' }) ?? ''
+  const depositGroups = useMemo(
+    () => getActiveRemoteAgentGroups(groups),
+    [groups],
+  )
   const isSaving = isSubmitting || recordDeposit.isPending
+
+  useEffect(() => {
+    const nextGroupId = getAutoSelectedRemoteAgentGroupId({
+      groups: depositGroups,
+      selectedGroupId,
+    })
+
+    if (nextGroupId !== selectedGroupId) {
+      setValue('groupId', nextGroupId, {
+        shouldDirty: false,
+        shouldValidate: Boolean(selectedGroupId),
+      })
+    }
+  }, [depositGroups, selectedGroupId, setValue])
 
   const onSubmit = handleSubmit(async (values) => {
     setSuccessMessage(null)
@@ -1910,7 +1970,10 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
         `Dépôt enregistré${deposit.operationCode ? ` (${deposit.operationCode})` : ''}.`,
       )
       reset({
-        groupId: '',
+        groupId: getAutoSelectedRemoteAgentGroupId({
+          groups: depositGroups,
+          selectedGroupId: '',
+        }),
         amount: '',
         method: 'cash',
         reference: '',
@@ -1930,7 +1993,10 @@ function RecordDepositForm({ groups }: { groups: RemoteAgentGroup[] }) {
         <SelectField
           error={errors.groupId?.message}
           label="Groupe"
-          options={groups.map((group) => ({ label: group.name, value: group.id }))}
+          options={depositGroups.map((group) => ({
+            label: group.name,
+            value: group.id,
+          }))}
           placeholder="Sélectionner un groupe"
           registration={register('groupId')}
         />

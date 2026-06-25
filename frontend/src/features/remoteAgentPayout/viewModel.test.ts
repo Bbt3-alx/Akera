@@ -11,15 +11,19 @@ import {
   canSubmitBeneficiaryPayment,
   FCFA_INTEGER_AMOUNT_MESSAGE,
   formatFcfaAmount,
+  getActiveRemoteAgentGroups,
+  getAutoSelectedRemoteAgentGroupId,
   getEligibleAgentGroupStatusLabel,
   getEligibleAgentVisibleIdentity,
   getAgentCapabilities,
   getGenericLookupErrorMessage,
   getManualMembershipFallbackLabel,
   getMemberDisplayName,
+  getRemoteAgentDashboardQuickActions,
   getRemoteAgentPayoutErrorMessage,
   getRemoteAgentPayoutPaidByLabel,
   getRemoteAgentOperationTypeLabel,
+  resolveRemoteAgentTab,
   REMOTE_AGENT_OPERATION_COLUMNS,
   parseFcfaAmountInput,
 } from './viewModel.ts'
@@ -209,6 +213,111 @@ describe('remote agent payout view model', () => {
         transactionPin: '123456',
       }),
     ).toBe(true)
+  })
+
+  it('auto-selects the only active group for create payout', () => {
+    const activeGroups = getActiveRemoteAgentGroups([
+      createGroup({ id: 'group-1', status: 'active' }),
+    ])
+
+    expect(
+      getAutoSelectedRemoteAgentGroupId({
+        groups: activeGroups,
+        selectedGroupId: '',
+      }),
+    ).toBe('group-1')
+  })
+
+  it('does not auto-select create payout group when multiple active groups exist', () => {
+    const activeGroups = getActiveRemoteAgentGroups([
+      createGroup({ id: 'group-1', status: 'active' }),
+      createGroup({ id: 'group-2', status: 'active' }),
+    ])
+
+    expect(
+      getAutoSelectedRemoteAgentGroupId({
+        groups: activeGroups,
+        selectedGroupId: '',
+      }),
+    ).toBe('')
+  })
+
+  it('does not override an existing available group selection', () => {
+    const activeGroups = getActiveRemoteAgentGroups([
+      createGroup({ id: 'group-1', status: 'active' }),
+      createGroup({ id: 'group-2', status: 'active' }),
+    ])
+
+    expect(
+      getAutoSelectedRemoteAgentGroupId({
+        groups: activeGroups,
+        selectedGroupId: 'group-2',
+      }),
+    ).toBe('group-2')
+  })
+
+  it('auto-selects the only deposit-enabled group', () => {
+    const capabilities = getAgentCapabilities(
+      [
+        createGroup({
+          id: 'deposit-group',
+          currentMemberPermissions: [
+            'remote_payout:view',
+            'remote_payout:deposit',
+          ],
+        }),
+      ],
+      'agent-membership',
+    )
+
+    expect(
+      getAutoSelectedRemoteAgentGroupId({
+        groups: capabilities.depositGroups,
+        selectedGroupId: '',
+      }),
+    ).toBe('deposit-group')
+  })
+
+  it('does not auto-select deposit group when multiple deposit-enabled groups exist', () => {
+    const capabilities = getAgentCapabilities(
+      [
+        createGroup({
+          id: 'deposit-group-1',
+          currentMemberPermissions: [
+            'remote_payout:view',
+            'remote_payout:deposit',
+          ],
+        }),
+        createGroup({
+          id: 'deposit-group-2',
+          currentMemberPermissions: [
+            'remote_payout:view',
+            'remote_payout:deposit',
+          ],
+        }),
+      ],
+      'agent-membership',
+    )
+
+    expect(
+      getAutoSelectedRemoteAgentGroupId({
+        groups: capabilities.depositGroups,
+        selectedGroupId: '',
+      }),
+    ).toBe('')
+  })
+
+  it('does not auto-select inactive groups', () => {
+    const activeGroups = getActiveRemoteAgentGroups([
+      createGroup({ id: 'inactive-group', status: 'inactive' }),
+    ])
+
+    expect(
+      getAutoSelectedRemoteAgentGroupId({
+        groups: activeGroups,
+        selectedGroupId: '',
+      }),
+    ).toBe('')
   })
 
   it('derives deposit and payment visibility from active group permissions', () => {
@@ -564,6 +673,64 @@ describe('remote agent payout view model', () => {
       }),
     )
     expect(JSON.stringify(agent)).not.toContain('pendingBeneficiaries')
+  })
+
+  it('resolves manager query-param tabs and falls back from agent tabs', () => {
+    expect(resolveRemoteAgentTab('manager', 'create-payout')).toBe(
+      'create-payout',
+    )
+    expect(resolveRemoteAgentTab('manager', 'groups')).toBe('groups')
+    expect(resolveRemoteAgentTab('manager', 'record-deposit')).toBe('overview')
+  })
+
+  it('resolves agent query-param tabs and falls back from manager tabs', () => {
+    expect(resolveRemoteAgentTab('employee', 'record-deposit')).toBe(
+      'record-deposit',
+    )
+    expect(resolveRemoteAgentTab('employee', 'pay-beneficiary')).toBe(
+      'pay-beneficiary',
+    )
+    expect(resolveRemoteAgentTab('employee', 'create-payout')).toBe('my-groups')
+  })
+
+  it('builds manager dashboard quick actions with tab deep links', () => {
+    expect(
+      getRemoteAgentDashboardQuickActions({
+        role: 'manager',
+        permissions: [],
+      }),
+    ).toEqual([
+      {
+        label: 'Créer un paiement agent',
+        to: '/app/remote-agent-payout?tab=create-payout',
+      },
+      {
+        label: 'Gérer les groupes',
+        to: '/app/remote-agent-payout?tab=groups',
+      },
+      { label: 'Voir les opérations', to: '/app/operations' },
+      { label: 'Configurer le PIN', to: '/app/security/transaction-pin' },
+    ])
+  })
+
+  it('builds agent dashboard quick actions from available permissions', () => {
+    expect(
+      getRemoteAgentDashboardQuickActions({
+        role: 'employee',
+        permissions: ['remote_payout:deposit', 'remote_payout:pay'],
+      }),
+    ).toEqual([
+      {
+        label: 'Enregistrer un dépôt',
+        to: '/app/remote-agent-payout?tab=record-deposit',
+      },
+      {
+        label: 'Payer un bénéficiaire',
+        to: '/app/remote-agent-payout?tab=pay-beneficiary',
+      },
+      { label: 'Voir mes opérations', to: '/app/operations' },
+      { label: 'Configurer mon PIN', to: '/app/security/transaction-pin' },
+    ])
   })
 })
 

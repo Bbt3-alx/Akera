@@ -27,6 +27,11 @@ export type RemoteAgentModuleSection =
   | RemoteAgentManagerSection
   | RemoteAgentEmployeeSection
 
+export type RemoteAgentDashboardAction = {
+  label: string
+  to: string
+}
+
 export type RemoteAgentGroupRow = {
   id: string
   name: string
@@ -150,6 +155,16 @@ type BuildRemoteAgentDashboardModelInput = {
   transactionPinConfigured: boolean
 }
 
+type AutoSelectedRemoteAgentGroupInput = {
+  groups: RemoteAgentGroup[]
+  selectedGroupId?: string | null
+}
+
+type RemoteAgentDashboardQuickActionsInput = {
+  permissions: readonly RemotePayoutPermission[]
+  role: AuthRole | undefined
+}
+
 export const FCFA_INTEGER_AMOUNT_MESSAGE =
   'Le montant FCFA doit être un nombre entier.'
 
@@ -173,6 +188,23 @@ export const REMOTE_AGENT_OPERATION_TYPE_LABELS: Record<
   remote_payout_paid: 'Paiement payé',
   remote_payout_canceled: 'Paiement annulé',
 }
+
+export const REMOTE_AGENT_MANAGER_TABS = [
+  'overview',
+  'groups',
+  'create-payout',
+  'payouts',
+] as const satisfies readonly RemoteAgentManagerSection[]
+
+export const REMOTE_AGENT_EMPLOYEE_TABS = [
+  'my-groups',
+  'record-deposit',
+  'pay-beneficiary',
+  'history',
+] as const satisfies readonly RemoteAgentEmployeeSection[]
+
+export const REMOTE_AGENT_MANAGER_DEFAULT_TAB = 'overview'
+export const REMOTE_AGENT_EMPLOYEE_DEFAULT_TAB = 'my-groups'
 
 export const REMOTE_PAYOUT_PERMISSION_LABELS: Record<
   RemotePayoutPermission,
@@ -246,6 +278,85 @@ export function buildRemoteAgentModuleModel({
         ? ['overview', 'groups', 'create-payout', 'payouts']
         : ['my-groups', 'record-deposit', 'pay-beneficiary', 'history'],
   }
+}
+
+export function getActiveRemoteAgentGroups(
+  groups: RemoteAgentGroup[],
+): RemoteAgentGroup[] {
+  return groups.filter((group) => group.status === 'active')
+}
+
+export function getAutoSelectedRemoteAgentGroupId({
+  groups,
+  selectedGroupId,
+}: AutoSelectedRemoteAgentGroupInput): string {
+  const normalizedSelectedGroupId = selectedGroupId?.trim() ?? ''
+
+  if (normalizedSelectedGroupId) {
+    return groups.some((group) => group.id === normalizedSelectedGroupId)
+      ? normalizedSelectedGroupId
+      : ''
+  }
+
+  return groups.length === 1 ? groups[0].id : ''
+}
+
+export function resolveRemoteAgentTab(
+  role: AuthRole | undefined,
+  requestedTab: string | null,
+): RemoteAgentModuleSection {
+  if (role === 'manager') {
+    return isManagerTab(requestedTab)
+      ? requestedTab
+      : REMOTE_AGENT_MANAGER_DEFAULT_TAB
+  }
+
+  return isEmployeeTab(requestedTab)
+    ? requestedTab
+    : REMOTE_AGENT_EMPLOYEE_DEFAULT_TAB
+}
+
+export function getRemoteAgentDashboardQuickActions({
+  permissions,
+  role,
+}: RemoteAgentDashboardQuickActionsInput): RemoteAgentDashboardAction[] {
+  if (role === 'manager') {
+    return [
+      {
+        label: 'Créer un paiement agent',
+        to: '/app/remote-agent-payout?tab=create-payout',
+      },
+      {
+        label: 'Gérer les groupes',
+        to: '/app/remote-agent-payout?tab=groups',
+      },
+      { label: 'Voir les opérations', to: '/app/operations' },
+      { label: 'Configurer le PIN', to: '/app/security/transaction-pin' },
+    ]
+  }
+
+  const actions: RemoteAgentDashboardAction[] = []
+
+  if (permissions.includes('remote_payout:deposit')) {
+    actions.push({
+      label: 'Enregistrer un dépôt',
+      to: '/app/remote-agent-payout?tab=record-deposit',
+    })
+  }
+
+  if (permissions.includes('remote_payout:pay')) {
+    actions.push({
+      label: 'Payer un bénéficiaire',
+      to: '/app/remote-agent-payout?tab=pay-beneficiary',
+    })
+  }
+
+  actions.push(
+    { label: 'Voir mes opérations', to: '/app/operations' },
+    { label: 'Configurer mon PIN', to: '/app/security/transaction-pin' },
+  )
+
+  return actions
 }
 
 export function getMemberDisplayName(
@@ -649,6 +760,18 @@ function getErrorCode(error: unknown): string | null {
   const errorCode = (error as { errorCode?: unknown }).errorCode
 
   return typeof errorCode === 'string' ? errorCode : null
+}
+
+function isManagerTab(
+  value: string | null,
+): value is RemoteAgentManagerSection {
+  return REMOTE_AGENT_MANAGER_TABS.some((tab) => tab === value)
+}
+
+function isEmployeeTab(
+  value: string | null,
+): value is RemoteAgentEmployeeSection {
+  return REMOTE_AGENT_EMPLOYEE_TABS.some((tab) => tab === value)
 }
 
 function countOperations(

@@ -23,6 +23,7 @@ import type {
 import {
   buildRemoteAgentDashboardModel,
   formatPermissionLabel,
+  getRemoteAgentDashboardQuickActions,
   getRemoteAgentPayoutErrorMessage,
 } from '../../remoteAgentPayout/viewModel.ts'
 import { useTransactionPinStatus } from '../../security/hooks.ts'
@@ -396,11 +397,10 @@ function RemoteManagerDashboard({
           <RemoteRecentOperations operations={model.recentOperations} />
         </div>
         <RemoteQuickActions
-          actions={[
-            { label: 'Créer un paiement agent', to: '/app/remote-agent-payout' },
-            { label: 'Voir les opérations', to: '/app/operations' },
-            { label: 'Configurer le PIN', to: '/app/security/transaction-pin' },
-          ]}
+          actions={getRemoteAgentDashboardQuickActions({
+            permissions: [],
+            role: 'manager',
+          })}
         />
       </div>
     </>
@@ -460,12 +460,10 @@ function RemoteAgentEmployeeDashboard({
           <RemoteRecentOperations operations={model.recentOperations} />
         </div>
         <RemoteQuickActions
-          actions={[
-            { label: 'Enregistrer un dépôt', to: '/app/remote-agent-payout' },
-            { label: 'Payer par code bénéficiaire', to: '/app/remote-agent-payout' },
-            { label: 'Voir mes opérations', to: '/app/operations' },
-            { label: 'Gérer mon PIN', to: '/app/security/transaction-pin' },
-          ]}
+          actions={getRemoteAgentDashboardQuickActions({
+            permissions: model.agentMetrics.permissions,
+            role: 'employee',
+          })}
         />
       </div>
     </>
