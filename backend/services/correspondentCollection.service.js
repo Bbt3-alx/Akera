@@ -10,7 +10,8 @@ import { runTransaction } from "../utils/dbTransaction.js";
 import { generateAccountOperationCode } from "./accountOperation.service.js";
 import { writeJournalEntries } from "./ledger.service.js";
 
-const VALID_LIST_STATUSES = new Set(["pending", "confirmed", "canceled"]);
+const VALID_LIST_STATUSES = new Set(["pending", "paid", "confirmed", "canceled"]);
+const VALID_CURRENCIES = new Set(["FCFA", "GNF"]);
 
 const collectionPopulate = [
   {
@@ -30,6 +31,10 @@ const collectionPopulate = [
     select: "firstName lastName name email",
   },
   {
+    path: "paidBy",
+    select: "firstName lastName name email",
+  },
+  {
     path: "canceledBy",
     select: "firstName lastName name email",
   },
@@ -42,8 +47,11 @@ export async function createCorrespondentCollection({
   role,
   userId,
 }) {
-  assertManager(role, "Only managers can create correspondent collections");
-  const normalized = normalizeCreatePayload(payload);
+  assertCreateAccess(role);
+  const normalized = normalizeCreatePayload(payload, {
+    membershipId,
+    role,
+  });
 
   return runTransaction(async (session) => {
     const existing = await CorrespondentCollection.findOne({
@@ -64,7 +72,7 @@ export async function createCorrespondentCollection({
       company: companyId,
       status: "active",
       role: "partner",
-      currency: "FCFA",
+      currency: normalized.currency,
     }).session(session);
 
     if (!correspondentMembership) {
@@ -84,17 +92,98 @@ export async function createCorrespondentCollection({
           createdBy: userId,
           collectionCode: generateCollectionCode(),
           amount: normalized.amount,
+          beneficiaryName: normalized.beneficiaryName,
+          beneficiaryPhone: normalized.beneficiaryPhone,
           currency: normalized.currency,
+          payoutAmount: normalized.payoutAmount,
+          payoutCurrency: normalized.payoutCurrency,
           status: "pending",
-          customerName: normalized.customerName,
-          customerPhone: normalized.customerPhone,
+          customerName: normalized.beneficiaryName,
+          customerPhone: normalized.beneficiaryPhone,
           note: normalized.note,
+          rateValue: normalized.rateValue,
+          rateBaseAmount: normalized.rateBaseAmount,
+          rateQuoteCurrency: normalized.rateQuoteCurrency,
+          rateBaseCurrency: normalized.rateBaseCurrency,
+          counterAmount: normalized.counterAmount,
+          counterCurrency: normalized.counterCurrency,
+          rateNote: normalized.rateNote,
           idempotencyKey: normalized.idempotencyKey,
           idempotencyPayload: normalized.idempotencyPayload,
         },
       ],
       { session },
     );
+
+    const updatedMembership = await CompanyMembership.findOneAndUpdate(
+      {
+        _id: normalized.correspondentMembershipId,
+        company: companyId,
+        role: "partner",
+        status: "active",
+        currency: normalized.currency,
+      },
+      { $inc: { balance: normalized.amount } },
+      { new: true, session },
+    );
+
+    if (!updatedMembership) {
+      throw new ApiError(
+        409,
+        "Unable to update correspondent balance",
+        "CORRESPONDENT_BALANCE_UPDATE_FAILED",
+      );
+    }
+
+    const currentBalance = updatedMembership.balance ?? 0;
+    const previousBalance = currentBalance - normalized.amount;
+    const [operation] = await AccountOperation.create(
+      [
+        {
+          company: companyId,
+          targetMembership: normalized.correspondentMembershipId,
+          createdByMembership: membershipId,
+          createdBy: userId,
+          linkedCorrespondentCollection: collection._id,
+          workflow: "correspondent_collection",
+          type: "deposit",
+          status: "completed",
+          amount: normalized.amount,
+          currency: normalized.currency,
+          previousBalance,
+          currentBalance,
+          operationCode: generateAccountOperationCode(),
+        },
+      ],
+      { session },
+    );
+
+    const ledgerEntries = await writeJournalEntries({
+      accountOperationId: operation._id,
+      companyId,
+      userId,
+      session,
+      entries: [
+        {
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+          currency: normalized.currency,
+          debit: normalized.amount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          currency: normalized.currency,
+          debit: 0,
+          credit: normalized.amount,
+        },
+      ],
+    });
+
+    operation.ledgerEntries = ledgerEntries.map((entry) => entry._id);
+    await operation.save({ session });
+
+    collection.accountOperation = operation._id;
+    await collection.save({ session });
 
     return collection;
   });
@@ -165,7 +254,7 @@ export async function confirmCorrespondentCollection({
   role,
   userId,
 }) {
-  assertManager(role, "Only managers can confirm correspondent collections");
+  assertManager(role, "Only managers can pay correspondent collections");
 
   return runTransaction(async (session) => {
     const collection = await findCollectionByCode({
@@ -177,13 +266,13 @@ export async function confirmCorrespondentCollection({
     if (collection.status !== "pending") {
       throw new ApiError(
         400,
-        "Only pending correspondent collections can be confirmed",
-        "CORRESPONDENT_COLLECTION_CONFIRM_NOT_ALLOWED",
+        "Only pending correspondent collections can be paid",
+        "CORRESPONDENT_COLLECTION_PAY_NOT_ALLOWED",
       );
     }
 
-    const confirmedAt = new Date();
-    const confirmedCollection = await CorrespondentCollection.findOneAndUpdate(
+    const paidAt = new Date();
+    const paidCollection = await CorrespondentCollection.findOneAndUpdate(
       {
         _id: collection._id,
         company: companyId,
@@ -191,95 +280,25 @@ export async function confirmCorrespondentCollection({
       },
       {
         $set: {
-          status: "confirmed",
-          confirmedBy: userId,
-          confirmedByMembership: membershipId,
-          confirmedAt,
+          status: "paid",
+          paidBy: userId,
+          paidByMembership: membershipId,
+          paidAt,
         },
       },
       { new: true, session },
     );
 
-    if (!confirmedCollection) {
+    if (!paidCollection) {
       await throwConcurrentTransitionError({
         collectionId: collection._id,
         companyId,
         session,
-        transition: "confirm",
+        transition: "pay",
       });
     }
 
-    const updatedMembership = await CompanyMembership.findOneAndUpdate(
-      {
-        _id: collection.correspondentMembership,
-        company: companyId,
-        role: "partner",
-        status: "active",
-        currency: "FCFA",
-      },
-      { $inc: { balance: collection.amount } },
-      { new: true, session },
-    );
-
-    if (!updatedMembership) {
-      throw new ApiError(
-        409,
-        "Unable to update correspondent balance",
-        "CORRESPONDENT_BALANCE_UPDATE_FAILED",
-      );
-    }
-
-    const currentBalance = updatedMembership.balance ?? 0;
-    const previousBalance = currentBalance - collection.amount;
-    const [operation] = await AccountOperation.create(
-      [
-        {
-          company: companyId,
-          targetMembership: collection.correspondentMembership,
-          createdByMembership: membershipId,
-          createdBy: userId,
-          linkedCorrespondentCollection: collection._id,
-          workflow: "correspondent_collection",
-          type: "deposit",
-          status: "completed",
-          amount: collection.amount,
-          currency: collection.currency,
-          previousBalance,
-          currentBalance,
-          operationCode: generateAccountOperationCode(),
-        },
-      ],
-      { session },
-    );
-
-    const ledgerEntries = await writeJournalEntries({
-      accountOperationId: operation._id,
-      companyId,
-      userId,
-      session,
-      entries: [
-        {
-          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
-          currency: collection.currency,
-          debit: collection.amount,
-          credit: 0,
-        },
-        {
-          accountCode: ACCOUNTS.PARTNER_BALANCE,
-          currency: collection.currency,
-          debit: 0,
-          credit: collection.amount,
-        },
-      ],
-    });
-
-    operation.ledgerEntries = ledgerEntries.map((entry) => entry._id);
-    await operation.save({ session });
-
-    confirmedCollection.accountOperation = operation._id;
-    await confirmedCollection.save({ session });
-
-    return confirmedCollection;
+    return paidCollection;
   });
 }
 
@@ -291,7 +310,7 @@ export async function cancelCorrespondentCollection({
   role,
   userId,
 }) {
-  assertManager(role, "Only managers can cancel correspondent collections");
+  assertCancelAccess(role);
   const normalized = normalizeCancelPayload(payload);
 
   return runTransaction(async (session) => {
@@ -300,6 +319,17 @@ export async function cancelCorrespondentCollection({
       companyId,
       session,
     });
+
+    if (
+      role === "partner" &&
+      !idsEqual(collection.correspondentMembership, membershipId)
+    ) {
+      throw new ApiError(
+        403,
+        "Only the assigned correspondent can cancel this collection",
+        "CORRESPONDENT_COLLECTION_ASSIGNED_PARTNER_REQUIRED",
+      );
+    }
 
     if (collection.status === "canceled") {
       return collection;
@@ -340,6 +370,88 @@ export async function cancelCorrespondentCollection({
         transition: "cancel",
       });
     }
+
+    const updatedMembership = await CompanyMembership.findOneAndUpdate(
+      {
+        _id: collection.correspondentMembership,
+        company: companyId,
+        role: "partner",
+        status: "active",
+        currency: collection.currency,
+        balance: { $gte: collection.amount },
+        $expr: {
+          $gte: [
+            {
+              $subtract: [
+                "$balance",
+                { $ifNull: ["$reservedBalance", 0] },
+              ],
+            },
+            collection.amount,
+          ],
+        },
+      },
+      { $inc: { balance: -collection.amount } },
+      { new: true, session },
+    );
+
+    if (!updatedMembership) {
+      throw new ApiError(
+        409,
+        "Unable to reverse correspondent collection balance",
+        "CORRESPONDENT_COLLECTION_REVERSAL_BALANCE_UNAVAILABLE",
+      );
+    }
+
+    const currentBalance = updatedMembership.balance ?? 0;
+    const previousBalance = currentBalance + collection.amount;
+    const [operation] = await AccountOperation.create(
+      [
+        {
+          company: companyId,
+          targetMembership: collection.correspondentMembership,
+          createdByMembership: membershipId,
+          createdBy: userId,
+          linkedCorrespondentCollection: collection._id,
+          workflow: "correspondent_collection",
+          type: "withdrawal",
+          status: "completed",
+          amount: collection.amount,
+          currency: collection.currency,
+          previousBalance,
+          currentBalance,
+          operationCode: generateAccountOperationCode(),
+        },
+      ],
+      { session },
+    );
+
+    const ledgerEntries = await writeJournalEntries({
+      accountOperationId: operation._id,
+      companyId,
+      userId,
+      session,
+      entries: [
+        {
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          currency: collection.currency,
+          debit: collection.amount,
+          credit: 0,
+        },
+        {
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+          currency: collection.currency,
+          debit: 0,
+          credit: collection.amount,
+        },
+      ],
+    });
+
+    operation.ledgerEntries = ledgerEntries.map((entry) => entry._id);
+    await operation.save({ session });
+
+    canceledCollection.cancellationAccountOperation = operation._id;
+    await canceledCollection.save({ session });
 
     return canceledCollection;
   });
@@ -388,21 +500,31 @@ async function throwConcurrentTransitionError({
   }).session(session);
 
   if (current?.status && current.status !== "pending") {
+    const notAllowedCode =
+      transition === "pay"
+        ? "CORRESPONDENT_COLLECTION_PAY_NOT_ALLOWED"
+        : transition === "confirm"
+          ? "CORRESPONDENT_COLLECTION_CONFIRM_NOT_ALLOWED"
+          : "CORRESPONDENT_COLLECTION_CANCEL_NOT_ALLOWED";
+
     throw new ApiError(
       400,
       `Correspondent collection cannot ${transition} from this status`,
-      transition === "confirm"
-        ? "CORRESPONDENT_COLLECTION_CONFIRM_NOT_ALLOWED"
-        : "CORRESPONDENT_COLLECTION_CANCEL_NOT_ALLOWED",
+      notAllowedCode,
     );
   }
+
+  const inProgressCode =
+    transition === "pay"
+      ? "CORRESPONDENT_COLLECTION_PAY_IN_PROGRESS"
+      : transition === "confirm"
+        ? "CORRESPONDENT_COLLECTION_CONFIRM_IN_PROGRESS"
+        : "CORRESPONDENT_COLLECTION_CANCEL_IN_PROGRESS";
 
   throw new ApiError(
     409,
     `Correspondent collection ${transition} is already in progress`,
-    transition === "confirm"
-      ? "CORRESPONDENT_COLLECTION_CONFIRM_IN_PROGRESS"
-      : "CORRESPONDENT_COLLECTION_CANCEL_IN_PROGRESS",
+    inProgressCode,
   );
 }
 
@@ -437,25 +559,26 @@ function buildListFilter({ companyId, membershipId, query, role }) {
   return filter;
 }
 
-function normalizeCreatePayload(payload) {
-  const correspondentMembershipId = normalizeObjectId(
-    payload.correspondentMembershipId ?? payload.correspondentMembership,
-    "Correspondent membership ID",
-    "INVALID_CORRESPONDENT_MEMBERSHIP",
+function normalizeCreatePayload(payload, { membershipId, role }) {
+  const correspondentMembershipId = normalizeCorrespondentMembershipId(
+    payload,
+    { membershipId, role },
   );
   const amount = normalizeAmount(payload.amount);
-  const currency = normalizeFcfaCurrency(payload.currency);
-  const customerName = normalizeRequiredString(
-    payload.customerName,
-    "Customer name is required",
-    "INVALID_CUSTOMER_NAME",
+  const currency = normalizeCurrency(payload.currency);
+  const beneficiaryName = normalizeRequiredString(
+    payload.beneficiaryName ?? payload.customerName,
+    "Beneficiary name is required",
+    "INVALID_BENEFICIARY_NAME",
   );
-  const customerPhone = normalizeOptionalString({
-    errorCode: "INVALID_CUSTOMER_PHONE",
-    label: "Customer phone",
+  const beneficiaryPhone = normalizeOptionalString({
+    errorCode: "INVALID_BENEFICIARY_PHONE",
+    label: "Beneficiary phone",
     maxLength: 40,
-    value: payload.customerPhone,
+    value: payload.beneficiaryPhone ?? payload.customerPhone,
   });
+  const payoutAmount = normalizePayoutAmount(payload.payoutAmount);
+  const payoutCurrency = normalizePayoutCurrency(payload.payoutCurrency);
   const note = normalizeOptionalString({
     errorCode: "INVALID_COLLECTION_NOTE",
     label: "Note",
@@ -467,22 +590,29 @@ function normalizeCreatePayload(payload) {
     "Idempotency key is required",
     "IDEMPOTENCY_KEY_REQUIRED",
   );
+  const rateSnapshot = normalizeRateSnapshot(payload, "COLLECTION");
 
   return {
     amount,
+    beneficiaryName,
+    beneficiaryPhone,
     correspondentMembershipId,
     currency,
-    customerName,
-    customerPhone,
     idempotencyKey,
     note,
+    payoutAmount,
+    payoutCurrency,
+    ...rateSnapshot,
     idempotencyPayload: {
       amount,
+      beneficiaryName,
+      beneficiaryPhone,
       correspondentMembershipId: correspondentMembershipId.toString(),
       currency,
-      customerName,
-      customerPhone,
       note,
+      payoutAmount,
+      payoutCurrency,
+      ...rateSnapshot,
     },
   };
 }
@@ -496,6 +626,40 @@ function normalizeCancelPayload(payload) {
       value: payload.reason ?? payload.cancelReason,
     }),
   };
+}
+
+function normalizeCorrespondentMembershipId(payload, { membershipId, role }) {
+  const requestedMembership =
+    payload.correspondentMembershipId ?? payload.correspondentMembership;
+
+  if (role === "partner") {
+    const ownMembershipId = normalizeObjectId(
+      membershipId,
+      "Active membership ID",
+      "INVALID_COMPANY_MEMBERSHIP",
+    );
+
+    if (
+      requestedMembership !== undefined &&
+      requestedMembership !== null &&
+      requestedMembership !== "" &&
+      !idsEqual(requestedMembership, ownMembershipId)
+    ) {
+      throw new ApiError(
+        403,
+        "Partners can only create collections for their own membership",
+        "CORRESPONDENT_COLLECTION_OWN_MEMBERSHIP_REQUIRED",
+      );
+    }
+
+    return ownMembershipId;
+  }
+
+  return normalizeObjectId(
+    requestedMembership,
+    "Correspondent membership ID",
+    "INVALID_CORRESPONDENT_MEMBERSHIP",
+  );
 }
 
 function normalizeObjectId(value, label, errorCode) {
@@ -524,7 +688,7 @@ function normalizeAmount(value) {
   if (!Number.isInteger(amount)) {
     throw new ApiError(
       400,
-      "FCFA amount must be an integer",
+      "FCFA/GNF amount must be an integer",
       "INVALID_COLLECTION_AMOUNT",
     );
   }
@@ -532,22 +696,159 @@ function normalizeAmount(value) {
   return amount;
 }
 
-function normalizeFcfaCurrency(value) {
+function normalizePayoutAmount(value) {
+  const amount = Number(value);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new ApiError(
+      400,
+      "Collection payout amount must be greater than 0",
+      "INVALID_COLLECTION_PAYOUT_AMOUNT",
+    );
+  }
+
+  if (!Number.isInteger(amount)) {
+    throw new ApiError(
+      400,
+      "FCFA/GNF payout amount must be an integer",
+      "INVALID_COLLECTION_PAYOUT_AMOUNT",
+    );
+  }
+
+  return amount;
+}
+
+function normalizeCurrency(value) {
   const currency = normalizeRequiredString(
     value,
     "Collection currency is required",
     "INVALID_COLLECTION_CURRENCY",
   ).toUpperCase();
 
-  if (currency !== "FCFA") {
+  if (!VALID_CURRENCIES.has(currency)) {
     throw new ApiError(
       400,
-      "Correspondent collection MVP only supports FCFA",
+      "Correspondent collection supports FCFA and GNF",
       "INVALID_COLLECTION_CURRENCY",
     );
   }
 
   return currency;
+}
+
+function normalizePayoutCurrency(value) {
+  const currency = normalizeRequiredString(
+    value,
+    "Collection payout currency is required",
+    "INVALID_COLLECTION_PAYOUT_CURRENCY",
+  ).toUpperCase();
+
+  if (!VALID_CURRENCIES.has(currency)) {
+    throw new ApiError(
+      400,
+      "Collection payout currency must be FCFA or GNF",
+      "INVALID_COLLECTION_PAYOUT_CURRENCY",
+    );
+  }
+
+  return currency;
+}
+
+function normalizeRateSnapshot(payload, prefix) {
+  return compactObject({
+    rateValue: normalizeOptionalPositiveNumber({
+      errorCode: `INVALID_${prefix}_RATE_VALUE`,
+      label: "Rate value",
+      value: payload.rateValue,
+    }),
+    rateBaseAmount: normalizeOptionalPositiveInteger({
+      errorCode: `INVALID_${prefix}_RATE_BASE_AMOUNT`,
+      label: "Rate base amount",
+      value: payload.rateBaseAmount,
+    }),
+    rateQuoteCurrency: normalizeOptionalCurrency({
+      errorCode: `INVALID_${prefix}_RATE_QUOTE_CURRENCY`,
+      label: "Rate quote currency",
+      value: payload.rateQuoteCurrency,
+    }),
+    rateBaseCurrency: normalizeOptionalCurrency({
+      errorCode: `INVALID_${prefix}_RATE_BASE_CURRENCY`,
+      label: "Rate base currency",
+      value: payload.rateBaseCurrency,
+    }),
+    counterAmount: normalizeOptionalPositiveInteger({
+      errorCode: `INVALID_${prefix}_COUNTER_AMOUNT`,
+      label: "Counter amount",
+      value: payload.counterAmount,
+    }),
+    counterCurrency: normalizeOptionalCurrency({
+      errorCode: `INVALID_${prefix}_COUNTER_CURRENCY`,
+      label: "Counter currency",
+      value: payload.counterCurrency,
+    }),
+    rateNote: normalizeOptionalString({
+      errorCode: `INVALID_${prefix}_RATE_NOTE`,
+      label: "Rate note",
+      maxLength: 300,
+      value: payload.rateNote,
+    }),
+  });
+}
+
+function normalizeOptionalPositiveNumber({ errorCode, label, value }) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new ApiError(400, `${label} must be greater than 0`, errorCode);
+  }
+
+  return parsed;
+}
+
+function normalizeOptionalPositiveInteger({ errorCode, label, value }) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
+    throw new ApiError(
+      400,
+      `${label} must be a positive integer`,
+      errorCode,
+    );
+  }
+
+  return parsed;
+}
+
+function normalizeOptionalCurrency({ errorCode, label, value }) {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const currency = normalizeRequiredString(
+    value,
+    `${label} is required`,
+    errorCode,
+  ).toUpperCase();
+
+  if (!VALID_CURRENCIES.has(currency)) {
+    throw new ApiError(400, `${label} must be FCFA or GNF`, errorCode);
+  }
+
+  return currency;
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  );
 }
 
 function normalizeRequiredString(value, message, errorCode) {
@@ -613,6 +914,26 @@ function assertManager(role, message) {
   }
 }
 
+function assertCreateAccess(role) {
+  if (role !== "manager" && role !== "partner") {
+    throw new ApiError(
+      403,
+      "Only managers and correspondent partners can create collections",
+      "CORRESPONDENT_COLLECTION_PARTNER_OR_MANAGER_REQUIRED",
+    );
+  }
+}
+
+function assertCancelAccess(role) {
+  if (role !== "manager" && role !== "partner") {
+    throw new ApiError(
+      403,
+      "Only managers and correspondent partners can cancel collections",
+      "CORRESPONDENT_COLLECTION_PARTNER_OR_MANAGER_REQUIRED",
+    );
+  }
+}
+
 function assertReadAccess(role) {
   if (role !== "manager" && role !== "partner") {
     throw new ApiError(
@@ -638,4 +959,24 @@ function normalizePositiveInteger(value, fallback) {
   }
 
   return parsed;
+}
+
+function idsEqual(left, right) {
+  return serializeId(left) === serializeId(right);
+}
+
+function serializeId(value) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value.toHexString === "function") {
+    return value.toHexString();
+  }
+
+  if (typeof value === "object") {
+    return serializeId(value._id ?? value.id);
+  }
+
+  return value.toString();
 }

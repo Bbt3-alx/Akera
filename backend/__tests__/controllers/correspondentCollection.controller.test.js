@@ -7,6 +7,7 @@ import {
   createCollection,
   getCollection,
   listCollections,
+  payCollection,
 } from "../../controllers/correspondentCollection.controller.js";
 import * as correspondentCollectionService from "../../services/correspondentCollection.service.js";
 
@@ -49,8 +50,11 @@ describe("correspondent collection controller", () => {
         collectionCode: "CCL-260625-ABCD",
         amount: 25000,
         currency: "FCFA",
+        payoutAmount: 20000000,
+        payoutCurrency: "FCFA",
         status: "pending",
         correspondentMembership: ids.correspondentMembershipId,
+        accountOperation: ids.operationId,
       },
     });
     expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
@@ -119,21 +123,21 @@ describe("correspondent collection controller", () => {
     expect(res.status).toHaveBeenCalledWith(200);
   });
 
-  it("confirms a collection response without exposing PIN or idempotency fields", async () => {
+  it("pays a collection by code without exposing PIN or idempotency fields", async () => {
     const ids = createIds();
     const collection = createCollectionRecord(ids, {
       accountOperation: ids.operationId,
-      confirmedAt: "2026-06-25T10:00:00.000Z",
-      confirmedBy: ids.managerId,
-      confirmedByMembership: ids.managerMembershipId,
-      status: "confirmed",
+      paidAt: "2026-06-27T10:00:00.000Z",
+      paidBy: ids.managerId,
+      paidByMembership: ids.managerMembershipId,
+      status: "paid",
     });
     jest
       .spyOn(correspondentCollectionService, "confirmCorrespondentCollection")
       .mockResolvedValue(collection);
     const res = createResponse();
 
-    await confirmCollection(
+    await payCollection(
       createRequest(ids, {
         params: { collectionCode: "CCL-260625-ABCD" },
       }),
@@ -157,15 +161,45 @@ describe("correspondent collection controller", () => {
       collectionCode: "CCL-260625-ABCD",
       amount: 25000,
       currency: "FCFA",
-      status: "confirmed",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
+      status: "paid",
       correspondentMembership: ids.correspondentMembershipId,
       accountOperation: ids.operationId,
+      paidAt: "2026-06-27T10:00:00.000Z",
+      paidBy: ids.managerId,
+      paidByMembership: ids.managerMembershipId,
     });
+  });
+
+  it("keeps confirm as a compatibility alias for manager-paid collections", async () => {
+    const ids = createIds();
+    const collection = createCollectionRecord(ids, {
+      paidAt: "2026-06-27T10:00:00.000Z",
+      paidBy: ids.managerId,
+      paidByMembership: ids.managerMembershipId,
+      status: "paid",
+    });
+    jest
+      .spyOn(correspondentCollectionService, "confirmCorrespondentCollection")
+      .mockResolvedValue(collection);
+    const res = createResponse();
+
+    await confirmCollection(
+      createRequest(ids, {
+        params: { collectionCode: "CCL-260625-ABCD" },
+      }),
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.locals.audit.metadata.status).toBe("paid");
   });
 
   it("cancels a collection with safe audit metadata", async () => {
     const ids = createIds();
     const collection = createCollectionRecord(ids, {
+      cancellationAccountOperation: ids.cancellationOperationId,
       cancelReason: "Customer reversed",
       canceledAt: "2026-06-25T11:00:00.000Z",
       canceledBy: ids.managerId,
@@ -199,8 +233,11 @@ describe("correspondent collection controller", () => {
       collectionCode: "CCL-260625-ABCD",
       amount: 25000,
       currency: "FCFA",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
       status: "canceled",
       correspondentMembership: ids.correspondentMembershipId,
+      cancellationAccountOperation: ids.cancellationOperationId,
       cancelReason: "Customer reversed",
     });
     expect(JSON.stringify(res.locals.audit)).not.toContain("123456");
@@ -210,6 +247,7 @@ describe("correspondent collection controller", () => {
 function createIds() {
   return {
     collectionId: new mongoose.Types.ObjectId(),
+    cancellationOperationId: new mongoose.Types.ObjectId(),
     companyId: new mongoose.Types.ObjectId(),
     correspondentMembershipId: new mongoose.Types.ObjectId(),
     correspondentUserId: new mongoose.Types.ObjectId(),
@@ -227,6 +265,7 @@ function createCollectionRecord(
     correspondentUserId,
     managerId,
     managerMembershipId,
+    operationId,
   },
   override = {},
 ) {
@@ -246,13 +285,18 @@ function createCollectionRecord(
     createdBy: managerId,
     collectionCode: "CCL-260625-ABCD",
     amount: 25000,
+    beneficiaryName: "Client Bamako",
+    beneficiaryPhone: "+22370000000",
     currency: "FCFA",
+    payoutAmount: 20000000,
+    payoutCurrency: "FCFA",
     status: "pending",
     customerName: "Client Bamako",
     customerPhone: "+22370000000",
     note: "Market collection",
     idempotencyKey: "collection-create-1",
     idempotencyPayload: { amount: 25000 },
+    accountOperation: operationId,
     createdAt: "2026-06-25T09:00:00.000Z",
     updatedAt: "2026-06-25T09:00:00.000Z",
     ...override,
@@ -266,7 +310,11 @@ function createRequest(
   return {
     body: {
       amount: 25000,
+      beneficiaryName: "Client Bamako",
+      beneficiaryPhone: "+22370000000",
       currency: "FCFA",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
       customerName: "Client Bamako",
       correspondentMembershipId: correspondentMembershipId.toHexString(),
       idempotencyKey: "collection-create-1",

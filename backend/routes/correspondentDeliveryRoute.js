@@ -1,13 +1,12 @@
 import express from "express";
 
 import {
-  cancelCollection,
-  confirmCollection,
-  createCollection,
-  getCollection,
-  listCollections,
-  payCollection,
-} from "../controllers/correspondentCollection.controller.js";
+  cancelDelivery,
+  confirmDelivery,
+  createDelivery,
+  getDelivery,
+  listDeliveries,
+} from "../controllers/correspondentDelivery.controller.js";
 import {
   COMPANY_MODULES,
   TRANSFER_WORKFLOWS,
@@ -35,38 +34,31 @@ const activeCompanyAccess = [
 router.post(
   "/",
   activeCompanyAccess,
-  audit("CORRESPONDENT_COLLECTION_CREATE", "CorrespondentCollection"),
-  catchAsync(createCollection),
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("CORRESPONDENT_DELIVERY_CREATE", "CorrespondentDelivery"),
+  catchAsync(createDelivery),
 );
 
-router.get("/", activeCompanyAccess, catchAsync(listCollections));
+router.get("/", activeCompanyAccess, catchAsync(listDeliveries));
 
-router.get("/:collectionCode", activeCompanyAccess, catchAsync(getCollection));
+router.get("/:deliveryCode", activeCompanyAccess, catchAsync(getDelivery));
 
 router.post(
-  "/:collectionCode/pay",
+  "/:deliveryCode/confirm",
+  activeCompanyAccess,
+  verifyTransactionPin,
+  audit("CORRESPONDENT_DELIVERY_CONFIRM", "CorrespondentDelivery"),
+  catchAsync(confirmDelivery),
+);
+
+router.post(
+  "/:deliveryCode/cancel",
   activeCompanyAccess,
   requireManagerContext,
   verifyTransactionPin,
-  audit("CORRESPONDENT_COLLECTION_PAY", "CorrespondentCollection"),
-  catchAsync(payCollection),
-);
-
-router.post(
-  "/:collectionCode/confirm",
-  activeCompanyAccess,
-  requireManagerContext,
-  verifyTransactionPin,
-  audit("CORRESPONDENT_COLLECTION_CONFIRM", "CorrespondentCollection"),
-  catchAsync(confirmCollection),
-);
-
-router.post(
-  "/:collectionCode/cancel",
-  activeCompanyAccess,
-  verifyTransactionPin,
-  audit("CORRESPONDENT_COLLECTION_CANCEL", "CorrespondentCollection"),
-  catchAsync(cancelCollection),
+  audit("CORRESPONDENT_DELIVERY_CANCEL", "CorrespondentDelivery"),
+  catchAsync(cancelDelivery),
 );
 
 export default router;

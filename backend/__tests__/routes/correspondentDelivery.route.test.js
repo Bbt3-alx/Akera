@@ -2,17 +2,16 @@ import { describe, expect, it } from "@jest/globals";
 
 import { requireManagerContext } from "../../middlewares/requireManagerContext.js";
 import verifyTransactionPin from "../../middlewares/verifyTransactionPin.js";
-import correspondentCollectionRoutes from "../../routes/correspondentCollectionRoute.js";
+import correspondentDeliveryRoutes from "../../routes/correspondentDeliveryRoute.js";
 
-describe("correspondent collection routes", () => {
-  it("exposes the Phase 27A backend endpoints", () => {
+describe("correspondent delivery routes", () => {
+  it("exposes the Phase 27A.1 backend endpoints", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/", "get"],
-      ["/:collectionCode", "get"],
-      ["/:collectionCode/pay", "post"],
-      ["/:collectionCode/confirm", "post"],
-      ["/:collectionCode/cancel", "post"],
+      ["/:deliveryCode", "get"],
+      ["/:deliveryCode/confirm", "post"],
+      ["/:deliveryCode/cancel", "post"],
     ]) {
       expect(findRoute(path, method)).toBeDefined();
     }
@@ -22,10 +21,9 @@ describe("correspondent collection routes", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/", "get"],
-      ["/:collectionCode", "get"],
-      ["/:collectionCode/pay", "post"],
-      ["/:collectionCode/confirm", "post"],
-      ["/:collectionCode/cancel", "post"],
+      ["/:deliveryCode", "get"],
+      ["/:deliveryCode/confirm", "post"],
+      ["/:deliveryCode/cancel", "post"],
     ]) {
       const route = findRoute(path, method);
 
@@ -38,18 +36,10 @@ describe("correspondent collection routes", () => {
     }
   });
 
-  it("uses manager PIN for pay/confirm and shared PIN for partner-capable cancel", () => {
-    const createRoute = findRoute("/", "post");
-    expect(createRoute.stack.map((layer) => layer.handle)).not.toContain(
-      requireManagerContext,
-    );
-    expect(createRoute.stack.map((layer) => layer.handle)).not.toContain(
-      verifyTransactionPin,
-    );
-
+  it("uses manager PIN for create/cancel and partner PIN without manager guard for confirm", () => {
     for (const [path, method] of [
-      ["/:collectionCode/pay", "post"],
-      ["/:collectionCode/confirm", "post"],
+      ["/", "post"],
+      ["/:deliveryCode/cancel", "post"],
     ]) {
       const route = findRoute(path, method);
 
@@ -61,17 +51,19 @@ describe("correspondent collection routes", () => {
       );
     }
 
-    const cancelRoute = findRoute("/:collectionCode/cancel", "post");
-    expect(cancelRoute.stack.map((layer) => layer.handle)).toContain(
+    const confirmRoute = findRoute("/:deliveryCode/confirm", "post");
+    expect(confirmRoute.stack.map((layer) => layer.handle)).toContain(
       verifyTransactionPin,
     );
-    expect(cancelRoute.stack.map((layer) => layer.handle)).not.toContain(
+    expect(confirmRoute.stack.map((layer) => layer.handle)).not.toContain(
       requireManagerContext,
     );
+  });
 
+  it("does not require transaction PIN for read endpoints", () => {
     for (const [path, method] of [
       ["/", "get"],
-      ["/:collectionCode", "get"],
+      ["/:deliveryCode", "get"],
     ]) {
       const route = findRoute(path, method);
 
@@ -86,7 +78,7 @@ describe("correspondent collection routes", () => {
 });
 
 function findRoute(path, method) {
-  const layer = correspondentCollectionRoutes.stack.find(
+  const layer = correspondentDeliveryRoutes.stack.find(
     (candidate) =>
       candidate.route?.path === path && candidate.route?.methods?.[method],
   );

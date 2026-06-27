@@ -7,17 +7,29 @@ export function serializeCorrespondentCollection(collection) {
   const correspondentUser = correspondentMembership?.user;
   const createdByUser = collection.createdBy;
   const confirmedByUser = collection.confirmedBy;
+  const paidByUser = collection.paidBy ?? collection.confirmedBy;
   const canceledByUser = collection.canceledBy;
 
   return {
     id: serializeId(collection._id ?? collection.id),
     collectionCode: collection.collectionCode,
     amount: collection.amount,
+    beneficiaryName: collection.beneficiaryName ?? collection.customerName,
+    beneficiaryPhone: collection.beneficiaryPhone ?? collection.customerPhone,
     currency: collection.currency,
+    payoutAmount: collection.payoutAmount,
+    payoutCurrency: collection.payoutCurrency,
     status: collection.status,
     customerName: collection.customerName,
     customerPhone: collection.customerPhone,
     note: collection.note ?? collection.description,
+    rateValue: collection.rateValue,
+    rateBaseAmount: collection.rateBaseAmount,
+    rateQuoteCurrency: collection.rateQuoteCurrency,
+    rateBaseCurrency: collection.rateBaseCurrency,
+    counterAmount: collection.counterAmount,
+    counterCurrency: collection.counterCurrency,
+    rateNote: collection.rateNote,
     correspondentMembership: serializeId(correspondentMembership),
     correspondentName: resolveUserName(correspondentUser),
     correspondentEmail: correspondentUser?.email,
@@ -25,12 +37,18 @@ export function serializeCorrespondentCollection(collection) {
     createdByName: resolveUserName(createdByUser),
     confirmedBy: serializeId(confirmedByUser),
     confirmedByName: resolveUserName(confirmedByUser),
+    paidBy: serializeId(paidByUser),
+    paidByName: resolveUserName(paidByUser),
     canceledBy: serializeId(canceledByUser),
     canceledByName: resolveUserName(canceledByUser),
     accountOperation: serializeId(collection.accountOperation),
+    cancellationAccountOperation: serializeId(
+      collection.cancellationAccountOperation,
+    ),
     createdAt: collection.createdAt,
     updatedAt: collection.updatedAt,
     confirmedAt: collection.confirmedAt,
+    paidAt: collection.paidAt ?? collection.confirmedAt,
     canceledAt: collection.canceledAt,
     cancelReason: collection.cancelReason,
   };

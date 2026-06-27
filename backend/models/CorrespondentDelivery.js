@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 
-const correspondentCollectionSchema = new Schema(
+const correspondentDeliverySchema = new Schema(
   {
     company: {
       type: Schema.Types.ObjectId,
@@ -33,14 +33,6 @@ const correspondentCollectionSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
-    paidByMembership: {
-      type: Schema.Types.ObjectId,
-      ref: "CompanyMembership",
-    },
-    paidBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-    },
     canceledByMembership: {
       type: Schema.Types.ObjectId,
       ref: "CompanyMembership",
@@ -49,7 +41,7 @@ const correspondentCollectionSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
-    collectionCode: {
+    deliveryCode: {
       type: String,
       required: true,
       unique: true,
@@ -62,7 +54,7 @@ const correspondentCollectionSchema = new Schema(
       min: 1,
       validate: {
         validator: Number.isInteger,
-        message: "Collection amount must be a positive integer",
+        message: "Delivery amount must be a positive integer",
       },
     },
     currency: {
@@ -70,44 +62,20 @@ const correspondentCollectionSchema = new Schema(
       enum: ["FCFA", "GNF"],
       required: true,
     },
-    payoutAmount: {
-      type: Number,
-      min: 1,
-      validate: {
-        validator(value) {
-          return value === undefined || Number.isInteger(value);
-        },
-        message: "Collection payout amount must be a positive integer",
-      },
-    },
-    payoutCurrency: {
-      type: String,
-      enum: ["FCFA", "GNF"],
-    },
     status: {
       type: String,
-      enum: ["pending", "paid", "confirmed", "canceled"],
+      enum: ["pending", "confirmed", "canceled"],
       default: "pending",
       required: true,
       index: true,
     },
     beneficiaryName: {
       type: String,
-      trim: true,
-      maxlength: 100,
-    },
-    beneficiaryPhone: {
-      type: String,
-      trim: true,
-      maxlength: 40,
-    },
-    customerName: {
-      type: String,
       required: true,
       trim: true,
       maxlength: 100,
     },
-    customerPhone: {
+    beneficiaryPhone: {
       type: String,
       trim: true,
       maxlength: 40,
@@ -164,7 +132,6 @@ const correspondentCollectionSchema = new Schema(
       maxlength: 300,
     },
     confirmedAt: Date,
-    paidAt: Date,
     canceledAt: Date,
     cancelReason: {
       type: String,
@@ -172,11 +139,6 @@ const correspondentCollectionSchema = new Schema(
       maxlength: 300,
     },
     accountOperation: {
-      type: Schema.Types.ObjectId,
-      ref: "AccountOperation",
-      index: true,
-    },
-    cancellationAccountOperation: {
       type: Schema.Types.ObjectId,
       ref: "AccountOperation",
       index: true,
@@ -194,19 +156,19 @@ const correspondentCollectionSchema = new Schema(
   { timestamps: true },
 );
 
-correspondentCollectionSchema.index({
+correspondentDeliverySchema.index({
   company: 1,
-  collectionCode: 1,
+  deliveryCode: 1,
 });
 
-correspondentCollectionSchema.index({
+correspondentDeliverySchema.index({
   company: 1,
   correspondentMembership: 1,
   status: 1,
   createdAt: -1,
 });
 
-correspondentCollectionSchema.index(
+correspondentDeliverySchema.index(
   {
     company: 1,
     createdBy: 1,
@@ -220,9 +182,9 @@ correspondentCollectionSchema.index(
   },
 );
 
-const CorrespondentCollection = model(
-  "CorrespondentCollection",
-  correspondentCollectionSchema,
+const CorrespondentDelivery = model(
+  "CorrespondentDelivery",
+  correspondentDeliverySchema,
 );
 
-export default CorrespondentCollection;
+export default CorrespondentDelivery;

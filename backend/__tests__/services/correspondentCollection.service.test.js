@@ -20,11 +20,16 @@ describe("correspondent collection service", () => {
     jest.restoreAllMocks();
   });
 
-  it("manager creates a pending collection for an active partner membership", async () => {
+  it("manager creates a pending collection and immediately credits held balance", async () => {
     mockMongooseSession();
     const ids = createIds();
     const membership = createMembership(ids, { role: "partner" });
-    const collection = createCollection(ids);
+    const collection = createCollection(ids, {
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    const operation = createAccountOperation(ids, {
+      save: jest.fn().mockResolvedValue(undefined),
+    });
     jest
       .spyOn(CorrespondentCollection, "findOne")
       .mockReturnValue(createSessionLeanQuery(null));
@@ -34,9 +39,19 @@ describe("correspondent collection service", () => {
     const collectionCreate = jest
       .spyOn(CorrespondentCollection, "create")
       .mockResolvedValue([collection]);
-    const membershipUpdate = jest.spyOn(CompanyMembership, "findOneAndUpdate");
+    const membershipUpdate = jest
+      .spyOn(CompanyMembership, "findOneAndUpdate")
+      .mockResolvedValue({
+        _id: ids.correspondentMembershipId,
+        balance: 125000,
+      });
+    const operationCreate = jest
+      .spyOn(AccountOperation, "create")
+      .mockResolvedValue([operation]);
     const companyUpdate = jest.spyOn(Company, "updateOne");
-    const ledgerInsert = jest.spyOn(LedgerEntry, "insertMany");
+    const ledgerInsert = jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
 
     const result = await createCorrespondentCollection({
       companyId: ids.companyId,
@@ -62,7 +77,11 @@ describe("correspondent collection service", () => {
           createdByMembership: ids.managerMembershipId,
           createdBy: ids.managerId,
           amount: 25000,
+          beneficiaryName: "Client Bamako",
+          beneficiaryPhone: "+22370000000",
           currency: "FCFA",
+          payoutAmount: 20000000,
+          payoutCurrency: "FCFA",
           status: "pending",
           customerName: "Client Bamako",
           customerPhone: "+22370000000",
@@ -70,19 +89,356 @@ describe("correspondent collection service", () => {
           idempotencyKey: "collection-create-1",
           idempotencyPayload: {
             amount: 25000,
+            beneficiaryName: "Client Bamako",
+            beneficiaryPhone: "+22370000000",
             correspondentMembershipId: ids.correspondentMembershipId.toString(),
             currency: "FCFA",
-            customerName: "Client Bamako",
-            customerPhone: "+22370000000",
             note: "Market collection",
+            payoutAmount: 20000000,
+            payoutCurrency: "FCFA",
           },
         }),
       ],
       { session: expect.any(Object) },
     );
-    expect(membershipUpdate).not.toHaveBeenCalled();
+    expect(membershipUpdate).toHaveBeenCalledWith(
+      {
+        _id: ids.correspondentMembershipId,
+        company: ids.companyId,
+        role: "partner",
+        status: "active",
+        currency: "FCFA",
+      },
+      { $inc: { balance: 25000 } },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(operationCreate).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          company: ids.companyId,
+          targetMembership: ids.correspondentMembershipId,
+          createdByMembership: ids.managerMembershipId,
+          createdBy: ids.managerId,
+          linkedCorrespondentCollection: ids.collectionId,
+          workflow: "correspondent_collection",
+          type: "deposit",
+          status: "completed",
+          amount: 25000,
+          currency: "FCFA",
+          previousBalance: 100000,
+          currentBalance: 125000,
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+    expect(ledgerInsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+          debit: 25000,
+          credit: 0,
+          currency: "FCFA",
+        }),
+        expect.objectContaining({
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          debit: 0,
+          credit: 25000,
+          currency: "FCFA",
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+    expect(operation.ledgerEntries).toEqual([
+      ids.ledgerDebitId,
+      ids.ledgerCreditId,
+    ]);
+    expect(operation.save).toHaveBeenCalledWith({ session: expect.any(Object) });
+    expect(collection.accountOperation).toBe(ids.operationId);
+    expect(collection.save).toHaveBeenCalledWith({ session: expect.any(Object) });
     expect(companyUpdate).not.toHaveBeenCalled();
-    expect(ledgerInsert).not.toHaveBeenCalled();
+  });
+
+  it("manager creates a pending GNF collection with rate snapshot fields", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const membership = createMembership(ids, { currency: "GNF" });
+    const collection = createCollection(ids, { currency: "GNF" });
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionLeanQuery(null));
+    jest
+      .spyOn(CompanyMembership, "findOne")
+      .mockReturnValue(createSessionQuery(membership));
+    const collectionCreate = jest
+      .spyOn(CorrespondentCollection, "create")
+      .mockResolvedValue([collection]);
+    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue({
+      _id: ids.correspondentMembershipId,
+      balance: 426000000,
+    });
+    jest
+      .spyOn(AccountOperation, "create")
+      .mockResolvedValue([createAccountOperation(ids, {
+        amount: 326000000,
+        currency: "GNF",
+        currentBalance: 426000000,
+        previousBalance: 100000000,
+        save: jest.fn().mockResolvedValue(undefined),
+      })]);
+    jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
+
+    const result = await createCorrespondentCollection({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      userId: ids.managerId,
+      role: "manager",
+      payload: collectionPayload(ids, {
+        amount: 326000000,
+        currency: "gnf",
+        rateValue: 82000,
+        rateBaseAmount: 5000,
+        rateQuoteCurrency: "GNF",
+        rateBaseCurrency: "FCFA",
+        counterAmount: 20000000,
+        counterCurrency: "FCFA",
+        rateNote: "Kalil sold GNF to Abdoulaye",
+      }),
+    });
+
+    expect(result).toBe(collection);
+    expect(CompanyMembership.findOne).toHaveBeenCalledWith({
+      _id: ids.correspondentMembershipId,
+      company: ids.companyId,
+      status: "active",
+      role: "partner",
+      currency: "GNF",
+    });
+    expect(collectionCreate).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          amount: 326000000,
+          currency: "GNF",
+          payoutAmount: 20000000,
+          payoutCurrency: "FCFA",
+          rateValue: 82000,
+          rateBaseAmount: 5000,
+          rateQuoteCurrency: "GNF",
+          rateBaseCurrency: "FCFA",
+          counterAmount: 20000000,
+          counterCurrency: "FCFA",
+          rateNote: "Kalil sold GNF to Abdoulaye",
+          idempotencyPayload: expect.objectContaining({
+            amount: 326000000,
+            currency: "GNF",
+            payoutAmount: 20000000,
+            payoutCurrency: "FCFA",
+            rateValue: 82000,
+            rateBaseAmount: 5000,
+            rateQuoteCurrency: "GNF",
+            rateBaseCurrency: "FCFA",
+            counterAmount: 20000000,
+            counterCurrency: "FCFA",
+            rateNote: "Kalil sold GNF to Abdoulaye",
+          }),
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+  });
+
+  it("Kalil creates a 328,000,000 GNF collection and balance becomes 328,000,000 immediately", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const membership = createMembership(ids, { balance: 0, currency: "GNF" });
+    const collection = createCollection(ids, {
+      amount: 328000000,
+      beneficiaryName: "Kadidia",
+      beneficiaryPhone: "+22371000000",
+      currency: "GNF",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    const operation = createAccountOperation(ids, {
+      amount: 328000000,
+      currency: "GNF",
+      currentBalance: 328000000,
+      previousBalance: 0,
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionLeanQuery(null));
+    const membershipFind = jest
+      .spyOn(CompanyMembership, "findOne")
+      .mockReturnValue(createSessionQuery(membership));
+    const collectionCreate = jest
+      .spyOn(CorrespondentCollection, "create")
+      .mockResolvedValue([collection]);
+    const membershipUpdate = jest
+      .spyOn(CompanyMembership, "findOneAndUpdate")
+      .mockResolvedValue({
+        _id: ids.correspondentMembershipId,
+        balance: 328000000,
+      });
+    const operationCreate = jest
+      .spyOn(AccountOperation, "create")
+      .mockResolvedValue([operation]);
+    const ledgerInsert = jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
+    const companyUpdate = jest.spyOn(Company, "updateOne");
+
+    const result = await createCorrespondentCollection({
+      companyId: ids.companyId,
+      membershipId: ids.correspondentMembershipId,
+      userId: ids.partnerUserId,
+      role: "partner",
+      payload: collectionPayload(ids, {
+        amount: 328000000,
+        beneficiaryName: " Kadidia ",
+        beneficiaryPhone: " +22371000000 ",
+        currency: "gnf",
+        payoutAmount: 20000000,
+        payoutCurrency: "fcfa",
+      }),
+    });
+
+    expect(result).toBe(collection);
+    expect(membershipFind).toHaveBeenCalledWith({
+      _id: ids.correspondentMembershipId,
+      company: ids.companyId,
+      status: "active",
+      role: "partner",
+      currency: "GNF",
+    });
+    expect(collectionCreate).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          correspondentMembership: ids.correspondentMembershipId,
+          createdByMembership: ids.correspondentMembershipId,
+          createdBy: ids.partnerUserId,
+          amount: 328000000,
+          beneficiaryName: "Kadidia",
+          beneficiaryPhone: "+22371000000",
+          currency: "GNF",
+          payoutAmount: 20000000,
+          payoutCurrency: "FCFA",
+          status: "pending",
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+    expect(membershipUpdate).toHaveBeenCalledWith(
+      {
+        _id: ids.correspondentMembershipId,
+        company: ids.companyId,
+        role: "partner",
+        status: "active",
+        currency: "GNF",
+      },
+      { $inc: { balance: 328000000 } },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(operationCreate).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          linkedCorrespondentCollection: ids.collectionId,
+          workflow: "correspondent_collection",
+          type: "deposit",
+          status: "completed",
+          amount: 328000000,
+          currency: "GNF",
+          previousBalance: 0,
+          currentBalance: 328000000,
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+    expect(ledgerInsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+          debit: 328000000,
+          credit: 0,
+          currency: "GNF",
+        }),
+        expect.objectContaining({
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          debit: 0,
+          credit: 328000000,
+          currency: "GNF",
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+    expect(collection.accountOperation).toBe(ids.operationId);
+    expect(collection.save).toHaveBeenCalledWith({ session: expect.any(Object) });
+    expect(companyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects partner collection creation for another partner membership", async () => {
+    const ids = createIds();
+    const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.correspondentMembershipId,
+        userId: ids.partnerUserId,
+        role: "partner",
+        payload: collectionPayload(ids, {
+          correspondentMembershipId: ids.otherPartnerMembershipId.toString(),
+        }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      errorCode: "CORRESPONDENT_COLLECTION_OWN_MEMBERSHIP_REQUIRED",
+    });
+    expect(collectionCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects employee collection creation", async () => {
+    const ids = createIds();
+    const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.employeeMembershipId,
+        userId: ids.employeeUserId,
+        role: "employee",
+        payload: collectionPayload(ids),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      errorCode: "CORRESPONDENT_COLLECTION_PARTNER_OR_MANAGER_REQUIRED",
+    });
+    expect(collectionCreate).not.toHaveBeenCalled();
+  });
+
+  it("requires beneficiaryName for partner-created collections", async () => {
+    const ids = createIds();
+    const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.correspondentMembershipId,
+        userId: ids.partnerUserId,
+        role: "partner",
+        payload: collectionPayload(ids, {
+          beneficiaryName: undefined,
+          customerName: undefined,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "INVALID_BENEFICIARY_NAME",
+    });
+    expect(collectionCreate).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -115,8 +471,12 @@ describe("correspondent collection service", () => {
   it.each([
     [{ amount: 0 }, "INVALID_COLLECTION_AMOUNT"],
     [{ amount: 25000.5 }, "INVALID_COLLECTION_AMOUNT"],
-    [{ currency: "GNF" }, "INVALID_COLLECTION_CURRENCY"],
-  ])("validates FCFA positive integer amounts", async (override, errorCode) => {
+    [{ amount: 326000000.5, currency: "GNF" }, "INVALID_COLLECTION_AMOUNT"],
+    [{ currency: "USD" }, "INVALID_COLLECTION_CURRENCY"],
+    [{ payoutAmount: 0 }, "INVALID_COLLECTION_PAYOUT_AMOUNT"],
+    [{ payoutAmount: 20000000.5 }, "INVALID_COLLECTION_PAYOUT_AMOUNT"],
+    [{ payoutCurrency: "USD" }, "INVALID_COLLECTION_PAYOUT_CURRENCY"],
+  ])("validates collection amount and payout fields", async (override, errorCode) => {
     const ids = createIds();
     const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
 
@@ -135,17 +495,46 @@ describe("correspondent collection service", () => {
     expect(collectionCreate).not.toHaveBeenCalled();
   });
 
+  it("rejects collection creation when membership currency does not match", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionLeanQuery(null));
+    jest
+      .spyOn(CompanyMembership, "findOne")
+      .mockReturnValue(createSessionQuery(null));
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
+        userId: ids.managerId,
+        role: "manager",
+        payload: collectionPayload(ids, { currency: "GNF" }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      errorCode: "CORRESPONDENT_MEMBERSHIP_NOT_FOUND",
+    });
+    expect(CompanyMembership.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: "GNF" }),
+    );
+  });
+
   it("returns the existing collection for matching create idempotency", async () => {
     mockMongooseSession();
     const ids = createIds();
     const existing = createCollection(ids, {
       idempotencyPayload: {
         amount: 25000,
+        beneficiaryName: "Client Bamako",
+        beneficiaryPhone: "+22370000000",
         correspondentMembershipId: ids.correspondentMembershipId.toString(),
         currency: "FCFA",
-        customerName: "Client Bamako",
-        customerPhone: "+22370000000",
         note: "Market collection",
+        payoutAmount: 20000000,
+        payoutCurrency: "FCFA",
       },
     });
     jest
@@ -253,31 +642,61 @@ describe("correspondent collection service", () => {
     });
   });
 
-  it("manager confirms a pending collection and creates balanced ledger entries", async () => {
+  it("manager can get any collection by code", async () => {
+    const ids = createIds();
+    const collection = createCollection(ids);
+    const findOne = jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createFindOneLeanQuery(collection));
+
+    await expect(
+      getCorrespondentCollectionByCode({
+        collectionCode: "CCL-260625-ABCD",
+        companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
+        role: "manager",
+      }),
+    ).resolves.toBe(collection);
+    expect(findOne).toHaveBeenCalledWith({
+      company: ids.companyId,
+      collectionCode: "CCL-260625-ABCD",
+    });
+  });
+
+  it("Abdoulaye pays by code and balance is not credited a second time", async () => {
     mockMongooseSession();
     const ids = createIds();
     const pending = createCollection(ids, {
-      save: jest.fn().mockResolvedValue(undefined),
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      currency: "GNF",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
       status: "pending",
     });
-    const confirmed = createCollection(ids, {
-      save: jest.fn().mockResolvedValue(undefined),
-      status: "confirmed",
-    });
-    const operation = createAccountOperation(ids, {
-      save: jest.fn().mockResolvedValue(undefined),
+    const paid = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      currency: "GNF",
+      paidAt: new Date("2026-06-27T10:00:00.000Z"),
+      paidBy: ids.managerId,
+      paidByMembership: ids.managerMembershipId,
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
+      status: "paid",
     });
     jest
       .spyOn(CorrespondentCollection, "findOne")
       .mockReturnValue(createSessionQuery(pending));
     jest
       .spyOn(CorrespondentCollection, "findOneAndUpdate")
-      .mockResolvedValue(confirmed);
-    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue({
-      _id: ids.correspondentMembershipId,
-      balance: 125000,
-    });
-    jest.spyOn(AccountOperation, "create").mockResolvedValue([operation]);
+      .mockResolvedValue(paid);
+    const membershipUpdate = jest
+      .spyOn(CompanyMembership, "findOneAndUpdate")
+      .mockResolvedValue({ _id: ids.correspondentMembershipId, balance: 656000000 });
+    const operationCreate = jest
+      .spyOn(AccountOperation, "create")
+      .mockResolvedValue([createAccountOperation(ids)]);
     const ledgerInsert = jest
       .spyOn(LedgerEntry, "insertMany")
       .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
@@ -291,33 +710,135 @@ describe("correspondent collection service", () => {
       role: "manager",
     });
 
-    expect(result).toBe(confirmed);
-    expect(CompanyMembership.findOneAndUpdate).toHaveBeenCalledWith(
+    expect(result).toBe(paid);
+    expect(CorrespondentCollection.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: ids.collectionId,
+        company: ids.companyId,
+        status: "pending",
+      },
+      {
+        $set: {
+          status: "paid",
+          paidBy: ids.managerId,
+          paidByMembership: ids.managerMembershipId,
+          paidAt: expect.any(Date),
+        },
+      },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(membershipUpdate).not.toHaveBeenCalled();
+    expect(operationCreate).not.toHaveBeenCalled();
+    expect(ledgerInsert).not.toHaveBeenCalled();
+    expect(companyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("Kalil cancels own pending collection and balance returns to 0", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const pending = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      correspondentMembership: ids.correspondentMembershipId,
+      currency: "GNF",
+      status: "pending",
+    });
+    const canceled = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      cancellationAccountOperation: ids.cancellationOperationId,
+      cancelReason: "Customer reversed",
+      correspondentMembership: ids.correspondentMembershipId,
+      currency: "GNF",
+      save: jest.fn().mockResolvedValue(undefined),
+      status: "canceled",
+    });
+    const reversalOperation = createAccountOperation(ids, {
+      _id: ids.cancellationOperationId,
+      amount: 328000000,
+      currency: "GNF",
+      currentBalance: 0,
+      previousBalance: 328000000,
+      save: jest.fn().mockResolvedValue(undefined),
+      type: "withdrawal",
+    });
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionQuery(pending));
+    jest
+      .spyOn(CorrespondentCollection, "findOneAndUpdate")
+      .mockResolvedValue(canceled);
+    const membershipUpdate = jest
+      .spyOn(CompanyMembership, "findOneAndUpdate")
+      .mockResolvedValue({ _id: ids.correspondentMembershipId, balance: 0 });
+    const operationCreate = jest
+      .spyOn(AccountOperation, "create")
+      .mockResolvedValue([reversalOperation]);
+    const ledgerInsert = jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
+    const companyUpdate = jest.spyOn(Company, "updateOne");
+
+    const result = await cancelCorrespondentCollection({
+      collectionCode: "CCL-260625-ABCD",
+      companyId: ids.companyId,
+      membershipId: ids.correspondentMembershipId,
+      payload: { reason: "Customer reversed" },
+      role: "partner",
+      userId: ids.partnerUserId,
+    });
+
+    expect(result).toBe(canceled);
+    expect(CorrespondentCollection.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: ids.collectionId,
+        company: ids.companyId,
+        status: "pending",
+      },
+      {
+        $set: {
+          status: "canceled",
+          canceledBy: ids.partnerUserId,
+          canceledByMembership: ids.correspondentMembershipId,
+          canceledAt: expect.any(Date),
+          cancelReason: "Customer reversed",
+        },
+      },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(membershipUpdate).toHaveBeenCalledWith(
       {
         _id: ids.correspondentMembershipId,
         company: ids.companyId,
         role: "partner",
         status: "active",
-        currency: "FCFA",
+        currency: "GNF",
+        balance: { $gte: 328000000 },
+        $expr: {
+          $gte: [
+            {
+              $subtract: [
+                "$balance",
+                { $ifNull: ["$reservedBalance", 0] },
+              ],
+            },
+            328000000,
+          ],
+        },
       },
-      { $inc: { balance: 25000 } },
+      { $inc: { balance: -328000000 } },
       { new: true, session: expect.any(Object) },
     );
-    expect(AccountOperation.create).toHaveBeenCalledWith(
+    expect(operationCreate).toHaveBeenCalledWith(
       [
         expect.objectContaining({
-          company: ids.companyId,
-          targetMembership: ids.correspondentMembershipId,
-          createdByMembership: ids.managerMembershipId,
-          createdBy: ids.managerId,
           linkedCorrespondentCollection: ids.collectionId,
-          workflow: "correspondent_collection",
-          type: "deposit",
+          type: "withdrawal",
           status: "completed",
-          amount: 25000,
-          currency: "FCFA",
-          previousBalance: 100000,
-          currentBalance: 125000,
+          amount: 328000000,
+          currency: "GNF",
+          previousBalance: 328000000,
+          currentBalance: 0,
         }),
       ],
       { session: expect.any(Object) },
@@ -325,32 +846,113 @@ describe("correspondent collection service", () => {
     expect(ledgerInsert).toHaveBeenCalledWith(
       [
         expect.objectContaining({
-          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
-          accountOperation: ids.operationId,
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          debit: 328000000,
           credit: 0,
-          debit: 25000,
+          currency: "GNF",
         }),
         expect.objectContaining({
-          accountCode: ACCOUNTS.PARTNER_BALANCE,
-          accountOperation: ids.operationId,
-          credit: 25000,
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
           debit: 0,
+          credit: 328000000,
+          currency: "GNF",
         }),
       ],
       { session: expect.any(Object) },
     );
-    expect(operation.ledgerEntries).toEqual([
+    expect(reversalOperation.ledgerEntries).toEqual([
       ids.ledgerDebitId,
       ids.ledgerCreditId,
     ]);
-    expect(operation.save).toHaveBeenCalledWith({ session: expect.any(Object) });
-    expect(confirmed.accountOperation).toBe(ids.operationId);
-    expect(confirmed.save).toHaveBeenCalledWith({ session: expect.any(Object) });
+    expect(reversalOperation.save).toHaveBeenCalledWith({
+      session: expect.any(Object),
+    });
+    expect(canceled.cancellationAccountOperation).toBe(
+      ids.cancellationOperationId,
+    );
+    expect(canceled.save).toHaveBeenCalledWith({ session: expect.any(Object) });
     expect(companyUpdate).not.toHaveBeenCalled();
   });
 
-  it.each(["confirmed", "canceled"])(
-    "rejects confirmation when collection is %s",
+  it("rejects partner cancellation for another partner collection", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionQuery(createCollection(ids, {
+        correspondentMembership: ids.correspondentMembershipId,
+        status: "pending",
+      })));
+    const update = jest.spyOn(CorrespondentCollection, "findOneAndUpdate");
+
+    await expect(
+      cancelCorrespondentCollection({
+        collectionCode: "CCL-260625-ABCD",
+        companyId: ids.companyId,
+        membershipId: ids.otherPartnerMembershipId,
+        payload: {},
+        role: "partner",
+        userId: ids.otherPartnerUserId,
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      errorCode: "CORRESPONDENT_COLLECTION_ASSIGNED_PARTNER_REQUIRED",
+    });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("manager pay-by-code does not increase 328,000,000 GNF balance to 656,000,000", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const pending = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      currency: "GNF",
+      status: "pending",
+    });
+    const paid = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      currency: "GNF",
+      paidBy: ids.managerId,
+      paidByMembership: ids.managerMembershipId,
+      paidAt: new Date("2026-06-27T10:00:00.000Z"),
+      status: "paid",
+    });
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionQuery(pending));
+    jest
+      .spyOn(CorrespondentCollection, "findOneAndUpdate")
+      .mockResolvedValue(paid);
+    const membershipUpdate = jest
+      .spyOn(CompanyMembership, "findOneAndUpdate")
+      .mockResolvedValue({ _id: ids.correspondentMembershipId, balance: 656000000 });
+    const operationCreate = jest
+      .spyOn(AccountOperation, "create")
+      .mockResolvedValue([createAccountOperation(ids)]);
+    const ledgerInsert = jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
+    const companyUpdate = jest.spyOn(Company, "updateOne");
+
+    const result = await confirmCorrespondentCollection({
+      collectionCode: "CCL-260625-ABCD",
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      userId: ids.managerId,
+      role: "manager",
+    });
+
+    expect(result).toBe(paid);
+    expect(membershipUpdate).not.toHaveBeenCalled();
+    expect(operationCreate).not.toHaveBeenCalled();
+    expect(ledgerInsert).not.toHaveBeenCalled();
+    expect(companyUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each(["paid", "confirmed", "canceled"])(
+    "rejects manager pay when collection is %s",
     async (status) => {
       mockMongooseSession();
       const ids = createIds();
@@ -369,19 +971,57 @@ describe("correspondent collection service", () => {
         }),
       ).rejects.toMatchObject({
         statusCode: 400,
-        errorCode: "CORRESPONDENT_COLLECTION_CONFIRM_NOT_ALLOWED",
+        errorCode: "CORRESPONDENT_COLLECTION_PAY_NOT_ALLOWED",
       });
       expect(operationCreate).not.toHaveBeenCalled();
     },
   );
 
-  it("manager cancels a pending collection without ledger entries", async () => {
+  it("rejects non-manager payment by collection code", async () => {
+    const ids = createIds();
+    const findOne = jest.spyOn(CorrespondentCollection, "findOne");
+
+    await expect(
+      confirmCorrespondentCollection({
+        collectionCode: "CCL-260625-ABCD",
+        companyId: ids.companyId,
+        membershipId: ids.correspondentMembershipId,
+        role: "partner",
+        userId: ids.partnerUserId,
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 403,
+      errorCode: "CORRESPONDENT_COLLECTION_MANAGER_REQUIRED",
+    });
+    expect(findOne).not.toHaveBeenCalled();
+  });
+
+  it("manager cancels a pending collection with the same balance reversal", async () => {
     mockMongooseSession();
     const ids = createIds();
-    const pending = createCollection(ids, { status: "pending" });
+    const pending = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      currency: "GNF",
+      status: "pending",
+    });
     const canceled = createCollection(ids, {
+      accountOperation: ids.operationId,
+      amount: 328000000,
+      cancellationAccountOperation: ids.cancellationOperationId,
       cancelReason: "Customer reversed",
+      currency: "GNF",
+      save: jest.fn().mockResolvedValue(undefined),
       status: "canceled",
+    });
+    const reversalOperation = createAccountOperation(ids, {
+      _id: ids.cancellationOperationId,
+      amount: 328000000,
+      currency: "GNF",
+      currentBalance: 0,
+      previousBalance: 328000000,
+      save: jest.fn().mockResolvedValue(undefined),
+      type: "withdrawal",
     });
     jest
       .spyOn(CorrespondentCollection, "findOne")
@@ -389,7 +1029,13 @@ describe("correspondent collection service", () => {
     jest
       .spyOn(CorrespondentCollection, "findOneAndUpdate")
       .mockResolvedValue(canceled);
-    const ledgerInsert = jest.spyOn(LedgerEntry, "insertMany");
+    const membershipUpdate = jest
+      .spyOn(CompanyMembership, "findOneAndUpdate")
+      .mockResolvedValue({ _id: ids.correspondentMembershipId, balance: 0 });
+    jest.spyOn(AccountOperation, "create").mockResolvedValue([reversalOperation]);
+    const ledgerInsert = jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
 
     const result = await cancelCorrespondentCollection({
       collectionCode: "CCL-260625-ABCD",
@@ -418,15 +1064,76 @@ describe("correspondent collection service", () => {
       },
       { new: true, session: expect.any(Object) },
     );
-    expect(ledgerInsert).not.toHaveBeenCalled();
+    expect(membershipUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        _id: ids.correspondentMembershipId,
+        balance: { $gte: 328000000 },
+        currency: "GNF",
+      }),
+      { $inc: { balance: -328000000 } },
+      { new: true, session: expect.any(Object) },
+    );
+    expect(ledgerInsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          accountCode: ACCOUNTS.PARTNER_BALANCE,
+          debit: 328000000,
+          credit: 0,
+        }),
+        expect.objectContaining({
+          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+          debit: 0,
+          credit: 328000000,
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
   });
 
-  it("rejects cancellation for confirmed collections", async () => {
+  it.each(["paid", "confirmed"])(
+    "rejects cancellation for %s collections",
+    async (status) => {
+      mockMongooseSession();
+      const ids = createIds();
+      jest
+        .spyOn(CorrespondentCollection, "findOne")
+        .mockReturnValue(createSessionQuery(createCollection(ids, { status })));
+
+      await expect(
+        cancelCorrespondentCollection({
+          collectionCode: "CCL-260625-ABCD",
+          companyId: ids.companyId,
+          membershipId: ids.managerMembershipId,
+          payload: {},
+          role: "manager",
+          userId: ids.managerId,
+        }),
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        errorCode: "CORRESPONDENT_COLLECTION_CANCEL_NOT_ALLOWED",
+      });
+    },
+  );
+
+  it("rejects cancellation when collection funds are no longer available to reverse", async () => {
     mockMongooseSession();
     const ids = createIds();
     jest
       .spyOn(CorrespondentCollection, "findOne")
-      .mockReturnValue(createSessionQuery(createCollection(ids, { status: "confirmed" })));
+      .mockReturnValue(createSessionQuery(createCollection(ids, {
+        amount: 328000000,
+        currency: "GNF",
+        status: "pending",
+      })));
+    jest
+      .spyOn(CorrespondentCollection, "findOneAndUpdate")
+      .mockResolvedValue(createCollection(ids, {
+        amount: 328000000,
+        currency: "GNF",
+        status: "canceled",
+      }));
+    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue(null);
+    const operationCreate = jest.spyOn(AccountOperation, "create");
 
     await expect(
       cancelCorrespondentCollection({
@@ -438,9 +1145,10 @@ describe("correspondent collection service", () => {
         userId: ids.managerId,
       }),
     ).rejects.toMatchObject({
-      statusCode: 400,
-      errorCode: "CORRESPONDENT_COLLECTION_CANCEL_NOT_ALLOWED",
+      statusCode: 409,
+      errorCode: "CORRESPONDENT_COLLECTION_REVERSAL_BALANCE_UNAVAILABLE",
     });
+    expect(operationCreate).not.toHaveBeenCalled();
   });
 });
 
@@ -490,14 +1198,18 @@ function createFindOneLeanQuery(result) {
 function createIds() {
   return {
     collectionId: new mongoose.Types.ObjectId(),
+    cancellationOperationId: new mongoose.Types.ObjectId(),
     companyId: new mongoose.Types.ObjectId(),
     correspondentMembershipId: new mongoose.Types.ObjectId(),
+    employeeMembershipId: new mongoose.Types.ObjectId(),
+    employeeUserId: new mongoose.Types.ObjectId(),
     ledgerCreditId: new mongoose.Types.ObjectId(),
     ledgerDebitId: new mongoose.Types.ObjectId(),
     managerId: new mongoose.Types.ObjectId(),
     managerMembershipId: new mongoose.Types.ObjectId(),
     operationId: new mongoose.Types.ObjectId(),
     otherPartnerMembershipId: new mongoose.Types.ObjectId(),
+    otherPartnerUserId: new mongoose.Types.ObjectId(),
     partnerUserId: new mongoose.Types.ObjectId(),
   };
 }
@@ -536,7 +1248,11 @@ function createCollection(
     createdBy: managerId,
     collectionCode: "CCL-260625-ABCD",
     amount: 25000,
+    beneficiaryName: "Client Bamako",
+    beneficiaryPhone: "+22370000000",
     currency: "FCFA",
+    payoutAmount: 20000000,
+    payoutCurrency: "FCFA",
     status: "pending",
     customerName: "Client Bamako",
     customerPhone: "+22370000000",
@@ -544,11 +1260,13 @@ function createCollection(
     idempotencyKey: "collection-create-1",
     idempotencyPayload: {
       amount: 25000,
+      beneficiaryName: "Client Bamako",
+      beneficiaryPhone: "+22370000000",
       correspondentMembershipId: correspondentMembershipId.toString(),
       currency: "FCFA",
-      customerName: "Client Bamako",
-      customerPhone: "+22370000000",
       note: "Market collection",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
     },
     save: jest.fn().mockResolvedValue(undefined),
     ...override,
@@ -578,11 +1296,15 @@ function createAccountOperation({ companyId, correspondentMembershipId, managerI
 function collectionPayload({ correspondentMembershipId }, override = {}) {
   return {
     amount: 25000,
+    beneficiaryName: " Client Bamako ",
+    beneficiaryPhone: " +22370000000 ",
     currency: "fcfa",
     correspondentMembershipId: correspondentMembershipId.toString(),
     customerName: " Client Bamako ",
     customerPhone: " +22370000000 ",
     note: " Market collection ",
+    payoutAmount: 20000000,
+    payoutCurrency: "fcfa",
     idempotencyKey: "collection-create-1",
     transactionPin: "123456",
     ...override,

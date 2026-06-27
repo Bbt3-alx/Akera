@@ -136,7 +136,11 @@ uploads
 docs/
 !/docs/
 /docs/*
-!/docs/demo-checklist.md
+docs
+!/docs/domain/
+!/docs/domain/**
 !/docs/qa/
 !/docs/qa/**
+!backend/__tests__/docs/
+!backend/__tests__/docs/**
 prevFrontend

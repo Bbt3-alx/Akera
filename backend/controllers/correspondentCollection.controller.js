@@ -26,8 +26,11 @@ export const createCollection = async (req, res) => {
       collectionCode: collection.collectionCode,
       amount: collection.amount,
       currency: collection.currency,
+      payoutAmount: collection.payoutAmount,
+      payoutCurrency: collection.payoutCurrency,
       status: collection.status,
       correspondentMembership: auditId(collection.correspondentMembership),
+      accountOperation: auditId(collection.accountOperation),
     },
   };
 
@@ -67,7 +70,7 @@ export const getCollection = async (req, res) => {
   });
 };
 
-export const confirmCollection = async (req, res) => {
+async function payCollectionByCode(req, res) {
   const collection = await confirmCorrespondentCollection({
     collectionCode: req.params.collectionCode,
     companyId: req.context.companyId,
@@ -83,9 +86,14 @@ export const confirmCollection = async (req, res) => {
       collectionCode: collection.collectionCode,
       amount: collection.amount,
       currency: collection.currency,
+      payoutAmount: collection.payoutAmount,
+      payoutCurrency: collection.payoutCurrency,
       status: collection.status,
       correspondentMembership: auditId(collection.correspondentMembership),
       accountOperation: auditId(collection.accountOperation),
+      paidAt: collection.paidAt,
+      paidBy: auditId(collection.paidBy),
+      paidByMembership: auditId(collection.paidByMembership),
     },
   };
 
@@ -93,7 +101,10 @@ export const confirmCollection = async (req, res) => {
     success: true,
     data: serializeCorrespondentCollection(collection),
   });
-};
+}
+
+export const payCollection = payCollectionByCode;
+export const confirmCollection = payCollectionByCode;
 
 export const cancelCollection = async (req, res) => {
   const collection = await cancelCorrespondentCollection({
@@ -112,8 +123,13 @@ export const cancelCollection = async (req, res) => {
       collectionCode: collection.collectionCode,
       amount: collection.amount,
       currency: collection.currency,
+      payoutAmount: collection.payoutAmount,
+      payoutCurrency: collection.payoutCurrency,
       status: collection.status,
       correspondentMembership: auditId(collection.correspondentMembership),
+      cancellationAccountOperation: auditId(
+        collection.cancellationAccountOperation,
+      ),
       cancelReason: collection.cancelReason,
     },
   };
@@ -123,22 +139,6 @@ export const cancelCollection = async (req, res) => {
     data: serializeCorrespondentCollection(collection),
   });
 };
-
-function serializeId(value) {
-  if (value === null || value === undefined) {
-    return value;
-  }
-
-  if (typeof value.toHexString === "function") {
-    return value.toHexString();
-  }
-
-  if (typeof value === "object") {
-    return serializeId(value._id ?? value.id);
-  }
-
-  return value.toString();
-}
 
 function auditId(value) {
   if (value && typeof value === "object" && !value.toHexString) {

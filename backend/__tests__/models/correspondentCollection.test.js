@@ -6,32 +6,45 @@ import AuditLog from "../../models/AuditLog.js";
 import CorrespondentCollection from "../../models/CorrespondentCollection.js";
 
 describe("CorrespondentCollection model", () => {
-  it("validates a pending FCFA collection for a partner membership", async () => {
+  it("validates a pending GNF collection with rate snapshot fields", async () => {
     const collection = new CorrespondentCollection({
       company: new mongoose.Types.ObjectId(),
       correspondentMembership: new mongoose.Types.ObjectId(),
       createdByMembership: new mongoose.Types.ObjectId(),
       createdBy: new mongoose.Types.ObjectId(),
       collectionCode: "CCL-260625-ABCD",
-      amount: 25000,
-      currency: "FCFA",
+      amount: 326000000,
+      beneficiaryName: "Kadidia",
+      beneficiaryPhone: "+22371000000",
+      currency: "GNF",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
       status: "pending",
       customerName: "Awa Traore",
       customerPhone: "+22370000000",
       note: "Bamako collection",
+      rateValue: 82000,
+      rateBaseAmount: 5000,
+      rateQuoteCurrency: "GNF",
+      rateBaseCurrency: "FCFA",
+      counterAmount: 20000000,
+      counterCurrency: "FCFA",
+      rateNote: "Kalil sold GNF to Abdoulaye",
       idempotencyKey: "collection-create-1",
       idempotencyPayload: {
         correspondentMembershipId: new mongoose.Types.ObjectId().toString(),
-        amount: 25000,
-        currency: "FCFA",
-        customerName: "Awa Traore",
+        amount: 326000000,
+        beneficiaryName: "Kadidia",
+        currency: "GNF",
+        payoutAmount: 20000000,
+        payoutCurrency: "FCFA",
       },
     });
 
     await expect(collection.validate()).resolves.toBeUndefined();
   });
 
-  it("rejects non-FCFA collections", async () => {
+  it("rejects unsupported collection currencies", async () => {
     const collection = new CorrespondentCollection({
       company: new mongoose.Types.ObjectId(),
       correspondentMembership: new mongoose.Types.ObjectId(),
@@ -39,7 +52,7 @@ describe("CorrespondentCollection model", () => {
       createdBy: new mongoose.Types.ObjectId(),
       collectionCode: "CCL-260625-ABCD",
       amount: 25000,
-      currency: "GNF",
+      currency: "USD",
       status: "pending",
       customerName: "Awa Traore",
       idempotencyKey: "collection-create-1",
@@ -67,12 +80,68 @@ describe("CorrespondentCollection model", () => {
     await expect(collection.validate()).rejects.toThrow();
   });
 
-  it("only allows pending, confirmed, and canceled statuses", () => {
+  it("validates payout amount and currency when provided", async () => {
+    const collection = new CorrespondentCollection({
+      company: new mongoose.Types.ObjectId(),
+      correspondentMembership: new mongoose.Types.ObjectId(),
+      createdByMembership: new mongoose.Types.ObjectId(),
+      createdBy: new mongoose.Types.ObjectId(),
+      collectionCode: "CCL-260625-ABCD",
+      amount: 328000000,
+      beneficiaryName: "Kadidia",
+      currency: "GNF",
+      payoutAmount: 20000000.5,
+      payoutCurrency: "FCFA",
+      status: "pending",
+      customerName: "Kadidia",
+      idempotencyKey: "collection-create-1",
+      idempotencyPayload: {},
+    });
+
+    await expect(collection.validate()).rejects.toThrow();
+
+    collection.payoutAmount = 20000000;
+    collection.payoutCurrency = "USD";
+
+    await expect(collection.validate()).rejects.toThrow();
+  });
+
+  it("rejects non-positive rate values when provided", async () => {
+    const collection = new CorrespondentCollection({
+      company: new mongoose.Types.ObjectId(),
+      correspondentMembership: new mongoose.Types.ObjectId(),
+      createdByMembership: new mongoose.Types.ObjectId(),
+      createdBy: new mongoose.Types.ObjectId(),
+      collectionCode: "CCL-260625-ABCD",
+      amount: 25000,
+      currency: "FCFA",
+      status: "pending",
+      customerName: "Awa Traore",
+      rateValue: 0,
+      idempotencyKey: "collection-create-1",
+      idempotencyPayload: {},
+    });
+
+    await expect(collection.validate()).rejects.toThrow();
+  });
+
+  it("allows pending, paid, legacy confirmed, and canceled statuses", () => {
     expect(CorrespondentCollection.schema.path("status").enumValues).toEqual([
       "pending",
+      "paid",
       "confirmed",
       "canceled",
     ]);
+  });
+
+  it("tracks paid audit fields and cancellation reversal operation", () => {
+    expect(CorrespondentCollection.schema.path("paidByMembership").options.ref)
+      .toBe("CompanyMembership");
+    expect(CorrespondentCollection.schema.path("paidBy").options.ref)
+      .toBe("User");
+    expect(
+      CorrespondentCollection.schema.path("cancellationAccountOperation").options.ref,
+    ).toBe("AccountOperation");
   });
 
   it("has lookup and idempotency indexes", () => {
@@ -123,6 +192,7 @@ describe("correspondent collection schema integrations", () => {
       expect.arrayContaining([
         "CORRESPONDENT_COLLECTION_CREATE",
         "CORRESPONDENT_COLLECTION_CONFIRM",
+        "CORRESPONDENT_COLLECTION_PAY",
         "CORRESPONDENT_COLLECTION_CANCEL",
       ]),
     );
