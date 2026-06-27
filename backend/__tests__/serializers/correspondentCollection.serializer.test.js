@@ -1,0 +1,86 @@
+import { describe, expect, it } from "@jest/globals";
+
+import {
+  serializeCorrespondentCollection,
+} from "../../serializers/correspondentCollection.serializer.js";
+
+describe("correspondent collection serializer", () => {
+  it("returns safe fields with display names and without sensitive metadata", () => {
+    const result = serializeCorrespondentCollection({
+      _id: "collection-1",
+      company: "company-1",
+      correspondentMembership: {
+        _id: "partner-membership-1",
+        user: {
+          _id: "partner-user-1",
+          firstName: "Awa",
+          lastName: "Traore",
+          email: "awa@example.com",
+        },
+      },
+      createdByMembership: "manager-membership-1",
+      createdBy: {
+        _id: "manager-user-1",
+        email: "manager@example.com",
+      },
+      confirmedByMembership: "manager-membership-1",
+      confirmedBy: {
+        _id: "manager-user-1",
+        firstName: "Mariam",
+        lastName: "Keita",
+        email: "mariam@example.com",
+      },
+      canceledByMembership: undefined,
+      canceledBy: undefined,
+      collectionCode: "CCL-260625-ABCD",
+      amount: 25000,
+      currency: "FCFA",
+      status: "confirmed",
+      customerName: "Client Bamako",
+      customerPhone: "+22370000000",
+      note: "Market collection",
+      description: "Should not override note",
+      confirmedAt: "2026-06-25T10:00:00.000Z",
+      canceledAt: undefined,
+      cancelReason: undefined,
+      accountOperation: { _id: "operation-1", ledgerEntries: ["internal"] },
+      idempotencyKey: "collection-create-1",
+      idempotencyPayload: { amount: 25000 },
+      transactionPin: "123456",
+      auditMetadata: { ipAddress: "127.0.0.1" },
+      createdAt: "2026-06-25T09:00:00.000Z",
+      updatedAt: "2026-06-25T10:00:00.000Z",
+    });
+
+    expect(result).toEqual({
+      id: "collection-1",
+      collectionCode: "CCL-260625-ABCD",
+      amount: 25000,
+      currency: "FCFA",
+      status: "confirmed",
+      customerName: "Client Bamako",
+      customerPhone: "+22370000000",
+      note: "Market collection",
+      correspondentMembership: "partner-membership-1",
+      correspondentName: "Awa Traore",
+      correspondentEmail: "awa@example.com",
+      createdBy: "manager-user-1",
+      createdByName: "manager@example.com",
+      confirmedBy: "manager-user-1",
+      confirmedByName: "Mariam Keita",
+      canceledBy: undefined,
+      canceledByName: null,
+      accountOperation: "operation-1",
+      createdAt: "2026-06-25T09:00:00.000Z",
+      updatedAt: "2026-06-25T10:00:00.000Z",
+      confirmedAt: "2026-06-25T10:00:00.000Z",
+      canceledAt: undefined,
+      cancelReason: undefined,
+    });
+    expect(JSON.stringify(result)).not.toContain("collection-create-1");
+    expect(JSON.stringify(result)).not.toContain("idempotencyPayload");
+    expect(JSON.stringify(result)).not.toContain("123456");
+    expect(JSON.stringify(result)).not.toContain("ipAddress");
+    expect(JSON.stringify(result)).not.toContain("internal");
+  });
+});

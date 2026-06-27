@@ -30,6 +30,11 @@ const accountOperationSchema = new Schema(
       ref: "Transaction",
       index: true,
     },
+    linkedCorrespondentCollection: {
+      type: Schema.Types.ObjectId,
+      ref: "CorrespondentCollection",
+      index: true,
+    },
     linkedRemoteAgentPayout: {
       type: Schema.Types.ObjectId,
       ref: "RemoteAgentPayout",
