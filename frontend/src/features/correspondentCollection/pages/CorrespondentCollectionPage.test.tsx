@@ -50,7 +50,10 @@ vi.mock('../hooks.ts', () => ({
   usePayCorrespondentTransactionByCode: mocks.usePayCorrespondentTransactionByCode,
 }))
 
-import { CorrespondentCollectionPage } from './CorrespondentCollectionPage.tsx'
+import {
+  CorrespondentCollectionPage,
+  WithdrawalSuccessCard,
+} from './CorrespondentCollectionPage.tsx'
 
 describe('CorrespondentCollectionPage', () => {
   beforeEach(() => {
@@ -268,6 +271,45 @@ describe('CorrespondentCollectionPage', () => {
     )
     expect(html).not.toContain('Confirmer le paiement')
   })
+
+  it('does not show the withdrawal amount integer error on initial render', () => {
+    mocks.useMe.mockReturnValue({
+      data: {
+        memberships: [createMembership('manager')],
+      },
+      isLoading: false,
+    })
+
+    const html = renderPage('/app/correspondent-collections?tab=create-withdrawal')
+
+    expect(html).toContain('Montant à retirer')
+    expect(html).not.toContain('Le montant doit être un nombre entier FCFA/GNF.')
+  })
+
+  it('renders withdrawal creation success confirmation without backend terminology', () => {
+    const html = renderToString(
+      <WithdrawalSuccessCard
+        correspondent={createCorrespondent()}
+        withdrawal={createWithdrawal()}
+      />,
+    )
+
+    expect(html).toContain(
+      'Retrait créé. Le montant est maintenant réservé chez le correspondant en attente de confirmation.',
+    )
+    expect(html).toContain('Code retrait')
+    expect(html).toContain('CDL-260627-ABCD')
+    expect(html).toContain('Correspondant')
+    expect(html).toContain('Kalil Diallo')
+    expect(html).toContain('Bénéficiaire')
+    expect(html).toContain('Kallo')
+    expect(html).toContain('Montant à retirer')
+    expect(html).toContain('326')
+    expect(html).toContain('000')
+    expect(html).toContain('000 GNF')
+    expect(html).toContain('Retrait en attente')
+    expect(html).not.toMatch(/delivery|Livraison|membership/i)
+  })
 })
 
 function renderPage(initialEntry = '/app/correspondent-collections') {
@@ -313,11 +355,11 @@ function createCorrespondent(override = {}) {
     membershipId: 'partner-membership-1',
     name: 'Kalil Diallo',
     email: 'kalil@example.com',
-    currency: 'GNF',
+    currency: 'GNF' as const,
     balance: 328000000,
     reservedBalance: 2000000,
     availableBalance: 326000000,
-    status: 'active',
+    status: 'active' as const,
     ...override,
   }
 }
@@ -327,17 +369,35 @@ function createTransaction(override = {}) {
     id: 'tx-1',
     collectionCode: 'CCL-260627-ABCD',
     amount: 328000000,
-    currency: 'GNF',
+    currency: 'GNF' as const,
     payoutAmount: 20000000,
-    payoutCurrency: 'FCFA',
+    payoutCurrency: 'FCFA' as const,
     beneficiaryName: 'Kadidia',
     beneficiaryPhone: '+22370000000',
-    status: 'pending',
+    status: 'pending' as const,
     correspondentMembership: 'partner-membership-1',
     correspondentName: 'Kalil Diallo',
     correspondentEmail: 'kalil@example.com',
     createdAt: '2026-06-27T10:00:00.000Z',
     updatedAt: '2026-06-27T10:00:00.000Z',
+    ...override,
+  }
+}
+
+function createWithdrawal(override = {}) {
+  return {
+    id: 'wd-1',
+    deliveryCode: 'CDL-260627-ABCD',
+    amount: 326000000,
+    currency: 'GNF' as const,
+    beneficiaryName: 'Kallo',
+    beneficiaryPhone: '+22371000000',
+    status: 'pending' as const,
+    correspondentMembership: 'partner-membership-1',
+    correspondentName: 'Kalil Diallo',
+    correspondentEmail: 'kalil@example.com',
+    createdAt: '2026-06-27T11:00:00.000Z',
+    updatedAt: '2026-06-27T11:00:00.000Z',
     ...override,
   }
 }

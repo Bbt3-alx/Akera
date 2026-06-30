@@ -604,7 +604,9 @@ function CreateWithdrawalSection({
     note: '',
     transactionPin: '',
   })
-  const [success, setSuccess] = useState<string | null>(null)
+  const [amountTouched, setAmountTouched] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [result, setResult] = useState<CorrespondentWithdrawal | null>(null)
   const selectedCorrespondentId = getAutoSelectedCorrespondentId({
     correspondents,
     selectedCorrespondentId: selectedCorrespondentIdInput,
@@ -615,10 +617,13 @@ function CreateWithdrawalSection({
     amount: parsedAmount.amount,
     correspondent,
   })
+  const showAmountError = amountTouched || submitted
+  const visibleAmountError = showAmountError ? parsedAmount.error : null
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setSuccess(null)
+    setSubmitted(true)
+    setResult(null)
     createWithdrawal.reset()
 
     if (!correspondent) {
@@ -640,7 +645,7 @@ function CreateWithdrawalSection({
         note: optionalString(form.note),
         transactionPin: form.transactionPin,
       })
-      setSuccess(`Retrait créé : ${withdrawal.deliveryCode}`)
+      setResult(withdrawal)
       setForm({
         amount: '',
         beneficiaryName: '',
@@ -648,6 +653,8 @@ function CreateWithdrawalSection({
         note: '',
         transactionPin: '',
       })
+      setAmountTouched(false)
+      setSubmitted(false)
     } catch {
       setForm((current) => ({ ...current, transactionPin: '' }))
     }
@@ -656,6 +663,12 @@ function CreateWithdrawalSection({
   return (
     <section className="space-y-4">
       <PanelTitle>{CORRESPONDENT_UI_TEXT.makeWithdrawal}</PanelTitle>
+      {result ? (
+        <WithdrawalSuccessCard
+          correspondent={correspondent}
+          withdrawal={result}
+        />
+      ) : null}
       <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
         <CorrespondentSelect
           correspondents={correspondents}
@@ -673,9 +686,14 @@ function CreateWithdrawalSection({
           />
         ) : null}
         <TextField
+          error={visibleAmountError}
           inputMode="numeric"
           label="Montant à retirer"
-          onChange={(value) => setForm((current) => ({ ...current, amount: value }))}
+          onBlur={() => setAmountTouched(true)}
+          onChange={(value) => {
+            setAmountTouched(true)
+            setForm((current) => ({ ...current, amount: value }))
+          }}
           required
           value={form.amount}
         />
@@ -700,8 +718,8 @@ function CreateWithdrawalSection({
           value={form.transactionPin}
         />
         <FormFeedback
-          error={parsedAmount.error ?? warning ?? createWithdrawal.error}
-          success={success}
+          error={warning ?? createWithdrawal.error}
+          success={null}
         />
         <SubmitButton
           disabled={
@@ -860,6 +878,41 @@ function CancelWithdrawalForm({
       </SubmitButton>
       <FormFeedback error={cancelWithdrawal.error} success={success} />
     </form>
+  )
+}
+
+export function WithdrawalSuccessCard({
+  correspondent,
+  withdrawal,
+}: {
+  correspondent: CorrespondentSummary | null
+  withdrawal: CorrespondentWithdrawal
+}) {
+  return (
+    <section className="rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+      <p className="font-semibold">
+        Retrait créé. Le montant est maintenant réservé chez le correspondant en attente de confirmation.
+      </p>
+      <dl className="mt-3 grid gap-2 md:grid-cols-2">
+        <Detail label="Code retrait" value={withdrawal.deliveryCode} />
+        <Detail
+          label="Correspondant"
+          value={
+            correspondent
+              ? getCorrespondentVisibleIdentity(correspondent).primary
+              : withdrawal.correspondentName ??
+                withdrawal.correspondentEmail ??
+                'Correspondant sans nom'
+          }
+        />
+        <Detail label="Bénéficiaire" value={withdrawal.beneficiaryName} />
+        <Detail
+          label="Montant à retirer"
+          value={formatCorrespondentAmount(withdrawal.amount, withdrawal.currency)}
+        />
+        <Detail label="Statut" value={getWithdrawalStatusLabel(withdrawal.status)} />
+      </dl>
+    </section>
   )
 }
 
@@ -1053,32 +1106,45 @@ function TransactionAmountSummary({
 }
 
 function TextField({
+  error,
   inputMode,
   label,
+  onBlur,
   onChange,
   required,
   value,
 }: {
+  error?: string | null
   inputMode?: 'numeric'
   label: string
+  onBlur?: () => void
   onChange: (value: string) => void
   required?: boolean
   value: string
 }) {
   const id = label.toLowerCase().replace(/\s+/g, '-')
+  const errorId = `${id}-error`
 
   return (
     <label className="block text-sm font-medium text-slate-700" htmlFor={id}>
       {label}
       <input
+        aria-describedby={error ? errorId : undefined}
+        aria-invalid={Boolean(error)}
         className="mt-1 h-10 w-full rounded border border-slate-300 px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
         id={id}
         inputMode={inputMode}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
         required={required}
         type="text"
         value={value}
       />
+      {error ? (
+        <span className="mt-1 block text-xs font-medium text-red-700" id={errorId}>
+          {error}
+        </span>
+      ) : null}
     </label>
   )
 }
