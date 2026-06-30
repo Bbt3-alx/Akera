@@ -5,6 +5,7 @@ import {
   confirmCollection,
   createCollection,
   getCollection,
+  listCorrespondents,
   listCollections,
   payCollection,
 } from "../controllers/correspondentCollection.controller.js";
@@ -35,11 +36,14 @@ const activeCompanyAccess = [
 router.post(
   "/",
   activeCompanyAccess,
+  verifyTransactionPin,
   audit("CORRESPONDENT_COLLECTION_CREATE", "CorrespondentCollection"),
   catchAsync(createCollection),
 );
 
 router.get("/", activeCompanyAccess, catchAsync(listCollections));
+
+router.get("/correspondents", activeCompanyAccess, catchAsync(listCorrespondents));
 
 router.get("/:collectionCode", activeCompanyAccess, catchAsync(getCollection));
 

@@ -9,9 +9,10 @@ import {
 } from './viewModel.ts'
 
 describe('transaction PIN view model', () => {
-  it('allows managers and employee agents to use transaction PIN self-service', () => {
+  it('allows managers, employee agents, and partners to use transaction PIN self-service', () => {
     expect(canUseTransactionPinSelfService('manager')).toBe(true)
     expect(canUseTransactionPinSelfService('employee')).toBe(true)
+    expect(canUseTransactionPinSelfService('partner')).toBe(true)
     expect(canUseTransactionPinSelfService(null)).toBe(false)
   })
 

@@ -29,7 +29,7 @@ describe('module-aware navigation', () => {
     )
   })
 
-  it('hides gold links for a transfer-only company', () => {
+  it('hides legacy transactions for a correspondent-only transfer company', () => {
     const sections = buildNavigationSections({
       enabledModules: [
         'transfers',
@@ -46,13 +46,13 @@ describe('module-aware navigation', () => {
     expect(flattenLabels(sections)).toEqual(
       expect.arrayContaining([
         'Dashboard',
-        'Transactions',
-        'Collections',
+        'Correspondants',
         'Account Operations / Withdrawals',
         'Exchange Rate',
         'Company Cash',
       ]),
     )
+    expect(flattenLabels(sections)).not.toContain('Transactions')
     expect(flattenLabels(sections)).not.toContain('Buy Operations')
   })
 
@@ -80,8 +80,9 @@ describe('module-aware navigation', () => {
       'Administration',
     ])
     expect(flattenLabels(sections)).toEqual(
-      expect.arrayContaining(['Transactions', 'Buy Operations', 'Company Cash']),
+      expect.arrayContaining(['Correspondants', 'Buy Operations', 'Company Cash']),
     )
+    expect(flattenLabels(sections)).not.toContain('Transactions')
   })
 
   it('shows operations instead of legacy transactions for remote-agent-only companies', () => {
@@ -107,7 +108,7 @@ describe('module-aware navigation', () => {
       ]),
     )
     expect(flattenLabels(sections)).not.toContain('Transactions')
-    expect(flattenLabels(sections)).not.toContain('Collections')
+    expect(flattenLabels(sections)).not.toContain('Correspondants')
     expect(flattenLabels(sections)).not.toContain('Exchange Rate')
   })
 
@@ -122,6 +123,18 @@ describe('module-aware navigation', () => {
     expect(flattenLabels(sections)).toEqual(
       expect.arrayContaining(['Transactions', 'Paiements agents', 'Opérations']),
     )
+  })
+
+  it('does not expose the legacy Collections label for correspondent companies', () => {
+    const sections = buildNavigationSections({
+      enabledModules: ['transfers', 'correspondent_collections'],
+      isManager: true,
+      pendingInvitationCount: 0,
+      transferWorkflows: ['correspondent_collection'],
+    })
+
+    expect(flattenLabels(sections)).toContain('Correspondants')
+    expect(flattenLabels(sections)).not.toContain('Collections')
   })
 })
 

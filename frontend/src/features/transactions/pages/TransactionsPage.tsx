@@ -63,7 +63,19 @@ export function TransactionsPage() {
     activeMembership?.role === 'partner'
   const canListTransactions = canSearchTransactions
   const enabledModules = getEnabledModulesForMembership(activeMembership)
-  const emptyState = getTransactionsEmptyStateContent({ enabledModules })
+  const transferWorkflows =
+    activeMembership?.company?.transferWorkflows ??
+    activeMembership?.companyTransferWorkflows ??
+    []
+  const isCorrespondentOnlyCompany =
+    transferWorkflows.length === 1 &&
+    transferWorkflows[0] === 'correspondent_collection' &&
+    enabledModules.includes('correspondent_collections')
+  const emptyState = getTransactionsEmptyStateContent({
+    enabledModules,
+    transferWorkflows,
+  })
+  const showCreateTransaction = canCreateTransaction && !isCorrespondentOnlyCompany
 
   return (
     <section className="space-y-6">
@@ -78,7 +90,7 @@ export function TransactionsPage() {
         </div>
 
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center md:w-auto">
-          {canCreateTransaction ? (
+          {showCreateTransaction ? (
             <Link
               className="inline-flex h-10 items-center justify-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
               to="/app/transactions/new"

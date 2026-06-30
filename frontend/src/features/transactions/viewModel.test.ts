@@ -24,4 +24,19 @@ describe('transactions view model', () => {
       }).description,
     ).toBe('Transactions matching this filter will appear here.')
   })
+
+  it('redirects correspondent-only companies to the Correspondants module', () => {
+    expect(
+      getTransactionsEmptyStateContent({
+        enabledModules: ['transfers', 'correspondent_collections'],
+        transferWorkflows: ['correspondent_collection'],
+      }),
+    ).toEqual({
+      title: 'Transactions gérées dans Correspondants',
+      description:
+        'Les transactions de cette société sont gérées dans le module Correspondants.',
+      actionLabel: 'Voir Correspondants',
+      actionTo: '/app/correspondent-collections?tab=transactions',
+    })
+  })
 })

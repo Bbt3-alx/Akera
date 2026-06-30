@@ -12,6 +12,21 @@ import {
 import type { CompanyModule, CompanyTransferWorkflow } from '../../companies/types.ts'
 import { useCompaniesStore } from '../../companies/store.ts'
 import {
+  useCorrespondentTransactions,
+  useCorrespondentWithdrawals,
+  useCorrespondents,
+} from '../../correspondentCollection/hooks.ts'
+import type {
+  CorrespondentSummary,
+  CorrespondentTransaction,
+  CorrespondentWithdrawal,
+} from '../../correspondentCollection/types.ts'
+import {
+  buildCorrespondentOverview,
+  formatCorrespondentAmount,
+  getCorrespondentErrorMessage,
+} from '../../correspondentCollection/viewModel.ts'
+import {
   useMyRemoteAgentGroups,
   useRemoteAgentGroups,
   useRemoteAgentOperations,
@@ -58,8 +73,12 @@ const STATUS_STYLES: Record<string, string> = {
   reversed: 'bg-slate-100 text-slate-700 ring-slate-200',
 }
 const REMOTE_DASHBOARD_LIST_PARAMS = { page: 1, limit: 50 } as const
+const CORRESPONDENT_DASHBOARD_LIST_PARAMS = { page: 1, limit: 50 } as const
 const EMPTY_REMOTE_AGENT_GROUPS: RemoteAgentGroup[] = []
 const EMPTY_REMOTE_AGENT_OPERATIONS: RemoteAgentOperation[] = []
+const EMPTY_CORRESPONDENTS: CorrespondentSummary[] = []
+const EMPTY_CORRESPONDENT_TRANSACTIONS: CorrespondentTransaction[] = []
+const EMPTY_CORRESPONDENT_WITHDRAWALS: CorrespondentWithdrawal[] = []
 
 export function DashboardPage() {
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
@@ -83,6 +102,10 @@ export function DashboardPage() {
   const isRemoteAgentPrimary =
     hasRemoteAgentPayout &&
     !hasLegacyTransferWorkflow(enabledModules, transferWorkflows)
+  const isCorrespondentOnly =
+    hasCompanyModule(enabledModules, 'correspondent_collections') &&
+    transferWorkflows.length === 1 &&
+    transferWorkflows[0] === 'correspondent_collection'
 
   if (!activeCompanyId) {
     return (
@@ -98,6 +121,10 @@ export function DashboardPage() {
 
   if (hasGold && hasTransfer) {
     return <MixedDashboard />
+  }
+
+  if (isCorrespondentOnly && activeMembership) {
+    return <CorrespondentDashboard activeMembership={activeMembership} />
   }
 
   if (isRemoteAgentPrimary && activeMembership) {
@@ -214,6 +241,270 @@ function TransferDashboard() {
         </div>
       </div>
     </section>
+  )
+}
+
+function CorrespondentDashboard({
+  activeMembership,
+}: {
+  activeMembership: Membership
+}) {
+  const isManager = activeMembership.role === 'manager'
+  const isPartner = activeMembership.role === 'partner'
+  const transactionPinStatusQuery = useTransactionPinStatus(
+    Boolean(isManager || isPartner),
+  )
+  const correspondentsQuery = useCorrespondents(
+    undefined,
+    Boolean(isManager || isPartner),
+  )
+  const transactionsQuery = useCorrespondentTransactions(
+    CORRESPONDENT_DASHBOARD_LIST_PARAMS,
+    Boolean(isManager || isPartner),
+  )
+  const withdrawalsQuery = useCorrespondentWithdrawals(
+    CORRESPONDENT_DASHBOARD_LIST_PARAMS,
+    Boolean(isManager || isPartner),
+  )
+  const correspondents = correspondentsQuery.data ?? EMPTY_CORRESPONDENTS
+  const transactions =
+    transactionsQuery.data?.data ?? EMPTY_CORRESPONDENT_TRANSACTIONS
+  const withdrawals =
+    withdrawalsQuery.data?.data ?? EMPTY_CORRESPONDENT_WITHDRAWALS
+  const overview = useMemo(
+    () =>
+      buildCorrespondentOverview({
+        correspondents,
+        transactions,
+        withdrawals,
+      }),
+    [correspondents, transactions, withdrawals],
+  )
+  const ownCorrespondent =
+    correspondents.find(
+      (correspondent) =>
+        correspondent.membershipId === activeMembership.membershipId,
+    ) ??
+    correspondents[0] ??
+    null
+  const isLoading =
+    transactionPinStatusQuery.isLoading ||
+    correspondentsQuery.isLoading ||
+    transactionsQuery.isLoading ||
+    withdrawalsQuery.isLoading
+  const error =
+    transactionPinStatusQuery.error ??
+    correspondentsQuery.error ??
+    transactionsQuery.error ??
+    withdrawalsQuery.error
+
+  if (!isManager && !isPartner) {
+    return (
+      <StateMessage title="Dashboard correspondants indisponible">
+        Ce dashboard est réservé aux managers et correspondants actifs.
+      </StateMessage>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <StateMessage title="Chargement du dashboard correspondants">
+        Calcul des transactions, retraits et soldes correspondants.
+      </StateMessage>
+    )
+  }
+
+  if (error) {
+    return (
+      <StateMessage title="Dashboard correspondants indisponible">
+        {getDashboardErrorMessage(error, getCorrespondentErrorMessage(error))}
+      </StateMessage>
+    )
+  }
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <p className="text-sm font-medium capitalize text-slate-500">
+          {activeMembership.role}
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold text-slate-950">
+          Dashboard correspondants
+        </h1>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Suivez les transactions, retraits et soldes du module Correspondants.
+        </p>
+      </div>
+
+      {isManager ? (
+        <CorrespondentManagerDashboard overview={overview} />
+      ) : (
+        <CorrespondentPartnerDashboard
+          overview={overview}
+          ownCorrespondent={ownCorrespondent}
+        />
+      )}
+
+      <CorrespondentQuickActions
+        pinConfigured={transactionPinStatusQuery.data?.configured ?? false}
+        role={activeMembership.role}
+      />
+    </section>
+  )
+}
+
+function CorrespondentPartnerDashboard({
+  overview,
+  ownCorrespondent,
+}: {
+  overview: ReturnType<typeof buildCorrespondentOverview>
+  ownCorrespondent: CorrespondentSummary | null
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <MetricCard
+        label="Mon solde détenu pour l’entreprise"
+        value={
+          ownCorrespondent
+            ? formatCorrespondentAmount(
+                ownCorrespondent.balance,
+                ownCorrespondent.currency,
+              )
+            : '0 GNF'
+        }
+      />
+      <MetricCard
+        label="Mes transactions en attente"
+        value={formatNumber(overview.pendingTransactionCount)}
+      />
+      <MetricCard
+        label="Mes transactions payées"
+        value={formatNumber(overview.paidTransactionCount)}
+      />
+      <MetricCard
+        label="Mes retraits en attente"
+        value={formatNumber(overview.pendingWithdrawalCount)}
+      />
+      <MetricCard
+        label="Mes retraits confirmés"
+        value={formatNumber(overview.confirmedWithdrawalCount)}
+      />
+    </div>
+  )
+}
+
+function CorrespondentManagerDashboard({
+  overview,
+}: {
+  overview: ReturnType<typeof buildCorrespondentOverview>
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      {overview.heldBalances.length > 0 ? (
+        overview.heldBalances.map((balance) => (
+          <MetricCard
+            key={`held-${balance.currency}`}
+            label={`Fonds détenus par correspondants ${balance.currency}`}
+            value={formatCorrespondentAmount(balance.balance, balance.currency)}
+          />
+        ))
+      ) : (
+        <MetricCard
+          label="Fonds détenus par correspondants"
+          value="0 GNF"
+        />
+      )}
+      {overview.heldBalances.map((balance) => (
+        <MetricCard
+          key={`reserved-${balance.currency}`}
+          label={`Solde réservé ${balance.currency}`}
+          value={formatCorrespondentAmount(
+            balance.reservedBalance,
+            balance.currency,
+          )}
+        />
+      ))}
+      <MetricCard
+        label="Transactions en attente"
+        value={formatNumber(overview.pendingTransactionCount)}
+      />
+      <MetricCard
+        label="Transactions payées"
+        value={formatNumber(overview.paidTransactionCount)}
+      />
+      <MetricCard
+        label="Retraits en attente"
+        value={formatNumber(overview.pendingWithdrawalCount)}
+      />
+      <MetricCard
+        label="Retraits confirmés"
+        value={formatNumber(overview.confirmedWithdrawalCount)}
+      />
+    </div>
+  )
+}
+
+function CorrespondentQuickActions({
+  pinConfigured,
+  role,
+}: {
+  pinConfigured: boolean
+  role: Membership['role']
+}) {
+  const actions =
+    role === 'manager'
+      ? [
+          {
+            label: 'Payer par code',
+            to: '/app/correspondent-collections?tab=pay-by-code',
+          },
+          {
+            label: 'Faire un retrait',
+            to: '/app/correspondent-collections?tab=create-withdrawal',
+          },
+          {
+            label: 'Voir transactions',
+            to: '/app/correspondent-collections?tab=transactions',
+          },
+          {
+            label: 'Voir retraits',
+            to: '/app/correspondent-collections?tab=withdrawals',
+          },
+        ]
+      : [
+          {
+            label: 'Créer une transaction',
+            to: '/app/correspondent-collections?tab=create-transaction',
+          },
+          {
+            label: 'Mes transactions',
+            to: '/app/correspondent-collections?tab=my-transactions',
+          },
+          {
+            label: 'Mes retraits',
+            to: '/app/correspondent-collections?tab=my-withdrawals',
+          },
+          ...(!pinConfigured
+            ? [
+                {
+                  label: 'Configurer mon PIN',
+                  to: '/app/security/transaction-pin',
+                },
+              ]
+            : []),
+        ]
+
+  return (
+    <div className="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-sm font-semibold text-slate-950">Actions rapides</h2>
+      <div className="mt-4 grid gap-2">
+        {actions.map((action) => (
+          <ActionLink key={action.to + action.label} to={action.to}>
+            {action.label}
+          </ActionLink>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -682,7 +973,7 @@ function MixedDashboard() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <DashboardModuleCard
-          description="Existing transfer and correspondent collection metrics."
+          description="Existing transfer and Correspondants metrics."
           title="Transfers"
           to="/app/dashboard"
         />

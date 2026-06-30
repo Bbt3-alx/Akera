@@ -8,10 +8,25 @@ import CorrespondentCollection from "../models/CorrespondentCollection.js";
 import { ApiError } from "../middlewares/errorHandler.js";
 import { runTransaction } from "../utils/dbTransaction.js";
 import { generateAccountOperationCode } from "./accountOperation.service.js";
+import { getCurrentCompanyExchangeRate } from "./companyExchangeRate.service.js";
 import { writeJournalEntries } from "./ledger.service.js";
 
 const VALID_LIST_STATUSES = new Set(["pending", "paid", "confirmed", "canceled"]);
 const VALID_CURRENCIES = new Set(["FCFA", "GNF"]);
+const CORRESPONDENT_RATE_BASE_AMOUNT = 5000;
+const CORRESPONDENT_RATE_BASE_CURRENCY = "FCFA";
+const CORRESPONDENT_RATE_QUOTE_CURRENCY = "GNF";
+const PARTNER_FORBIDDEN_RATE_FIELDS = [
+  "payoutAmount",
+  "payoutCurrency",
+  "rateValue",
+  "rateBaseAmount",
+  "rateQuoteCurrency",
+  "rateBaseCurrency",
+  "counterAmount",
+  "counterCurrency",
+  "rateNote",
+];
 
 const collectionPopulate = [
   {
@@ -48,7 +63,8 @@ export async function createCorrespondentCollection({
   userId,
 }) {
   assertCreateAccess(role);
-  const normalized = normalizeCreatePayload(payload, {
+  const normalized = await normalizeCreatePayload(payload, {
+    companyId,
     membershipId,
     role,
   });
@@ -216,6 +232,41 @@ export async function listCorrespondentCollections({
     },
     collections,
   };
+}
+
+export async function listActiveCorrespondents({
+  companyId,
+  membershipId,
+  query = {},
+  role,
+}) {
+  assertReadAccess(role);
+
+  const normalizedSearch = normalizeOptionalString({
+    errorCode: "INVALID_CORRESPONDENT_SEARCH",
+    label: "Search",
+    maxLength: 100,
+    value: query.search,
+  });
+  const filter = {
+    company: companyId,
+    role: "partner",
+    status: "active",
+    ...(role === "partner" && { _id: membershipId }),
+  };
+
+  const memberships = await CompanyMembership.find(filter)
+    .populate({
+      path: "user",
+      select: "firstName lastName name email",
+    })
+    .lean();
+
+  return memberships
+    .filter((membership) =>
+      matchesCorrespondentSearch(membership, normalizedSearch),
+    )
+    .sort(compareCorrespondents);
 }
 
 export async function getCorrespondentCollectionByCode({
@@ -559,7 +610,7 @@ function buildListFilter({ companyId, membershipId, query, role }) {
   return filter;
 }
 
-function normalizeCreatePayload(payload, { membershipId, role }) {
+async function normalizeCreatePayload(payload, { companyId, membershipId, role }) {
   const correspondentMembershipId = normalizeCorrespondentMembershipId(
     payload,
     { membershipId, role },
@@ -577,8 +628,6 @@ function normalizeCreatePayload(payload, { membershipId, role }) {
     maxLength: 40,
     value: payload.beneficiaryPhone ?? payload.customerPhone,
   });
-  const payoutAmount = normalizePayoutAmount(payload.payoutAmount);
-  const payoutCurrency = normalizePayoutCurrency(payload.payoutCurrency);
   const note = normalizeOptionalString({
     errorCode: "INVALID_COLLECTION_NOTE",
     label: "Note",
@@ -590,7 +639,19 @@ function normalizeCreatePayload(payload, { membershipId, role }) {
     "Idempotency key is required",
     "IDEMPOTENCY_KEY_REQUIRED",
   );
-  const rateSnapshot = normalizeRateSnapshot(payload, "COLLECTION");
+  const payoutAndRate =
+    role === "partner"
+      ? await buildPartnerPayoutAndRateSnapshot({
+          amount,
+          companyId,
+          currency,
+          payload,
+        })
+      : {
+          payoutAmount: normalizePayoutAmount(payload.payoutAmount),
+          payoutCurrency: normalizePayoutCurrency(payload.payoutCurrency),
+          ...normalizeRateSnapshot(payload, "COLLECTION"),
+        };
 
   return {
     amount,
@@ -600,9 +661,7 @@ function normalizeCreatePayload(payload, { membershipId, role }) {
     currency,
     idempotencyKey,
     note,
-    payoutAmount,
-    payoutCurrency,
-    ...rateSnapshot,
+    ...payoutAndRate,
     idempotencyPayload: {
       amount,
       beneficiaryName,
@@ -610,11 +669,74 @@ function normalizeCreatePayload(payload, { membershipId, role }) {
       correspondentMembershipId: correspondentMembershipId.toString(),
       currency,
       note,
-      payoutAmount,
-      payoutCurrency,
-      ...rateSnapshot,
+      ...payoutAndRate,
     },
   };
+}
+
+async function buildPartnerPayoutAndRateSnapshot({
+  amount,
+  companyId,
+  currency,
+  payload,
+}) {
+  if (currency !== "GNF") {
+    throw new ApiError(
+      400,
+      "Correspondent transaction creation is only available for GNF correspondents",
+      "CORRESPONDENT_TRANSACTION_GNF_ONLY",
+    );
+  }
+
+  assertPartnerDoesNotSupplyRateFields(payload);
+
+  const exchangeRate = await getCurrentCompanyExchangeRate({ companyId });
+  const rateValue = Number(exchangeRate?.rate);
+
+  if (!Number.isFinite(rateValue) || rateValue <= 0) {
+    throw new ApiError(
+      400,
+      "No correspondent transaction rate is configured",
+      "CORRESPONDENT_TRANSACTION_RATE_NOT_CONFIGURED",
+    );
+  }
+
+  const payoutAmount = Math.floor(
+    (amount * CORRESPONDENT_RATE_BASE_AMOUNT) / rateValue,
+  );
+
+  if (!Number.isSafeInteger(payoutAmount) || payoutAmount <= 0) {
+    throw new ApiError(
+      400,
+      "Computed payout amount must be greater than 0",
+      "INVALID_COLLECTION_PAYOUT_AMOUNT",
+    );
+  }
+
+  return {
+    payoutAmount,
+    payoutCurrency: CORRESPONDENT_RATE_BASE_CURRENCY,
+    rateValue,
+    rateBaseAmount: CORRESPONDENT_RATE_BASE_AMOUNT,
+    rateQuoteCurrency: CORRESPONDENT_RATE_QUOTE_CURRENCY,
+    rateBaseCurrency: CORRESPONDENT_RATE_BASE_CURRENCY,
+  };
+}
+
+function assertPartnerDoesNotSupplyRateFields(payload) {
+  const hasForbiddenField = PARTNER_FORBIDDEN_RATE_FIELDS.some((field) => {
+    const value = payload[field];
+
+    return value !== undefined && value !== null && value !== "";
+  });
+
+  if (hasForbiddenField) {
+    throw new ApiError(
+      400,
+      "Partner-created correspondent transactions cannot include payout or rate fields",
+      "CORRESPONDENT_TRANSACTION_RATE_FIELDS_NOT_ALLOWED",
+    );
+  }
 }
 
 function normalizeCancelPayload(payload) {
@@ -863,6 +985,58 @@ function normalizeRequiredString(value, message, errorCode) {
   }
 
   return trimmed;
+}
+
+function matchesCorrespondentSearch(membership, search) {
+  if (!search) {
+    return true;
+  }
+
+  const normalizedSearch = search.toLowerCase();
+  const user = membership.user;
+  const searchable = [
+    resolveUserName(user),
+    user?.email,
+    membership.currency,
+    membership.status,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return searchable.includes(normalizedSearch);
+}
+
+function compareCorrespondents(left, right) {
+  const leftName = resolveUserName(left.user) ?? left.user?.email ?? "";
+  const rightName = resolveUserName(right.user) ?? right.user?.email ?? "";
+
+  return leftName.localeCompare(rightName);
+}
+
+function resolveUserName(user) {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+
+  if (typeof user.name === "string" && user.name.trim()) {
+    return user.name.trim();
+  }
+
+  const fullName = [user.firstName, user.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (fullName) {
+    return fullName;
+  }
+
+  if (typeof user.email === "string" && user.email.trim()) {
+    return user.email.trim();
+  }
+
+  return null;
 }
 
 function normalizeOptionalString({ errorCode, label, maxLength, value }) {

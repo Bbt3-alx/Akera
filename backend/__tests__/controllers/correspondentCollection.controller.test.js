@@ -6,6 +6,7 @@ import {
   confirmCollection,
   createCollection,
   getCollection,
+  listCorrespondents,
   listCollections,
   payCollection,
 } from "../../controllers/correspondentCollection.controller.js";
@@ -92,6 +93,65 @@ describe("correspondent collection controller", () => {
       pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
       data: [expect.objectContaining({ collectionCode: "CCL-260625-ABCD" })],
     });
+  });
+
+  it("lists sanitized active correspondents for the active company", async () => {
+    const ids = createIds();
+    jest
+      .spyOn(correspondentCollectionService, "listActiveCorrespondents")
+      .mockResolvedValue([
+        {
+          _id: ids.correspondentMembershipId,
+          balance: 328000000,
+          reservedBalance: 2000000,
+          currency: "GNF",
+          status: "active",
+          user: {
+            _id: ids.correspondentUserId,
+            firstName: "Kalil",
+            lastName: "Diallo",
+            email: "kalil@example.com",
+            transactionPinHash: "secret-pin",
+          },
+          idempotencyKey: "hidden",
+        },
+      ]);
+    const res = createResponse();
+
+    await listCorrespondents(
+      createRequest(ids, {
+        query: { search: "kalil" },
+      }),
+      res,
+    );
+
+    expect(correspondentCollectionService.listActiveCorrespondents)
+      .toHaveBeenCalledWith({
+        companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
+        role: "manager",
+        query: { search: "kalil" },
+      });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: [
+        {
+          membershipId: ids.correspondentMembershipId.toHexString(),
+          name: "Kalil Diallo",
+          email: "kalil@example.com",
+          currency: "GNF",
+          balance: 328000000,
+          reservedBalance: 2000000,
+          availableBalance: 326000000,
+          status: "active",
+        },
+      ],
+    });
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain(
+      "secret-pin",
+    );
+    expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain("hidden");
   });
 
   it("gets a collection by code with partner visibility delegated to service", async () => {

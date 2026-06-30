@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { ACCOUNTS } from "../../constants/accounts.js";
 import AccountOperation from "../../models/AccountOperation.js";
 import Company from "../../models/Company.js";
+import CompanyExchangeRate from "../../models/CompanyExchangeRate.js";
 import CompanyMembership from "../../models/CompanyMembership.js";
 import CorrespondentCollection from "../../models/CorrespondentCollection.js";
 import LedgerEntry from "../../models/LedgerEntry.js";
@@ -12,6 +13,7 @@ import {
   confirmCorrespondentCollection,
   createCorrespondentCollection,
   getCorrespondentCollectionByCode,
+  listActiveCorrespondents,
   listCorrespondentCollections,
 } from "../../services/correspondentCollection.service.js";
 
@@ -259,6 +261,10 @@ describe("correspondent collection service", () => {
       currency: "GNF",
       payoutAmount: 20000000,
       payoutCurrency: "FCFA",
+      rateValue: 82000,
+      rateBaseAmount: 5000,
+      rateQuoteCurrency: "GNF",
+      rateBaseCurrency: "FCFA",
       save: jest.fn().mockResolvedValue(undefined),
     });
     const operation = createAccountOperation(ids, {
@@ -268,6 +274,9 @@ describe("correspondent collection service", () => {
       previousBalance: 0,
       save: jest.fn().mockResolvedValue(undefined),
     });
+    jest
+      .spyOn(CompanyExchangeRate, "findOne")
+      .mockReturnValue(createLeanQuery(createExchangeRate(ids, { rate: 82000 })));
     jest
       .spyOn(CorrespondentCollection, "findOne")
       .mockReturnValue(createSessionLeanQuery(null));
@@ -301,8 +310,8 @@ describe("correspondent collection service", () => {
         beneficiaryName: " Kadidia ",
         beneficiaryPhone: " +22371000000 ",
         currency: "gnf",
-        payoutAmount: 20000000,
-        payoutCurrency: "fcfa",
+        payoutAmount: undefined,
+        payoutCurrency: undefined,
       }),
     });
 
@@ -326,6 +335,10 @@ describe("correspondent collection service", () => {
           currency: "GNF",
           payoutAmount: 20000000,
           payoutCurrency: "FCFA",
+          rateValue: 82000,
+          rateBaseAmount: 5000,
+          rateQuoteCurrency: "GNF",
+          rateBaseCurrency: "FCFA",
           status: "pending",
         }),
       ],
@@ -379,6 +392,167 @@ describe("correspondent collection service", () => {
     expect(companyUpdate).not.toHaveBeenCalled();
   });
 
+  it("partner-created GNF collections compute floor payout and store the current rate snapshot", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const membership = createMembership(ids, { balance: 0, currency: "GNF" });
+    const collection = createCollection(ids, {
+      amount: 328000001,
+      beneficiaryName: "Kadidia",
+      beneficiaryPhone: "+22371000000",
+      currency: "GNF",
+      payoutAmount: 20000000,
+      payoutCurrency: "FCFA",
+      rateValue: 82000,
+      rateBaseAmount: 5000,
+      rateQuoteCurrency: "GNF",
+      rateBaseCurrency: "FCFA",
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    const operation = createAccountOperation(ids, {
+      amount: 328000001,
+      currency: "GNF",
+      currentBalance: 328000001,
+      previousBalance: 0,
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    jest
+      .spyOn(CompanyExchangeRate, "findOne")
+      .mockReturnValue(createLeanQuery(createExchangeRate(ids, { rate: 82000 })));
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionLeanQuery(null));
+    jest
+      .spyOn(CompanyMembership, "findOne")
+      .mockReturnValue(createSessionQuery(membership));
+    const collectionCreate = jest
+      .spyOn(CorrespondentCollection, "create")
+      .mockResolvedValue([collection]);
+    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue({
+      _id: ids.correspondentMembershipId,
+      balance: 328000001,
+    });
+    jest.spyOn(AccountOperation, "create").mockResolvedValue([operation]);
+    jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
+
+    await createCorrespondentCollection({
+      companyId: ids.companyId,
+      membershipId: ids.correspondentMembershipId,
+      userId: ids.partnerUserId,
+      role: "partner",
+      payload: collectionPayload(ids, {
+        amount: 328000001,
+        beneficiaryName: " Kadidia ",
+        beneficiaryPhone: " +22371000000 ",
+        currency: "gnf",
+        payoutAmount: undefined,
+        payoutCurrency: undefined,
+      }),
+    });
+
+    expect(CompanyExchangeRate.findOne).toHaveBeenCalledWith({
+      company: ids.companyId,
+    });
+    expect(collectionCreate).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          amount: 328000001,
+          currency: "GNF",
+          payoutAmount: 20000000,
+          payoutCurrency: "FCFA",
+          rateValue: 82000,
+          rateBaseAmount: 5000,
+          rateQuoteCurrency: "GNF",
+          rateBaseCurrency: "FCFA",
+          idempotencyPayload: expect.objectContaining({
+            amount: 328000001,
+            currency: "GNF",
+            payoutAmount: 20000000,
+            payoutCurrency: "FCFA",
+            rateValue: 82000,
+            rateBaseAmount: 5000,
+            rateQuoteCurrency: "GNF",
+            rateBaseCurrency: "FCFA",
+          }),
+        }),
+      ],
+      { session: expect.any(Object) },
+    );
+  });
+
+  it("blocks partner-created GNF collections when no current rate is configured", async () => {
+    const ids = createIds();
+    jest.spyOn(CompanyExchangeRate, "findOne").mockReturnValue(createLeanQuery(null));
+    const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.correspondentMembershipId,
+        userId: ids.partnerUserId,
+        role: "partner",
+        payload: collectionPayload(ids, {
+          amount: 328000000,
+          currency: "gnf",
+          payoutAmount: undefined,
+          payoutCurrency: undefined,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "CORRESPONDENT_TRANSACTION_RATE_NOT_CONFIGURED",
+    });
+    expect(collectionCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects client-supplied payout or rate fields for partner-created collections", async () => {
+    const ids = createIds();
+    const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.correspondentMembershipId,
+        userId: ids.partnerUserId,
+        role: "partner",
+        payload: collectionPayload(ids, {
+          amount: 328000000,
+          currency: "gnf",
+          payoutAmount: 20000000,
+          payoutCurrency: undefined,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "CORRESPONDENT_TRANSACTION_RATE_FIELDS_NOT_ALLOWED",
+    });
+    expect(collectionCreate).not.toHaveBeenCalled();
+  });
+
+  it("blocks FCFA partner-created collections for Phase 27C", async () => {
+    const ids = createIds();
+    const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.correspondentMembershipId,
+        userId: ids.partnerUserId,
+        role: "partner",
+        payload: collectionPayload(ids, {
+          payoutAmount: undefined,
+          payoutCurrency: undefined,
+        }),
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      errorCode: "CORRESPONDENT_TRANSACTION_GNF_ONLY",
+    });
+    expect(collectionCreate).not.toHaveBeenCalled();
+  });
+
   it("rejects partner collection creation for another partner membership", async () => {
     const ids = createIds();
     const collectionCreate = jest.spyOn(CorrespondentCollection, "create");
@@ -417,6 +591,68 @@ describe("correspondent collection service", () => {
       errorCode: "CORRESPONDENT_COLLECTION_PARTNER_OR_MANAGER_REQUIRED",
     });
     expect(collectionCreate).not.toHaveBeenCalled();
+  });
+
+  it("lists active partner correspondents with balances for managers", async () => {
+    const ids = createIds();
+    const find = jest.spyOn(CompanyMembership, "find").mockReturnValue(
+      createPopulateLeanQuery([
+        createMembership(ids, {
+          balance: 328000000,
+          currency: "GNF",
+          reservedBalance: 2000000,
+          user: {
+            _id: ids.partnerUserId,
+            firstName: "Kalil",
+            lastName: "Diallo",
+            email: "kalil@example.com",
+          },
+        }),
+      ]),
+    );
+
+    const correspondents = await listActiveCorrespondents({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      role: "manager",
+      query: { search: "kalil" },
+    });
+
+    expect(find).toHaveBeenCalledWith({
+      company: ids.companyId,
+      role: "partner",
+      status: "active",
+    });
+    expect(correspondents).toHaveLength(1);
+    expect(correspondents[0]).toEqual(
+      expect.objectContaining({
+        _id: ids.correspondentMembershipId,
+        balance: 328000000,
+        reservedBalance: 2000000,
+        currency: "GNF",
+      }),
+    );
+  });
+
+  it("lists only the active partner's own correspondent summary for partners", async () => {
+    const ids = createIds();
+    const find = jest.spyOn(CompanyMembership, "find").mockReturnValue(
+      createPopulateLeanQuery([createMembership(ids, { role: "partner" })]),
+    );
+
+    await listActiveCorrespondents({
+      companyId: ids.companyId,
+      membershipId: ids.correspondentMembershipId,
+      role: "partner",
+      query: {},
+    });
+
+    expect(find).toHaveBeenCalledWith({
+      _id: ids.correspondentMembershipId,
+      company: ids.companyId,
+      role: "partner",
+      status: "active",
+    });
   });
 
   it("requires beneficiaryName for partner-created collections", async () => {
@@ -1195,6 +1431,19 @@ function createFindOneLeanQuery(result) {
   };
 }
 
+function createLeanQuery(result) {
+  return {
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
+function createPopulateLeanQuery(result) {
+  return {
+    populate: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
 function createIds() {
   return {
     collectionId: new mongoose.Types.ObjectId(),
@@ -1269,6 +1518,20 @@ function createCollection(
       payoutCurrency: "FCFA",
     },
     save: jest.fn().mockResolvedValue(undefined),
+    ...override,
+  };
+}
+
+function createExchangeRate({ companyId, managerId }, override = {}) {
+  return {
+    _id: new mongoose.Types.ObjectId(),
+    company: companyId,
+    rate: 82000,
+    from: "FCFA",
+    to: "GNF",
+    setBy: managerId,
+    createdAt: new Date("2026-06-27T10:00:00.000Z"),
+    updatedAt: new Date("2026-06-27T10:00:00.000Z"),
     ...override,
   };
 }

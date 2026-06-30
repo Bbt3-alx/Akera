@@ -3,11 +3,13 @@ import {
   confirmCorrespondentCollection,
   createCorrespondentCollection,
   getCorrespondentCollectionByCode,
+  listActiveCorrespondents,
   listCorrespondentCollections,
 } from "../services/correspondentCollection.service.js";
 import {
   serializeCorrespondentCollection,
   serializeCorrespondentCollections,
+  serializeCorrespondentSummaries,
 } from "../serializers/correspondentCollection.serializer.js";
 
 export const createCollection = async (req, res) => {
@@ -53,6 +55,20 @@ export const listCollections = async (req, res) => {
     code: 200,
     pagination: result.pagination,
     data: serializeCorrespondentCollections(result.collections),
+  });
+};
+
+export const listCorrespondents = async (req, res) => {
+  const correspondents = await listActiveCorrespondents({
+    companyId: req.context.companyId,
+    membershipId: req.context.membershipId,
+    role: req.context.role,
+    query: req.query,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeCorrespondentSummaries(correspondents),
   });
 };
 

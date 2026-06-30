@@ -70,9 +70,16 @@ function getTransferItems(
     'remote_agent_payout',
   )
   const hasWorkflowMetadata = transferWorkflows.length > 0
-  const hasLegacyTransferWorkflow = hasWorkflowMetadata
+  const hasCorrespondentCollectionWorkflow = hasWorkflowMetadata
     ? transferWorkflows.includes('correspondent_collection')
-    : hasCompanyModule(enabledModules, 'transfers')
+    : hasCompanyModule(enabledModules, 'correspondent_collections')
+  const isCorrespondentOnlyWorkflow =
+    hasWorkflowMetadata &&
+    transferWorkflows.length === 1 &&
+    transferWorkflows[0] === 'correspondent_collection'
+  const hasLegacyTransferWorkflow = hasWorkflowMetadata
+    ? hasCorrespondentCollectionWorkflow && !isCorrespondentOnlyWorkflow
+    : hasCompanyModule(enabledModules, 'transfers') && !hasRemoteAgentPayout
 
   if (hasAnyTransferModule(enabledModules)) {
     items.push({ label: 'Dashboard', to: '/app/dashboard' })
@@ -84,9 +91,12 @@ function getTransferItems(
 
   if (
     hasCompanyModule(enabledModules, 'correspondent_collections') &&
-    hasLegacyTransferWorkflow
+    hasCorrespondentCollectionWorkflow
   ) {
-    items.push({ label: 'Collections', to: '/app/collections' })
+    items.push({
+      label: 'Correspondants',
+      to: '/app/correspondent-collections',
+    })
   }
 
   if (hasRemoteAgentPayout) {

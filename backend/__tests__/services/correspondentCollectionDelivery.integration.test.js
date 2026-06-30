@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
 import AccountOperation from "../../models/AccountOperation.js";
+import CompanyExchangeRate from "../../models/CompanyExchangeRate.js";
 import CompanyMembership from "../../models/CompanyMembership.js";
 import CorrespondentCollection from "../../models/CorrespondentCollection.js";
 import CorrespondentDelivery from "../../models/CorrespondentDelivery.js";
@@ -57,6 +58,16 @@ describe("correspondent collection and delivery balance handoff", () => {
       .spyOn(CorrespondentCollection, "findOne")
       .mockReturnValueOnce(createSessionLeanQuery(null))
       .mockReturnValueOnce(createSessionQuery(collection));
+    jest.spyOn(CompanyExchangeRate, "findOne").mockReturnValue(
+      createLeanQuery({
+        _id: ids.exchangeRateId,
+        company: ids.companyId,
+        from: "FCFA",
+        rate: 82000,
+        setBy: ids.managerId,
+        to: "GNF",
+      }),
+    );
     jest
       .spyOn(CompanyMembership, "findOne")
       .mockReturnValue(createSessionQuery({
@@ -132,8 +143,6 @@ describe("correspondent collection and delivery balance handoff", () => {
         correspondentMembershipId: ids.correspondentMembershipId.toString(),
         currency: "GNF",
         idempotencyKey: "collection-create-kadidia",
-        payoutAmount: 20000000,
-        payoutCurrency: "FCFA",
       },
     });
     await confirmCorrespondentCollection({
@@ -238,6 +247,7 @@ function createIds() {
     companyId: new mongoose.Types.ObjectId(),
     correspondentMembershipId: new mongoose.Types.ObjectId(),
     deliveryId: new mongoose.Types.ObjectId(),
+    exchangeRateId: new mongoose.Types.ObjectId(),
     ledgerCreditId: new mongoose.Types.ObjectId(),
     ledgerDebitId: new mongoose.Types.ObjectId(),
     managerId: new mongoose.Types.ObjectId(),
@@ -327,5 +337,11 @@ function createSessionLeanQuery(result) {
   return {
     lean: jest.fn().mockResolvedValue(result),
     session: jest.fn().mockReturnThis(),
+  };
+}
+
+function createLeanQuery(result) {
+  return {
+    lean: jest.fn().mockResolvedValue(result),
   };
 }

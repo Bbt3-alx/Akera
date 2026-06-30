@@ -6,6 +6,7 @@ import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
 import { CompanyCashPage } from '../features/companyCash/pages/CompanyCashPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
+import { CorrespondentCollectionPage } from '../features/correspondentCollection/pages/CorrespondentCollectionPage.tsx'
 import { DashboardPage } from '../features/dashboard/pages/DashboardPage.tsx'
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
 import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInvitationsPage.tsx'
@@ -140,10 +141,15 @@ export const router = createBrowserRouter([
         path: 'collections',
         element: (
           <ModuleGate moduleName="correspondent_collections">
-            <ModulePlaceholderPage
-              description="Correspondent collection screens will be added in the next workflow pass."
-              title="Collections"
-            />
+            <Navigate to="/app/correspondent-collections" replace />
+          </ModuleGate>
+        ),
+      },
+      {
+        path: 'correspondent-collections',
+        element: (
+          <ModuleGate moduleName="correspondent_collections">
+            <CorrespondentCollectionPage />
           </ModuleGate>
         ),
       },

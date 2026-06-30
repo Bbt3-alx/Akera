@@ -60,6 +60,31 @@ export function serializeCorrespondentCollections(collections) {
   );
 }
 
+export function serializeCorrespondentSummary(membership) {
+  if (!membership) {
+    return null;
+  }
+
+  const balance = toNumber(membership.balance);
+  const reservedBalance = toNumber(membership.reservedBalance);
+  const user = membership.user;
+
+  return {
+    membershipId: serializeId(membership._id ?? membership.id),
+    name: resolveUserName(user),
+    email: user?.email ?? null,
+    currency: membership.currency,
+    balance,
+    reservedBalance,
+    availableBalance: balance - reservedBalance,
+    status: membership.status,
+  };
+}
+
+export function serializeCorrespondentSummaries(memberships) {
+  return memberships.map((membership) => serializeCorrespondentSummary(membership));
+}
+
 function resolveUserName(user) {
   if (!user || typeof user !== "object") {
     return null;
@@ -99,4 +124,8 @@ function serializeId(value) {
   }
 
   return value.toString();
+}
+
+function toNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

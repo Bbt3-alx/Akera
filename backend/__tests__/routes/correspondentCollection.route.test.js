@@ -9,6 +9,7 @@ describe("correspondent collection routes", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/", "get"],
+      ["/correspondents", "get"],
       ["/:collectionCode", "get"],
       ["/:collectionCode/pay", "post"],
       ["/:collectionCode/confirm", "post"],
@@ -22,6 +23,7 @@ describe("correspondent collection routes", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/", "get"],
+      ["/correspondents", "get"],
       ["/:collectionCode", "get"],
       ["/:collectionCode/pay", "post"],
       ["/:collectionCode/confirm", "post"],
@@ -43,7 +45,7 @@ describe("correspondent collection routes", () => {
     expect(createRoute.stack.map((layer) => layer.handle)).not.toContain(
       requireManagerContext,
     );
-    expect(createRoute.stack.map((layer) => layer.handle)).not.toContain(
+    expect(createRoute.stack.map((layer) => layer.handle)).toContain(
       verifyTransactionPin,
     );
 
@@ -61,6 +63,14 @@ describe("correspondent collection routes", () => {
       );
     }
 
+    const correspondentsRoute = findRoute("/correspondents", "get");
+    expect(correspondentsRoute.stack.map((layer) => layer.handle)).not.toContain(
+      requireManagerContext,
+    );
+    expect(correspondentsRoute.stack.map((layer) => layer.handle)).not.toContain(
+      verifyTransactionPin,
+    );
+
     const cancelRoute = findRoute("/:collectionCode/cancel", "post");
     expect(cancelRoute.stack.map((layer) => layer.handle)).toContain(
       verifyTransactionPin,
@@ -71,6 +81,7 @@ describe("correspondent collection routes", () => {
 
     for (const [path, method] of [
       ["/", "get"],
+      ["/correspondents", "get"],
       ["/:collectionCode", "get"],
     ]) {
       const route = findRoute(path, method);
@@ -83,6 +94,15 @@ describe("correspondent collection routes", () => {
       );
     }
   });
+
+  it("registers the correspondent selector before collection code lookups", () => {
+    const correspondentsIndex = findRouteIndex("/correspondents", "get");
+    const collectionCodeIndex = findRouteIndex("/:collectionCode", "get");
+
+    expect(correspondentsIndex).toBeGreaterThanOrEqual(0);
+    expect(collectionCodeIndex).toBeGreaterThanOrEqual(0);
+    expect(correspondentsIndex).toBeLessThan(collectionCodeIndex);
+  });
 });
 
 function findRoute(path, method) {
@@ -94,4 +114,11 @@ function findRoute(path, method) {
   expect(layer).toBeDefined();
 
   return layer.route;
+}
+
+function findRouteIndex(path, method) {
+  return correspondentCollectionRoutes.stack.findIndex(
+    (candidate) =>
+      candidate.route?.path === path && candidate.route?.methods?.[method],
+  );
 }
