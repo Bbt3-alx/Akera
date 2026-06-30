@@ -13,6 +13,7 @@ import {
   getAutoSelectedCorrespondentId,
   getCorrespondentErrorMessage,
   getCorrespondentVisibleIdentity,
+  getTransactionStatusMessage,
   getTransactionStatusLabel,
   getWithdrawalStatusLabel,
   getWithdrawalWarning,
@@ -57,6 +58,21 @@ describe('correspondent collection view model', () => {
     expect(getWithdrawalStatusLabel('pending')).toBe('Retrait en attente')
     expect(getWithdrawalStatusLabel('confirmed')).toBe('Retrait confirmé')
     expect(getWithdrawalStatusLabel('canceled')).toBe('Annulé')
+  })
+
+  it('maps transaction statuses to contextual workflow messages', () => {
+    expect(getTransactionStatusMessage('pending')).toBe(
+      'Fonds reçus par le correspondant, bénéficiaire pas encore payé.',
+    )
+    expect(getTransactionStatusMessage('paid')).toBe(
+      'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
+    )
+    expect(getTransactionStatusMessage('confirmed')).toBe(
+      'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
+    )
+    expect(getTransactionStatusMessage('canceled')).toBe(
+      'Transaction annulée. L’effet sur le solde correspondant a été reversé.',
+    )
   })
 
   it('keeps user-facing terminology free of backend collection and delivery wording', () => {
@@ -180,6 +196,16 @@ describe('correspondent collection view model', () => {
         }),
       }),
     ).toBe('Solde disponible insuffisant : 326\u202f000\u202f000 GNF disponible.')
+    expect(
+      getWithdrawalWarning({
+        amount: 326000000,
+        correspondent: createCorrespondent({
+          balance: 328000000,
+          reservedBalance: 2000000,
+          currency: 'GNF',
+        }),
+      }),
+    ).toBeNull()
   })
 
   it('maps API error codes to French messages', () => {
@@ -221,6 +247,52 @@ describe('correspondent collection view model', () => {
         }),
       ),
     ).toBe(CORRESPONDENT_GNF_ONLY_MESSAGE)
+    expect(
+      getCorrespondentErrorMessage(
+        new AppApiError({
+          message: 'Already paid',
+          statusCode: 400,
+          errorCode: 'CORRESPONDENT_COLLECTION_ALREADY_PAID',
+        }),
+      ),
+    ).toBe('Transaction déjà payée.')
+    expect(
+      getCorrespondentErrorMessage(
+        new AppApiError({
+          message: 'Canceled',
+          statusCode: 400,
+          errorCode: 'CORRESPONDENT_COLLECTION_CANCELED',
+        }),
+      ),
+    ).toBe('Transaction annulée.')
+    expect(
+      getCorrespondentErrorMessage(
+        new AppApiError({
+          message: 'Already confirmed',
+          statusCode: 400,
+          errorCode: 'CORRESPONDENT_DELIVERY_ALREADY_CONFIRMED',
+        }),
+      ),
+    ).toBe('Retrait déjà confirmé.')
+    expect(
+      getCorrespondentErrorMessage(
+        new AppApiError({
+          message: 'Delivery canceled',
+          statusCode: 400,
+          errorCode: 'CORRESPONDENT_DELIVERY_CANCELED',
+        }),
+      ),
+    ).toBe('Retrait annulé.')
+    expect(
+      getCorrespondentErrorMessage(
+        new AppApiError({
+          message: 'Network Error',
+          statusCode: 0,
+        }),
+      ),
+    ).toBe(
+      'Serveur indisponible. Vérifiez que l’API est démarrée et réessayez.',
+    )
   })
 })
 

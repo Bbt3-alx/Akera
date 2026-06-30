@@ -98,6 +98,14 @@ const TRANSACTION_STATUS_LABELS: Record<CorrespondentTransactionStatus, string> 
   canceled: 'Annulée',
 }
 
+const TRANSACTION_STATUS_MESSAGES: Record<CorrespondentTransactionStatus, string> = {
+  pending: 'Fonds reçus par le correspondant, bénéficiaire pas encore payé.',
+  paid: 'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
+  confirmed:
+    'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
+  canceled: 'Transaction annulée. L’effet sur le solde correspondant a été reversé.',
+}
+
 const WITHDRAWAL_STATUS_LABELS: Record<CorrespondentWithdrawalStatus, string> = {
   pending: 'Retrait en attente',
   confirmed: 'Retrait confirmé',
@@ -129,10 +137,18 @@ const CORRESPONDENT_ERROR_MESSAGES: Record<string, string> = {
     'Solde disponible du correspondant insuffisant.',
   CORRESPONDENT_COLLECTION_NOT_FOUND: 'Code transaction introuvable.',
   CORRESPONDENT_DELIVERY_NOT_FOUND: 'Retrait introuvable.',
+  CORRESPONDENT_COLLECTION_ALREADY_PAID: 'Transaction déjà payée.',
+  CORRESPONDENT_COLLECTION_PAID: 'Transaction déjà payée.',
+  CORRESPONDENT_COLLECTION_ALREADY_CANCELED: 'Transaction annulée.',
+  CORRESPONDENT_COLLECTION_CANCELED: 'Transaction annulée.',
   CORRESPONDENT_COLLECTION_PAY_NOT_ALLOWED:
     'Cette transaction ne peut plus être payée.',
   CORRESPONDENT_COLLECTION_CANCEL_NOT_ALLOWED:
     'Cette transaction ne peut plus être annulée.',
+  CORRESPONDENT_DELIVERY_ALREADY_CONFIRMED: 'Retrait déjà confirmé.',
+  CORRESPONDENT_DELIVERY_CONFIRMED: 'Retrait déjà confirmé.',
+  CORRESPONDENT_DELIVERY_ALREADY_CANCELED: 'Retrait annulé.',
+  CORRESPONDENT_DELIVERY_CANCELED: 'Retrait annulé.',
   CORRESPONDENT_DELIVERY_CONFIRM_NOT_ALLOWED:
     'Ce retrait ne peut plus être confirmé.',
   CORRESPONDENT_DELIVERY_CANCEL_NOT_ALLOWED:
@@ -168,6 +184,12 @@ export function getTransactionStatusLabel(
   status: CorrespondentTransactionStatus,
 ): string {
   return TRANSACTION_STATUS_LABELS[status] ?? status
+}
+
+export function getTransactionStatusMessage(
+  status: CorrespondentTransactionStatus,
+): string {
+  return TRANSACTION_STATUS_MESSAGES[status] ?? TRANSACTION_STATUS_MESSAGES.pending
 }
 
 export function getWithdrawalStatusLabel(
@@ -340,6 +362,10 @@ export function getCorrespondentErrorMessage(error: unknown): string {
     return CORRESPONDENT_ERROR_MESSAGES[errorCode]
   }
 
+  if (isConnectivityError(error)) {
+    return 'Serveur indisponible. Vérifiez que l’API est démarrée et réessayez.'
+  }
+
   if (error instanceof Error && error.message.trim()) {
     return error.message
   }
@@ -408,4 +434,18 @@ function getErrorCode(error: unknown): string | null {
   const errorCode = (error as { errorCode?: unknown }).errorCode
 
   return typeof errorCode === 'string' ? errorCode : null
+}
+
+function isConnectivityError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const statusCode = (error as { statusCode?: unknown }).statusCode
+
+  if (statusCode === 0) {
+    return true
+  }
+
+  return error instanceof Error && /network error/i.test(error.message)
 }

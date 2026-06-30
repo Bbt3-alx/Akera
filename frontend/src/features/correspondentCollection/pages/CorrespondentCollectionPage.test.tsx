@@ -142,6 +142,30 @@ describe('CorrespondentCollectionPage', () => {
     expect(html).not.toContain('Devise de paiement')
   })
 
+  it('orders partner transaction fields for mobile and desktop priority', () => {
+    const html = renderPage()
+
+    expectInOrder(html, [
+      'Nom bénéficiaire',
+      'Téléphone bénéficiaire',
+      'Montant reçu en GNF',
+      'Montant à payer au bénéficiaire',
+      'Taux actuel',
+      'Note',
+      'PIN de transaction',
+    ])
+    expect(html).toContain('data-correspondent-form-column="primary"')
+    expect(html).toContain('data-correspondent-form-column="secondary"')
+    expect(html).toContain('md:col-start-1 md:row-start-1')
+    expect(html).toContain('md:col-start-1 md:row-start-2')
+    expect(html).toContain('md:col-start-1 md:row-start-3')
+    expect(html).toContain('md:col-start-1 md:row-start-4')
+    expect(html).toContain('md:col-start-2 md:row-start-1')
+    expect(html).toContain('md:col-start-2 md:row-start-2')
+    expect(html).toContain('md:col-start-2 md:row-start-3')
+    expect(html).toContain('md:col-start-2 md:row-start-4')
+  })
+
   it('blocks FCFA correspondent transaction creation with the friendly message', () => {
     mocks.useCorrespondents.mockReturnValue({
       data: [createCorrespondent({ currency: 'FCFA' })],
@@ -155,11 +179,100 @@ describe('CorrespondentCollectionPage', () => {
       'La création de transaction correspondant est disponible uniquement pour les correspondants en GNF pour le moment.',
     )
   })
+
+  it('shows payout amount as primary and held funds as secondary in transaction cards', () => {
+    mocks.useMe.mockReturnValue({
+      data: {
+        memberships: [createMembership('manager')],
+      },
+      isLoading: false,
+    })
+    mocks.useCorrespondentTransactions.mockReturnValue({
+      data: {
+        data: [
+          createTransaction({ status: 'pending' }),
+          createTransaction({
+            id: 'tx-2',
+            collectionCode: 'CCL-PAID',
+            status: 'paid',
+          }),
+          createTransaction({
+            id: 'tx-3',
+            collectionCode: 'CCL-CANCELED',
+            status: 'canceled',
+          }),
+        ],
+      },
+      error: null,
+      isLoading: false,
+    })
+
+    const html = renderPage('/app/correspondent-collections?tab=transactions')
+
+    expect(html).toContain('Montant à payer')
+    expect(html).toContain('Fonds détenus')
+    expectInOrder(html, [
+      'Montant à payer',
+      '20',
+      '000',
+      '000 FCFA',
+      'Fonds détenus',
+      '328',
+      '000',
+      '000 GNF',
+    ])
+    expect(html).toContain(
+      'Fonds reçus par le correspondant, bénéficiaire pas encore payé.',
+    )
+    expect(html).toContain(
+      'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
+    )
+    expect(html).toContain(
+      'Transaction annulée. L’effet sur le solde correspondant a été reversé.',
+    )
+    expect(html).not.toMatch(/payoutAmount|payoutCurrency|amount|currency/)
+  })
+
+  it('shows payout amount first and contextual status message in pay-by-code', () => {
+    mocks.useMe.mockReturnValue({
+      data: {
+        memberships: [createMembership('manager')],
+      },
+      isLoading: false,
+    })
+    mocks.useCorrespondentTransaction.mockReturnValue({
+      data: createTransaction({
+        rateValue: 82000,
+        rateBaseAmount: 5000,
+        status: 'paid',
+      }),
+      error: null,
+      isFetching: false,
+    })
+
+    const html = renderPage('/app/correspondent-collections?tab=pay-by-code')
+
+    expectInOrder(html, [
+      'Montant à payer',
+      '20',
+      '000',
+      '000 FCFA',
+      'Fonds détenus',
+      '328',
+      '000',
+      '000 GNF',
+    ])
+    expect(html).toContain('Taux utilisé')
+    expect(html).toContain(
+      'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
+    )
+    expect(html).not.toContain('Confirmer le paiement')
+  })
 })
 
-function renderPage() {
+function renderPage(initialEntry = '/app/correspondent-collections') {
   return renderToString(
-    <MemoryRouter initialEntries={['/app/correspondent-collections']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <CorrespondentCollectionPage />
     </MemoryRouter>,
   )
@@ -206,5 +319,37 @@ function createCorrespondent(override = {}) {
     availableBalance: 326000000,
     status: 'active',
     ...override,
+  }
+}
+
+function createTransaction(override = {}) {
+  return {
+    id: 'tx-1',
+    collectionCode: 'CCL-260627-ABCD',
+    amount: 328000000,
+    currency: 'GNF',
+    payoutAmount: 20000000,
+    payoutCurrency: 'FCFA',
+    beneficiaryName: 'Kadidia',
+    beneficiaryPhone: '+22370000000',
+    status: 'pending',
+    correspondentMembership: 'partner-membership-1',
+    correspondentName: 'Kalil Diallo',
+    correspondentEmail: 'kalil@example.com',
+    createdAt: '2026-06-27T10:00:00.000Z',
+    updatedAt: '2026-06-27T10:00:00.000Z',
+    ...override,
+  }
+}
+
+function expectInOrder(html: string, fragments: string[]) {
+  let cursor = -1
+
+  for (const fragment of fragments) {
+    const next = html.indexOf(fragment, cursor + 1)
+    expect(next, `${fragment} should appear after index ${cursor}`).toBeGreaterThan(
+      cursor,
+    )
+    cursor = next
   }
 }

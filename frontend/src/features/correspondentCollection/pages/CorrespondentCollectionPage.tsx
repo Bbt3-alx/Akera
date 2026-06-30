@@ -40,6 +40,7 @@ import {
   getCorrespondentErrorMessage,
   getCorrespondentVisibleIdentity,
   getTransactionStatusLabel,
+  getTransactionStatusMessage,
   getWithdrawalStatusLabel,
   getWithdrawalWarning,
   parseCorrespondentAmountInput,
@@ -334,55 +335,71 @@ function CreateTransactionSection({
       {result ? <TransactionSuccessCard transaction={result} /> : null}
       {pinConfigured ? (
         <form className="grid gap-4 md:grid-cols-2" onSubmit={onSubmit}>
-        <ReadOnlyField
-          label="Devise"
-          value={currency}
-        />
-        <TextField
-          label="Nom bénéficiaire"
-          onChange={(value) => setForm((current) => ({ ...current, beneficiaryName: value }))}
-          required
-          value={form.beneficiaryName}
-        />
-        <TextField
-          label="Téléphone bénéficiaire"
-          onChange={(value) => setForm((current) => ({ ...current, beneficiaryPhone: value }))}
-          value={form.beneficiaryPhone}
-        />
-        <TextField
-          inputMode="numeric"
-          label={currency === 'GNF' ? 'Montant reçu en GNF' : 'Montant reçu par le correspondant'}
-          onChange={(value) => setForm((current) => ({ ...current, amount: value }))}
-          required
-          value={form.amount}
-        />
-        <ReadOnlyField
-          label="Taux actuel"
-          value={
-            exchangeRate
-              ? formatCorrespondentRate({ rateValue: exchangeRate.rate })
-              : isExchangeRateLoading
-                ? 'Chargement du taux'
-                : CORRESPONDENT_RATE_MISSING_MESSAGE
-          }
-        />
-        <ReadOnlyField
-          label="Montant à payer au bénéficiaire"
-          value={
-            payoutPreview
-              ? formatCorrespondentAmount(payoutPreview, 'FCFA')
-              : 'Saisissez le montant reçu en GNF'
-          }
-        />
-        <TextField
-          label="Note"
-          onChange={(value) => setForm((current) => ({ ...current, note: value }))}
-          value={form.note}
-        />
-        <PinField
-          onChange={(value) => setForm((current) => ({ ...current, transactionPin: value }))}
-          value={form.transactionPin}
-        />
+        <FieldSlot column="primary" desktopClassName="md:col-start-1 md:row-start-1">
+          <TextField
+            label="Nom bénéficiaire"
+            onChange={(value) => setForm((current) => ({ ...current, beneficiaryName: value }))}
+            required
+            value={form.beneficiaryName}
+          />
+        </FieldSlot>
+        <FieldSlot column="secondary" desktopClassName="md:col-start-2 md:row-start-2">
+          <TextField
+            label="Téléphone bénéficiaire"
+            onChange={(value) => setForm((current) => ({ ...current, beneficiaryPhone: value }))}
+            value={form.beneficiaryPhone}
+          />
+        </FieldSlot>
+        <FieldSlot column="primary" desktopClassName="md:col-start-1 md:row-start-2">
+          <TextField
+            inputMode="numeric"
+            label={currency === 'GNF' ? 'Montant reçu en GNF' : 'Montant reçu par le correspondant'}
+            onChange={(value) => setForm((current) => ({ ...current, amount: value }))}
+            required
+            value={form.amount}
+          />
+        </FieldSlot>
+        <FieldSlot column="primary" desktopClassName="md:col-start-1 md:row-start-3">
+          <ReadOnlyField
+            label="Montant à payer au bénéficiaire"
+            value={
+              payoutPreview
+                ? formatCorrespondentAmount(payoutPreview, 'FCFA')
+                : 'Saisissez le montant reçu en GNF'
+            }
+          />
+        </FieldSlot>
+        <FieldSlot column="secondary" desktopClassName="md:col-start-2 md:row-start-3">
+          <ReadOnlyField
+            label="Taux actuel"
+            value={
+              exchangeRate
+                ? formatCorrespondentRate({ rateValue: exchangeRate.rate })
+                : isExchangeRateLoading
+                  ? 'Chargement du taux'
+                  : CORRESPONDENT_RATE_MISSING_MESSAGE
+            }
+          />
+        </FieldSlot>
+        <FieldSlot column="secondary" desktopClassName="md:col-start-2 md:row-start-4">
+          <TextField
+            label="Note"
+            onChange={(value) => setForm((current) => ({ ...current, note: value }))}
+            value={form.note}
+          />
+        </FieldSlot>
+        <FieldSlot column="primary" desktopClassName="md:col-start-1 md:row-start-4">
+          <PinField
+            onChange={(value) => setForm((current) => ({ ...current, transactionPin: value }))}
+            value={form.transactionPin}
+          />
+        </FieldSlot>
+        <FieldSlot
+          column="secondary"
+          desktopClassName="hidden md:block md:col-start-2 md:row-start-1"
+        >
+          <ReadOnlyField label="Devise" value={currency} />
+        </FieldSlot>
         <FormFeedback
           error={
             formError ??
@@ -461,8 +478,14 @@ function PayByCodeSection() {
             <Detail label="Bénéficiaire" value={transaction.beneficiaryName} />
             <Detail label="Montant à payer" value={formatCorrespondentAmount(transaction.payoutAmount, transaction.payoutCurrency)} />
             <Detail label="Fonds détenus" value={formatCorrespondentAmount(transaction.amount, transaction.currency)} />
+            {getTransactionRateLabel(transaction) ? (
+              <Detail label="Taux utilisé" value={getTransactionRateLabel(transaction)} />
+            ) : null}
             <Detail label="Statut" value={getTransactionStatusLabel(transaction.status)} />
           </dl>
+          <p className="mt-3 text-sm text-slate-600">
+            {getTransactionStatusMessage(transaction.status)}
+          </p>
           {transaction.status === 'pending' ? (
             <form className="mt-4 flex max-w-xl flex-col gap-3 sm:flex-row" onSubmit={onPay}>
               <PinField onChange={setTransactionPin} value={transactionPin} />
@@ -506,20 +529,11 @@ function TransactionsSection({
                   'Correspondant sans nom'}
               </p>
               <p className="text-xs text-slate-500">
-                {CORRESPONDENT_UI_TEXT.pendingExplanation}
+                {getTransactionStatusMessage(transaction.status)}
               </p>
             </div>
             <div className="text-left md:text-right">
-              <p className="text-sm font-medium text-slate-950">
-                {formatCorrespondentAmount(transaction.amount, transaction.currency)}
-              </p>
-              <p className="text-sm text-slate-600">
-                {formatCorrespondentAmount(
-                  transaction.payoutAmount,
-                  transaction.payoutCurrency,
-                )}{' '}
-                à payer
-              </p>
+              <TransactionAmountSummary transaction={transaction} align="end" />
               <StatusBadge>{getTransactionStatusLabel(transaction.status)}</StatusBadge>
             </div>
           </div>
@@ -868,7 +882,7 @@ function TransactionSuccessCard({
         <Detail label="Fonds détenus" value={formatCorrespondentAmount(transaction.amount, transaction.currency)} />
         <Detail label="Statut" value={getTransactionStatusLabel(transaction.status)} />
       </dl>
-      <p className="mt-3">{CORRESPONDENT_UI_TEXT.pendingExplanation}</p>
+      <p className="mt-3">{getTransactionStatusMessage(transaction.status)}</p>
       <button
         className="mt-3 h-9 rounded border border-emerald-300 px-3 text-sm font-medium text-emerald-900 transition hover:bg-emerald-100"
         onClick={() => void copyCode()}
@@ -983,6 +997,59 @@ function MetricCard({ label, value }: { label: string; value: ReactNode }) {
 
 function PanelTitle({ children }: { children: ReactNode }) {
   return <h2 className="text-lg font-semibold text-slate-950">{children}</h2>
+}
+
+function FieldSlot({
+  children,
+  column,
+  desktopClassName,
+}: {
+  children: ReactNode
+  column: 'primary' | 'secondary'
+  desktopClassName: string
+}) {
+  return (
+    <div
+      className={desktopClassName}
+      data-correspondent-form-column={column}
+    >
+      {children}
+    </div>
+  )
+}
+
+function TransactionAmountSummary({
+  align = 'start',
+  transaction,
+}: {
+  align?: 'start' | 'end'
+  transaction: CorrespondentTransaction
+}) {
+  const alignmentClass = align === 'end' ? 'md:items-end md:text-right' : ''
+
+  return (
+    <dl className={`space-y-2 text-sm ${alignmentClass}`}>
+      <div>
+        <dt className="text-xs font-medium uppercase text-slate-500">
+          Montant à payer
+        </dt>
+        <dd className="mt-1 font-semibold text-slate-950">
+          {formatCorrespondentAmount(
+            transaction.payoutAmount,
+            transaction.payoutCurrency,
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs font-medium uppercase text-slate-500">
+          Fonds détenus
+        </dt>
+        <dd className="mt-1 text-slate-600">
+          {formatCorrespondentAmount(transaction.amount, transaction.currency)}
+        </dd>
+      </div>
+    </dl>
+  )
 }
 
 function TextField({
@@ -1143,4 +1210,24 @@ function optionalString(value: string): string | undefined {
   const trimmed = value.trim()
 
   return trimmed || undefined
+}
+
+function getTransactionRateLabel(
+  transaction: CorrespondentTransaction,
+): string | null {
+  if (
+    typeof transaction.rateValue !== 'number' ||
+    !Number.isFinite(transaction.rateValue)
+  ) {
+    return null
+  }
+
+  return formatCorrespondentRate({
+    rateBaseAmount:
+      typeof transaction.rateBaseAmount === 'number' &&
+      Number.isFinite(transaction.rateBaseAmount)
+        ? transaction.rateBaseAmount
+        : undefined,
+    rateValue: transaction.rateValue,
+  })
 }
