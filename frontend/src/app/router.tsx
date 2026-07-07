@@ -13,6 +13,7 @@ import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInv
 import { MyInvitationsPage } from '../features/invitations/pages/MyInvitationsPage.tsx'
 import { OperationsPage } from '../features/remoteAgentPayout/pages/OperationsPage.tsx'
 import { RemoteAgentPayoutPage } from '../features/remoteAgentPayout/pages/RemoteAgentPayoutPage.tsx'
+import { ReconciliationPage } from '../features/reconciliation/pages/ReconciliationPage.tsx'
 import { TransactionPinPage } from '../features/security/pages/TransactionPinPage.tsx'
 import { CreateTransactionPage } from '../features/transactions/pages/CreateTransactionPage.tsx'
 import { TransactionDetailsPage } from '../features/transactions/pages/TransactionDetailsPage.tsx'
@@ -203,6 +204,10 @@ export const router = createBrowserRouter([
             <CompanyCashPage />
           </ModuleGate>
         ),
+      },
+      {
+        path: 'reconciliation',
+        element: <ReconciliationPage />,
       },
       {
         path: 'gold/dashboard',

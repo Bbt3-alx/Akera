@@ -136,6 +136,24 @@ describe('module-aware navigation', () => {
     expect(flattenLabels(sections)).toContain('Correspondants')
     expect(flattenLabels(sections)).not.toContain('Collections')
   })
+
+  it('shows reconciliation only for managers', () => {
+    const managerSections = buildNavigationSections({
+      enabledModules: ['transfers', 'company_cash'],
+      isManager: true,
+      pendingInvitationCount: 0,
+      transferWorkflows: ['correspondent_collection'],
+    })
+    const employeeSections = buildNavigationSections({
+      enabledModules: ['transfers', 'company_cash'],
+      isManager: false,
+      pendingInvitationCount: 0,
+      transferWorkflows: ['correspondent_collection'],
+    })
+
+    expect(flattenLabels(managerSections)).toContain('Reconciliation')
+    expect(flattenLabels(employeeSections)).not.toContain('Reconciliation')
+  })
 })
 
 function flattenLabels(

@@ -29,6 +29,7 @@ import accountOperationRoutes from "./routes/accountOperationRoute.js";
 import correspondentCollectionRoutes from "./routes/correspondentCollectionRoute.js";
 import correspondentDeliveryRoutes from "./routes/correspondentDeliveryRoute.js";
 import remoteAgentPayoutRoutes from "./routes/remoteAgentPayoutRoute.js";
+import reconciliationRoutes from "./routes/reconciliationRoute.js";
 import { swaggerDocs, swaggerUi } from "./swaggerConfig.js";
 import { activityLogger } from "./middlewares/activityLogger.js";
 import getDashboard from "./routes/dashbordRoute.js";
@@ -83,6 +84,7 @@ app.use("/api/v1/account-operations", accountOperationRoutes);
 app.use("/api/v1/correspondent-collections", correspondentCollectionRoutes);
 app.use("/api/v1/correspondent-deliveries", correspondentDeliveryRoutes);
 app.use("/api/v1/remote-agent-payouts", remoteAgentPayoutRoutes);
+app.use("/api/v1/reconciliation", reconciliationRoutes);
 // app.use(standardizeResponse);
 app.use((err, req, res, next) => {
   errorHandler(err, req, res);

@@ -36,6 +36,8 @@ const auditLogSchema = new Schema({
       "REMOTE_AGENT_GROUP_UPDATE",
       "REMOTE_AGENT_GROUP_MEMBER_ADD",
       "REMOTE_AGENT_GROUP_MEMBER_UPDATE",
+      "RECONCILIATION_SCAN",
+      "RECONCILIATION_ISSUE_RESOLVE",
     ],
   },
   collectionName: { type: String, required: true },

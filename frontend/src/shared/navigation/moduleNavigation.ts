@@ -173,6 +173,8 @@ function getAdministrationItems({
     items.push({ label: 'Company Cash', to: '/app/company/cash' })
   }
 
+  items.push({ label: 'Reconciliation', to: '/app/reconciliation' })
+
   items.push({
     label: 'Transaction PIN',
     to: '/app/security/transaction-pin',
