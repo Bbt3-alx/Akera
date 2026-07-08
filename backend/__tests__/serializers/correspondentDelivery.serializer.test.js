@@ -46,6 +46,7 @@ describe("correspondent delivery serializer", () => {
     expect(result).toEqual({
       id: "delivery-1",
       deliveryCode: "CDL-260627-ABCD",
+      referenceCode: "CDL-260627-ABCD",
       amount: 326000000,
       currency: "GNF",
       status: "confirmed",

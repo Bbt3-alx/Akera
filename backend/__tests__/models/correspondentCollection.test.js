@@ -152,7 +152,24 @@ describe("CorrespondentCollection model", () => {
             company: 1,
             collectionCode: 1,
           },
-          {},
+          {
+            unique: true,
+            partialFilterExpression: {
+              collectionCode: { $type: "string" },
+            },
+          },
+        ],
+        [
+          {
+            company: 1,
+            referenceCode: 1,
+          },
+          {
+            unique: true,
+            partialFilterExpression: {
+              referenceCode: { $type: "string" },
+            },
+          },
         ],
         [
           {

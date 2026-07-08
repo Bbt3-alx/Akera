@@ -1,6 +1,8 @@
 import {
   cancelCorrespondentCollection,
+  cancelCorrespondentCollectionById,
   confirmCorrespondentCollection,
+  confirmCorrespondentCollectionById,
   createCorrespondentCollection,
   getCorrespondentCollectionByCode,
   listActiveCorrespondents,
@@ -26,6 +28,7 @@ export const createCollection = async (req, res) => {
     targetCode: collection.collectionCode,
     metadata: {
       collectionCode: collection.collectionCode,
+      referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,
@@ -122,6 +125,40 @@ async function payCollectionByCode(req, res) {
 export const payCollection = payCollectionByCode;
 export const confirmCollection = payCollectionByCode;
 
+export const payCollectionById = async (req, res) => {
+  const collection = await confirmCorrespondentCollectionById({
+    collectionId: req.params.collectionId,
+    companyId: req.context.companyId,
+    membershipId: req.context.membershipId,
+    userId: req.user.id,
+    role: req.context.role,
+  });
+
+  res.locals.audit = {
+    targetId: collection._id,
+    targetCode: collection.referenceCode ?? collection.collectionCode,
+    metadata: {
+      collectionCode: collection.collectionCode,
+      referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
+      amount: collection.amount,
+      currency: collection.currency,
+      payoutAmount: collection.payoutAmount,
+      payoutCurrency: collection.payoutCurrency,
+      status: collection.status,
+      correspondentMembership: auditId(collection.correspondentMembership),
+      accountOperation: auditId(collection.accountOperation),
+      paidAt: collection.paidAt,
+      paidBy: auditId(collection.paidBy),
+      paidByMembership: auditId(collection.paidByMembership),
+    },
+  };
+
+  res.status(200).json({
+    success: true,
+    data: serializeCorrespondentCollection(collection),
+  });
+};
+
 export const cancelCollection = async (req, res) => {
   const collection = await cancelCorrespondentCollection({
     collectionCode: req.params.collectionCode,
@@ -137,6 +174,41 @@ export const cancelCollection = async (req, res) => {
     targetCode: collection.collectionCode,
     metadata: {
       collectionCode: collection.collectionCode,
+      amount: collection.amount,
+      currency: collection.currency,
+      payoutAmount: collection.payoutAmount,
+      payoutCurrency: collection.payoutCurrency,
+      status: collection.status,
+      correspondentMembership: auditId(collection.correspondentMembership),
+      cancellationAccountOperation: auditId(
+        collection.cancellationAccountOperation,
+      ),
+      cancelReason: collection.cancelReason,
+    },
+  };
+
+  res.status(200).json({
+    success: true,
+    data: serializeCorrespondentCollection(collection),
+  });
+};
+
+export const cancelCollectionById = async (req, res) => {
+  const collection = await cancelCorrespondentCollectionById({
+    collectionId: req.params.collectionId,
+    companyId: req.context.companyId,
+    membershipId: req.context.membershipId,
+    userId: req.user.id,
+    role: req.context.role,
+    payload: req.body,
+  });
+
+  res.locals.audit = {
+    targetId: collection._id,
+    targetCode: collection.referenceCode ?? collection.collectionCode,
+    metadata: {
+      collectionCode: collection.collectionCode,
+      referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,

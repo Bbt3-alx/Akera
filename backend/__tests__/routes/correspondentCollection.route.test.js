@@ -10,6 +10,9 @@ describe("correspondent collection routes", () => {
       ["/", "post"],
       ["/", "get"],
       ["/correspondents", "get"],
+      ["/id/:collectionId/pay", "post"],
+      ["/id/:collectionId/cancel", "post"],
+      ["/id/:collectionId/modification-requests", "post"],
       ["/:collectionCode", "get"],
       ["/:collectionCode/pay", "post"],
       ["/:collectionCode/confirm", "post"],
@@ -24,6 +27,9 @@ describe("correspondent collection routes", () => {
       ["/", "post"],
       ["/", "get"],
       ["/correspondents", "get"],
+      ["/id/:collectionId/pay", "post"],
+      ["/id/:collectionId/cancel", "post"],
+      ["/id/:collectionId/modification-requests", "post"],
       ["/:collectionCode", "get"],
       ["/:collectionCode/pay", "post"],
       ["/:collectionCode/confirm", "post"],
@@ -52,6 +58,7 @@ describe("correspondent collection routes", () => {
     for (const [path, method] of [
       ["/:collectionCode/pay", "post"],
       ["/:collectionCode/confirm", "post"],
+      ["/id/:collectionId/pay", "post"],
     ]) {
       const route = findRoute(path, method);
 
@@ -71,13 +78,18 @@ describe("correspondent collection routes", () => {
       verifyTransactionPin,
     );
 
-    const cancelRoute = findRoute("/:collectionCode/cancel", "post");
-    expect(cancelRoute.stack.map((layer) => layer.handle)).toContain(
-      verifyTransactionPin,
-    );
-    expect(cancelRoute.stack.map((layer) => layer.handle)).not.toContain(
-      requireManagerContext,
-    );
+    for (const [path, method] of [
+      ["/:collectionCode/cancel", "post"],
+      ["/id/:collectionId/cancel", "post"],
+    ]) {
+      const cancelRoute = findRoute(path, method);
+      expect(cancelRoute.stack.map((layer) => layer.handle)).toContain(
+        verifyTransactionPin,
+      );
+      expect(cancelRoute.stack.map((layer) => layer.handle)).not.toContain(
+        requireManagerContext,
+      );
+    }
 
     for (const [path, method] of [
       ["/", "get"],
@@ -97,11 +109,14 @@ describe("correspondent collection routes", () => {
 
   it("registers the correspondent selector before collection code lookups", () => {
     const correspondentsIndex = findRouteIndex("/correspondents", "get");
+    const collectionIdPayIndex = findRouteIndex("/id/:collectionId/pay", "post");
     const collectionCodeIndex = findRouteIndex("/:collectionCode", "get");
 
     expect(correspondentsIndex).toBeGreaterThanOrEqual(0);
+    expect(collectionIdPayIndex).toBeGreaterThanOrEqual(0);
     expect(collectionCodeIndex).toBeGreaterThanOrEqual(0);
     expect(correspondentsIndex).toBeLessThan(collectionCodeIndex);
+    expect(collectionIdPayIndex).toBeLessThan(collectionCodeIndex);
   });
 });
 

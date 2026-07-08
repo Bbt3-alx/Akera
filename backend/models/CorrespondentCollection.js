@@ -51,10 +51,34 @@ const correspondentCollectionSchema = new Schema(
     },
     collectionCode: {
       type: String,
-      required: true,
-      unique: true,
-      index: true,
       trim: true,
+    },
+    referenceCode: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+    },
+    inputAmount: {
+      type: Number,
+      min: 1,
+      validate: {
+        validator(value) {
+          return value === undefined || Number.isInteger(value);
+        },
+        message: "Collection input amount must be a positive integer",
+      },
+    },
+    inputCurrency: {
+      type: String,
+      enum: ["FCFA", "GNF"],
+    },
+    inputSide: {
+      type: String,
+      enum: ["account", "company"],
+    },
+    conversionDirection: {
+      type: String,
+      enum: ["GNF_TO_FCFA", "FCFA_TO_GNF"],
     },
     amount: {
       type: Number,
@@ -194,10 +218,31 @@ const correspondentCollectionSchema = new Schema(
   { timestamps: true },
 );
 
-correspondentCollectionSchema.index({
-  company: 1,
-  collectionCode: 1,
-});
+correspondentCollectionSchema.index(
+  {
+    company: 1,
+    collectionCode: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      collectionCode: { $type: "string" },
+    },
+  },
+);
+
+correspondentCollectionSchema.index(
+  {
+    company: 1,
+    referenceCode: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      referenceCode: { $type: "string" },
+    },
+  },
+);
 
 correspondentCollectionSchema.index({
   company: 1,

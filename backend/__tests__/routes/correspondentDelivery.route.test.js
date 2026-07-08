@@ -9,6 +9,9 @@ describe("correspondent delivery routes", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/", "get"],
+      ["/id/:deliveryId/confirm", "post"],
+      ["/id/:deliveryId/cancel", "post"],
+      ["/id/:deliveryId/modification-requests", "post"],
       ["/:deliveryCode", "get"],
       ["/:deliveryCode/confirm", "post"],
       ["/:deliveryCode/cancel", "post"],
@@ -21,6 +24,9 @@ describe("correspondent delivery routes", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/", "get"],
+      ["/id/:deliveryId/confirm", "post"],
+      ["/id/:deliveryId/cancel", "post"],
+      ["/id/:deliveryId/modification-requests", "post"],
       ["/:deliveryCode", "get"],
       ["/:deliveryCode/confirm", "post"],
       ["/:deliveryCode/cancel", "post"],
@@ -40,6 +46,7 @@ describe("correspondent delivery routes", () => {
     for (const [path, method] of [
       ["/", "post"],
       ["/:deliveryCode/cancel", "post"],
+      ["/id/:deliveryId/cancel", "post"],
     ]) {
       const route = findRoute(path, method);
 
@@ -51,13 +58,18 @@ describe("correspondent delivery routes", () => {
       );
     }
 
-    const confirmRoute = findRoute("/:deliveryCode/confirm", "post");
-    expect(confirmRoute.stack.map((layer) => layer.handle)).toContain(
-      verifyTransactionPin,
-    );
-    expect(confirmRoute.stack.map((layer) => layer.handle)).not.toContain(
-      requireManagerContext,
-    );
+    for (const [path, method] of [
+      ["/:deliveryCode/confirm", "post"],
+      ["/id/:deliveryId/confirm", "post"],
+    ]) {
+      const confirmRoute = findRoute(path, method);
+      expect(confirmRoute.stack.map((layer) => layer.handle)).toContain(
+        verifyTransactionPin,
+      );
+      expect(confirmRoute.stack.map((layer) => layer.handle)).not.toContain(
+        requireManagerContext,
+      );
+    }
   });
 
   it("does not require transaction PIN for read endpoints", () => {

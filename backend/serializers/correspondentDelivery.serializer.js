@@ -12,6 +12,7 @@ export function serializeCorrespondentDelivery(delivery) {
   return {
     id: serializeId(delivery._id ?? delivery.id),
     deliveryCode: delivery.deliveryCode,
+    referenceCode: delivery.referenceCode ?? delivery.deliveryCode ?? null,
     amount: delivery.amount,
     currency: delivery.currency,
     status: delivery.status,

@@ -43,10 +43,12 @@ const correspondentDeliverySchema = new Schema(
     },
     deliveryCode: {
       type: String,
-      required: true,
-      unique: true,
-      index: true,
       trim: true,
+    },
+    referenceCode: {
+      type: String,
+      trim: true,
+      maxlength: 80,
     },
     amount: {
       type: Number,
@@ -156,10 +158,31 @@ const correspondentDeliverySchema = new Schema(
   { timestamps: true },
 );
 
-correspondentDeliverySchema.index({
-  company: 1,
-  deliveryCode: 1,
-});
+correspondentDeliverySchema.index(
+  {
+    company: 1,
+    deliveryCode: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      deliveryCode: { $type: "string" },
+    },
+  },
+);
+
+correspondentDeliverySchema.index(
+  {
+    company: 1,
+    referenceCode: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      referenceCode: { $type: "string" },
+    },
+  },
+);
 
 correspondentDeliverySchema.index({
   company: 1,

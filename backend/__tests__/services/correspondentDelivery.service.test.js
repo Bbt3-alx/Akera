@@ -9,7 +9,9 @@ import CorrespondentDelivery from "../../models/CorrespondentDelivery.js";
 import LedgerEntry from "../../models/LedgerEntry.js";
 import {
   cancelCorrespondentDelivery,
+  cancelCorrespondentDeliveryById,
   confirmCorrespondentDelivery,
+  confirmCorrespondentDeliveryById,
   createCorrespondentDelivery,
   getCorrespondentDeliveryByCode,
   listCorrespondentDeliveries,
@@ -355,6 +357,54 @@ describe("correspondent delivery service", () => {
     expect(companyUpdate).not.toHaveBeenCalled();
   });
 
+  it("assigned partner confirms a code-less pending delivery by id", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const pending = createDelivery(ids, {
+      deliveryCode: undefined,
+      referenceCode: null,
+      status: "pending",
+    });
+    const confirmed = createDelivery(ids, {
+      deliveryCode: undefined,
+      referenceCode: null,
+      save: jest.fn().mockResolvedValue(undefined),
+      status: "confirmed",
+    });
+    const operation = createAccountOperation(ids, {
+      save: jest.fn().mockResolvedValue(undefined),
+    });
+    jest
+      .spyOn(CorrespondentDelivery, "findOne")
+      .mockReturnValue(createSessionQuery(pending));
+    jest
+      .spyOn(CorrespondentDelivery, "findOneAndUpdate")
+      .mockResolvedValue(confirmed);
+    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue({
+      _id: ids.correspondentMembershipId,
+      balance: 126000000,
+      reservedBalance: 0,
+    });
+    jest.spyOn(AccountOperation, "create").mockResolvedValue([operation]);
+    jest
+      .spyOn(LedgerEntry, "insertMany")
+      .mockResolvedValue([{ _id: ids.ledgerDebitId }, { _id: ids.ledgerCreditId }]);
+
+    const result = await confirmCorrespondentDeliveryById({
+      deliveryId: ids.deliveryId.toString(),
+      companyId: ids.companyId,
+      membershipId: ids.correspondentMembershipId,
+      role: "partner",
+      userId: ids.partnerUserId,
+    });
+
+    expect(result).toBe(confirmed);
+    expect(CorrespondentDelivery.findOne).toHaveBeenCalledWith({
+      _id: ids.deliveryId,
+      company: ids.companyId,
+    });
+  });
+
   it.each(["confirmed", "canceled"])(
     "rejects confirmation when delivery is %s",
     async (status) => {
@@ -422,6 +472,48 @@ describe("correspondent delivery service", () => {
       { new: true, session: expect.any(Object) },
     );
     expect(ledgerInsert).not.toHaveBeenCalled();
+  });
+
+  it("manager cancels a code-less pending delivery by id", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const pending = createDelivery(ids, {
+      deliveryCode: undefined,
+      referenceCode: null,
+      status: "pending",
+    });
+    const canceled = createDelivery(ids, {
+      cancelReason: "Beneficiary unavailable",
+      deliveryCode: undefined,
+      referenceCode: null,
+      status: "canceled",
+    });
+    jest
+      .spyOn(CorrespondentDelivery, "findOne")
+      .mockReturnValue(createSessionQuery(pending));
+    jest
+      .spyOn(CorrespondentDelivery, "findOneAndUpdate")
+      .mockResolvedValue(canceled);
+    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue({
+      _id: ids.correspondentMembershipId,
+      balance: 326000000,
+      reservedBalance: 0,
+    });
+
+    const result = await cancelCorrespondentDeliveryById({
+      deliveryId: ids.deliveryId.toString(),
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      payload: { reason: "Beneficiary unavailable" },
+      role: "manager",
+      userId: ids.managerId,
+    });
+
+    expect(result).toBe(canceled);
+    expect(CorrespondentDelivery.findOne).toHaveBeenCalledWith({
+      _id: ids.deliveryId,
+      company: ids.companyId,
+    });
   });
 
   it("rejects cancellation for confirmed deliveries", async () => {

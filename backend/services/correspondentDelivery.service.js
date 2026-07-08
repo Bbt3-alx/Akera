@@ -98,7 +98,8 @@ export async function createCorrespondentDelivery({
           correspondentMembership: normalized.correspondentMembershipId,
           createdByMembership: membershipId,
           createdBy: userId,
-          deliveryCode: generateDeliveryCode(),
+          deliveryCode: normalized.referenceCode ?? undefined,
+          referenceCode: normalized.referenceCode,
           amount: normalized.amount,
           currency: normalized.currency,
           status: "pending",
@@ -197,122 +198,39 @@ export async function confirmCorrespondentDelivery({
       session,
     });
 
-    if (!idsEqual(delivery.correspondentMembership, membershipId)) {
-      throw new ApiError(
-        403,
-        "Only the assigned correspondent can confirm this delivery",
-        "CORRESPONDENT_DELIVERY_ASSIGNED_PARTNER_REQUIRED",
-      );
-    }
-
-    if (delivery.status !== "pending") {
-      throw new ApiError(
-        400,
-        "Only pending correspondent deliveries can be confirmed",
-        "CORRESPONDENT_DELIVERY_CONFIRM_NOT_ALLOWED",
-      );
-    }
-
-    const confirmedAt = new Date();
-    const confirmedDelivery = await CorrespondentDelivery.findOneAndUpdate(
-      {
-        _id: delivery._id,
-        company: companyId,
-        status: "pending",
-      },
-      {
-        $set: {
-          status: "confirmed",
-          confirmedBy: userId,
-          confirmedByMembership: membershipId,
-          confirmedAt,
-        },
-      },
-      { new: true, session },
-    );
-
-    if (!confirmedDelivery) {
-      await throwConcurrentTransitionError({
-        companyId,
-        deliveryId: delivery._id,
-        session,
-        transition: "confirm",
-      });
-    }
-
-    const updatedMembership = await CompanyMembership.findOneAndUpdate(
-      {
-        _id: delivery.correspondentMembership,
-        company: companyId,
-        role: "partner",
-        status: "active",
-        currency: delivery.currency,
-        balance: { $gte: delivery.amount },
-        reservedBalance: { $gte: delivery.amount },
-      },
-      { $inc: { balance: -delivery.amount, reservedBalance: -delivery.amount } },
-      { new: true, session },
-    );
-
-    if (!updatedMembership) {
-      throw new ApiError(
-        409,
-        "Unable to settle correspondent reserved balance",
-        "CORRESPONDENT_DELIVERY_BALANCE_UPDATE_FAILED",
-      );
-    }
-
-    const currentBalance = updatedMembership.balance ?? 0;
-    const previousBalance = currentBalance + delivery.amount;
-    const [operation] = await AccountOperation.create(
-      [
-        {
-          company: companyId,
-          targetMembership: delivery.correspondentMembership,
-          createdByMembership: membershipId,
-          createdBy: userId,
-          linkedCorrespondentDelivery: delivery._id,
-          workflow: "correspondent_collection",
-          type: "withdrawal",
-          status: "completed",
-          amount: delivery.amount,
-          currency: delivery.currency,
-          previousBalance,
-          currentBalance,
-          operationCode: generateAccountOperationCode(),
-        },
-      ],
-      { session },
-    );
-
-    const ledgerEntries = await writeJournalEntries({
-      accountOperationId: operation._id,
+    return confirmPendingDelivery({
+      delivery,
       companyId,
-      userId,
+      membershipId,
       session,
-      entries: [
-        {
-          accountCode: ACCOUNTS.PARTNER_BALANCE,
-          currency: delivery.currency,
-          debit: delivery.amount,
-          credit: 0,
-        },
-        {
-          accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
-          currency: delivery.currency,
-          debit: 0,
-          credit: delivery.amount,
-        },
-      ],
+      userId,
+    });
+  });
+}
+
+export async function confirmCorrespondentDeliveryById({
+  deliveryId,
+  companyId,
+  membershipId,
+  role,
+  userId,
+}) {
+  assertPartner(role, "Only correspondent partners can confirm deliveries");
+
+  return runTransaction(async (session) => {
+    const delivery = await findDeliveryById({
+      companyId,
+      deliveryId,
+      session,
     });
 
-    operation.ledgerEntries = ledgerEntries.map((entry) => entry._id);
-    await operation.save({ session });
-
-    confirmedDelivery.accountOperation = operation._id;
-    await confirmedDelivery.save({ session });
-
-    return confirmedDelivery;
+    return confirmPendingDelivery({
+      delivery,
+      companyId,
+      membershipId,
+      session,
+      userId,
+    });
   });
 }
 
@@ -334,65 +252,43 @@ export async function cancelCorrespondentDelivery({
       session,
     });
 
-    if (delivery.status === "canceled") {
-      return delivery;
-    }
+    return cancelPendingDelivery({
+      delivery,
+      companyId,
+      membershipId,
+      normalized,
+      session,
+      userId,
+    });
+  });
+}
 
-    if (delivery.status !== "pending") {
-      throw new ApiError(
-        400,
-        "Only pending correspondent deliveries can be canceled",
-        "CORRESPONDENT_DELIVERY_CANCEL_NOT_ALLOWED",
-      );
-    }
+export async function cancelCorrespondentDeliveryById({
+  deliveryId,
+  companyId,
+  membershipId,
+  payload = {},
+  role,
+  userId,
+}) {
+  assertManager(role, "Only managers can cancel correspondent deliveries");
+  const normalized = normalizeCancelPayload(payload);
 
-    const canceledAt = new Date();
-    const canceledDelivery = await CorrespondentDelivery.findOneAndUpdate(
-      {
-        _id: delivery._id,
-        company: companyId,
-        status: "pending",
-      },
-      {
-        $set: {
-          status: "canceled",
-          canceledBy: userId,
-          canceledByMembership: membershipId,
-          canceledAt,
-          cancelReason: normalized.reason,
-        },
-      },
-      { new: true, session },
-    );
+  return runTransaction(async (session) => {
+    const delivery = await findDeliveryById({
+      companyId,
+      deliveryId,
+      session,
+    });
 
-    if (!canceledDelivery) {
-      await throwConcurrentTransitionError({
-        companyId,
-        deliveryId: delivery._id,
-        session,
-        transition: "cancel",
-      });
-    }
-
-    const updatedMembership = await CompanyMembership.findOneAndUpdate(
-      {
-        _id: delivery.correspondentMembership,
-        company: companyId,
-        reservedBalance: { $gte: delivery.amount },
-      },
-      { $inc: { reservedBalance: -delivery.amount } },
-      { new: true, session },
-    );
-
-    if (!updatedMembership) {
-      throw new ApiError(
-        409,
-        "Unable to release correspondent delivery reservation",
-        "CORRESPONDENT_DELIVERY_RESERVATION_RELEASE_FAILED",
-      );
-    }
-
-    return canceledDelivery;
+    return cancelPendingDelivery({
+      delivery,
+      companyId,
+      membershipId,
+      normalized,
+      session,
+      userId,
+    });
   });
 }
 
@@ -425,6 +321,221 @@ async function findDeliveryByCode({ companyId, deliveryCode, session }) {
   }
 
   return delivery;
+}
+
+async function findDeliveryById({ companyId, deliveryId, session }) {
+  const delivery = await CorrespondentDelivery.findOne({
+    _id: normalizeObjectId(
+      deliveryId,
+      "Correspondent delivery ID",
+      "INVALID_CORRESPONDENT_DELIVERY",
+    ),
+    company: companyId,
+  }).session(session);
+
+  if (!delivery) {
+    throw new ApiError(
+      404,
+      "Correspondent delivery not found",
+      "CORRESPONDENT_DELIVERY_NOT_FOUND",
+    );
+  }
+
+  return delivery;
+}
+
+async function confirmPendingDelivery({
+  delivery,
+  companyId,
+  membershipId,
+  session,
+  userId,
+}) {
+  if (!idsEqual(delivery.correspondentMembership, membershipId)) {
+    throw new ApiError(
+      403,
+      "Only the assigned correspondent can confirm this delivery",
+      "CORRESPONDENT_DELIVERY_ASSIGNED_PARTNER_REQUIRED",
+    );
+  }
+
+  if (delivery.status !== "pending") {
+    throw new ApiError(
+      400,
+      "Only pending correspondent deliveries can be confirmed",
+      "CORRESPONDENT_DELIVERY_CONFIRM_NOT_ALLOWED",
+    );
+  }
+
+  const confirmedAt = new Date();
+  const confirmedDelivery = await CorrespondentDelivery.findOneAndUpdate(
+    {
+      _id: delivery._id,
+      company: companyId,
+      status: "pending",
+    },
+    {
+      $set: {
+        status: "confirmed",
+        confirmedBy: userId,
+        confirmedByMembership: membershipId,
+        confirmedAt,
+      },
+    },
+    { new: true, session },
+  );
+
+  if (!confirmedDelivery) {
+    await throwConcurrentTransitionError({
+      companyId,
+      deliveryId: delivery._id,
+      session,
+      transition: "confirm",
+    });
+  }
+
+  const updatedMembership = await CompanyMembership.findOneAndUpdate(
+    {
+      _id: delivery.correspondentMembership,
+      company: companyId,
+      role: "partner",
+      status: "active",
+      currency: delivery.currency,
+      balance: { $gte: delivery.amount },
+      reservedBalance: { $gte: delivery.amount },
+    },
+    { $inc: { balance: -delivery.amount, reservedBalance: -delivery.amount } },
+    { new: true, session },
+  );
+
+  if (!updatedMembership) {
+    throw new ApiError(
+      409,
+      "Unable to settle correspondent reserved balance",
+      "CORRESPONDENT_DELIVERY_BALANCE_UPDATE_FAILED",
+    );
+  }
+
+  const currentBalance = updatedMembership.balance ?? 0;
+  const previousBalance = currentBalance + delivery.amount;
+  const [operation] = await AccountOperation.create(
+    [
+      {
+        company: companyId,
+        targetMembership: delivery.correspondentMembership,
+        createdByMembership: membershipId,
+        createdBy: userId,
+        linkedCorrespondentDelivery: delivery._id,
+        workflow: "correspondent_collection",
+        type: "withdrawal",
+        status: "completed",
+        amount: delivery.amount,
+        currency: delivery.currency,
+        previousBalance,
+        currentBalance,
+        operationCode: generateAccountOperationCode(),
+      },
+    ],
+    { session },
+  );
+
+  const ledgerEntries = await writeJournalEntries({
+    accountOperationId: operation._id,
+    companyId,
+    userId,
+    session,
+    entries: [
+      {
+        accountCode: ACCOUNTS.PARTNER_BALANCE,
+        currency: delivery.currency,
+        debit: delivery.amount,
+        credit: 0,
+      },
+      {
+        accountCode: ACCOUNTS.CASH_HELD_BY_CORRESPONDENT,
+        currency: delivery.currency,
+        debit: 0,
+        credit: delivery.amount,
+      },
+    ],
+  });
+
+  operation.ledgerEntries = ledgerEntries.map((entry) => entry._id);
+  await operation.save({ session });
+
+  confirmedDelivery.accountOperation = operation._id;
+  await confirmedDelivery.save({ session });
+
+  return confirmedDelivery;
+}
+
+async function cancelPendingDelivery({
+  delivery,
+  companyId,
+  membershipId,
+  normalized,
+  session,
+  userId,
+}) {
+  if (delivery.status === "canceled") {
+    return delivery;
+  }
+
+  if (delivery.status !== "pending") {
+    throw new ApiError(
+      400,
+      "Only pending correspondent deliveries can be canceled",
+      "CORRESPONDENT_DELIVERY_CANCEL_NOT_ALLOWED",
+    );
+  }
+
+  const canceledAt = new Date();
+  const canceledDelivery = await CorrespondentDelivery.findOneAndUpdate(
+    {
+      _id: delivery._id,
+      company: companyId,
+      status: "pending",
+    },
+    {
+      $set: {
+        status: "canceled",
+        canceledBy: userId,
+        canceledByMembership: membershipId,
+        canceledAt,
+        cancelReason: normalized.reason,
+      },
+    },
+    { new: true, session },
+  );
+
+  if (!canceledDelivery) {
+    await throwConcurrentTransitionError({
+      companyId,
+      deliveryId: delivery._id,
+      session,
+      transition: "cancel",
+    });
+  }
+
+  const updatedMembership = await CompanyMembership.findOneAndUpdate(
+    {
+      _id: delivery.correspondentMembership,
+      company: companyId,
+      reservedBalance: { $gte: delivery.amount },
+    },
+    { $inc: { reservedBalance: -delivery.amount } },
+    { new: true, session },
+  );
+
+  if (!updatedMembership) {
+    throw new ApiError(
+      409,
+      "Unable to release correspondent delivery reservation",
+      "CORRESPONDENT_DELIVERY_RESERVATION_RELEASE_FAILED",
+    );
+  }
+
+  return canceledDelivery;
 }
 
 async function throwConcurrentTransitionError({
@@ -522,6 +633,12 @@ function normalizeCreatePayload(payload) {
     "Idempotency key is required",
     "IDEMPOTENCY_KEY_REQUIRED",
   );
+  const referenceCode = normalizeOptionalString({
+    errorCode: "INVALID_DELIVERY_REFERENCE_CODE",
+    label: "Reference code",
+    maxLength: 80,
+    value: payload.referenceCode ?? payload.deliveryCode,
+  }) ?? null;
   const rateSnapshot = normalizeRateSnapshot(payload, "DELIVERY");
 
   return {
@@ -532,16 +649,18 @@ function normalizeCreatePayload(payload) {
     currency,
     idempotencyKey,
     note,
+    referenceCode,
     ...rateSnapshot,
-    idempotencyPayload: {
+    idempotencyPayload: compactObject({
       amount,
       beneficiaryName,
       beneficiaryPhone,
       correspondentMembershipId: correspondentMembershipId.toString(),
       currency,
       note,
+      ...(referenceCode ? { referenceCode } : {}),
       ...rateSnapshot,
-    },
+    }),
   };
 }
 

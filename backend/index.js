@@ -28,6 +28,7 @@ import companyDashboardRoutes from "./routes/companyDashboardRoute.js";
 import accountOperationRoutes from "./routes/accountOperationRoute.js";
 import correspondentCollectionRoutes from "./routes/correspondentCollectionRoute.js";
 import correspondentDeliveryRoutes from "./routes/correspondentDeliveryRoute.js";
+import correspondentModificationRequestRoutes from "./routes/correspondentModificationRequestRoute.js";
 import remoteAgentPayoutRoutes from "./routes/remoteAgentPayoutRoute.js";
 import reconciliationRoutes from "./routes/reconciliationRoute.js";
 import auditTimelineRoutes from "./routes/auditTimelineRoute.js";
@@ -84,6 +85,10 @@ app.use("/api/v1/company/dashboard", companyDashboardRoutes);
 app.use("/api/v1/account-operations", accountOperationRoutes);
 app.use("/api/v1/correspondent-collections", correspondentCollectionRoutes);
 app.use("/api/v1/correspondent-deliveries", correspondentDeliveryRoutes);
+app.use(
+  "/api/v1/correspondent-modification-requests",
+  correspondentModificationRequestRoutes,
+);
 app.use("/api/v1/remote-agent-payouts", remoteAgentPayoutRoutes);
 app.use("/api/v1/reconciliation", reconciliationRoutes);
 app.use("/api/v1/audit-logs", auditTimelineRoutes);

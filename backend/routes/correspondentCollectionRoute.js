@@ -2,13 +2,18 @@ import express from "express";
 
 import {
   cancelCollection,
+  cancelCollectionById,
   confirmCollection,
   createCollection,
   getCollection,
   listCorrespondents,
   listCollections,
   payCollection,
+  payCollectionById,
 } from "../controllers/correspondentCollection.controller.js";
+import {
+  createCollectionModificationRequest as createCollectionModificationRequestController,
+} from "../controllers/correspondentModificationRequest.controller.js";
 import {
   COMPANY_MODULES,
   TRANSFER_WORKFLOWS,
@@ -44,6 +49,29 @@ router.post(
 router.get("/", activeCompanyAccess, catchAsync(listCollections));
 
 router.get("/correspondents", activeCompanyAccess, catchAsync(listCorrespondents));
+
+router.post(
+  "/id/:collectionId/pay",
+  activeCompanyAccess,
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("CORRESPONDENT_COLLECTION_PAY", "CorrespondentCollection"),
+  catchAsync(payCollectionById),
+);
+
+router.post(
+  "/id/:collectionId/cancel",
+  activeCompanyAccess,
+  verifyTransactionPin,
+  audit("CORRESPONDENT_COLLECTION_CANCEL", "CorrespondentCollection"),
+  catchAsync(cancelCollectionById),
+);
+
+router.post(
+  "/id/:collectionId/modification-requests",
+  activeCompanyAccess,
+  catchAsync(createCollectionModificationRequestController),
+);
 
 router.get("/:collectionCode", activeCompanyAccess, catchAsync(getCollection));
 

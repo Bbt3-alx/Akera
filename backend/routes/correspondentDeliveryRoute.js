@@ -2,11 +2,16 @@ import express from "express";
 
 import {
   cancelDelivery,
+  cancelDeliveryById,
   confirmDelivery,
+  confirmDeliveryById,
   createDelivery,
   getDelivery,
   listDeliveries,
 } from "../controllers/correspondentDelivery.controller.js";
+import {
+  createDeliveryModificationRequest,
+} from "../controllers/correspondentModificationRequest.controller.js";
 import {
   COMPANY_MODULES,
   TRANSFER_WORKFLOWS,
@@ -41,6 +46,29 @@ router.post(
 );
 
 router.get("/", activeCompanyAccess, catchAsync(listDeliveries));
+
+router.post(
+  "/id/:deliveryId/confirm",
+  activeCompanyAccess,
+  verifyTransactionPin,
+  audit("CORRESPONDENT_DELIVERY_CONFIRM", "CorrespondentDelivery"),
+  catchAsync(confirmDeliveryById),
+);
+
+router.post(
+  "/id/:deliveryId/cancel",
+  activeCompanyAccess,
+  requireManagerContext,
+  verifyTransactionPin,
+  audit("CORRESPONDENT_DELIVERY_CANCEL", "CorrespondentDelivery"),
+  catchAsync(cancelDeliveryById),
+);
+
+router.post(
+  "/id/:deliveryId/modification-requests",
+  activeCompanyAccess,
+  catchAsync(createDeliveryModificationRequest),
+);
 
 router.get("/:deliveryCode", activeCompanyAccess, catchAsync(getDelivery));
 
