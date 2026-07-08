@@ -4,9 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   activeCompanyId: 'company-1',
+  useApproveCorrespondentModificationRequest: vi.fn(),
   useCancelCorrespondentTransaction: vi.fn(),
+  useCancelCorrespondentTransactionById: vi.fn(),
   useCancelCorrespondentWithdrawal: vi.fn(),
+  useCancelCorrespondentWithdrawalById: vi.fn(),
   useConfirmCorrespondentWithdrawal: vi.fn(),
+  useConfirmCorrespondentWithdrawalById: vi.fn(),
+  useCorrespondentModificationRequests: vi.fn(),
   useCorrespondentTransaction: vi.fn(),
   useCorrespondentTransactions: vi.fn(),
   useCorrespondentWithdrawals: vi.fn(),
@@ -16,6 +21,10 @@ const mocks = vi.hoisted(() => ({
   useCurrentExchangeRate: vi.fn(),
   useMe: vi.fn(),
   usePayCorrespondentTransactionByCode: vi.fn(),
+  usePayCorrespondentTransactionById: vi.fn(),
+  useRejectCorrespondentModificationRequest: vi.fn(),
+  useRequestCorrespondentTransactionModification: vi.fn(),
+  useRequestCorrespondentWithdrawalModification: vi.fn(),
   useTransactionPinStatus: vi.fn(),
 }))
 
@@ -38,9 +47,15 @@ vi.mock('../../security/hooks.ts', () => ({
 }))
 
 vi.mock('../hooks.ts', () => ({
+  useApproveCorrespondentModificationRequest:
+    mocks.useApproveCorrespondentModificationRequest,
   useCancelCorrespondentTransaction: mocks.useCancelCorrespondentTransaction,
+  useCancelCorrespondentTransactionById: mocks.useCancelCorrespondentTransactionById,
   useCancelCorrespondentWithdrawal: mocks.useCancelCorrespondentWithdrawal,
+  useCancelCorrespondentWithdrawalById: mocks.useCancelCorrespondentWithdrawalById,
   useConfirmCorrespondentWithdrawal: mocks.useConfirmCorrespondentWithdrawal,
+  useConfirmCorrespondentWithdrawalById: mocks.useConfirmCorrespondentWithdrawalById,
+  useCorrespondentModificationRequests: mocks.useCorrespondentModificationRequests,
   useCorrespondentTransaction: mocks.useCorrespondentTransaction,
   useCorrespondentTransactions: mocks.useCorrespondentTransactions,
   useCorrespondentWithdrawals: mocks.useCorrespondentWithdrawals,
@@ -48,6 +63,13 @@ vi.mock('../hooks.ts', () => ({
   useCreateCorrespondentTransaction: mocks.useCreateCorrespondentTransaction,
   useCreateCorrespondentWithdrawal: mocks.useCreateCorrespondentWithdrawal,
   usePayCorrespondentTransactionByCode: mocks.usePayCorrespondentTransactionByCode,
+  usePayCorrespondentTransactionById: mocks.usePayCorrespondentTransactionById,
+  useRejectCorrespondentModificationRequest:
+    mocks.useRejectCorrespondentModificationRequest,
+  useRequestCorrespondentTransactionModification:
+    mocks.useRequestCorrespondentTransactionModification,
+  useRequestCorrespondentWithdrawalModification:
+    mocks.useRequestCorrespondentWithdrawalModification,
 }))
 
 import {
@@ -79,6 +101,11 @@ describe('CorrespondentCollectionPage', () => {
       error: null,
       isLoading: false,
     })
+    mocks.useCorrespondentModificationRequests.mockReturnValue({
+      data: { data: [] },
+      error: null,
+      isLoading: false,
+    })
     mocks.useCurrentExchangeRate.mockReturnValue({
       data: {
         id: 'rate-1',
@@ -106,9 +133,17 @@ describe('CorrespondentCollectionPage', () => {
     mocks.useCreateCorrespondentTransaction.mockReturnValue(createMutation())
     mocks.useCreateCorrespondentWithdrawal.mockReturnValue(createMutation())
     mocks.useCancelCorrespondentTransaction.mockReturnValue(createMutation())
+    mocks.useCancelCorrespondentTransactionById.mockReturnValue(createMutation())
     mocks.useCancelCorrespondentWithdrawal.mockReturnValue(createMutation())
+    mocks.useCancelCorrespondentWithdrawalById.mockReturnValue(createMutation())
     mocks.useConfirmCorrespondentWithdrawal.mockReturnValue(createMutation())
+    mocks.useConfirmCorrespondentWithdrawalById.mockReturnValue(createMutation())
     mocks.usePayCorrespondentTransactionByCode.mockReturnValue(createMutation())
+    mocks.usePayCorrespondentTransactionById.mockReturnValue(createMutation())
+    mocks.useRequestCorrespondentTransactionModification.mockReturnValue(createMutation())
+    mocks.useRequestCorrespondentWithdrawalModification.mockReturnValue(createMutation())
+    mocks.useApproveCorrespondentModificationRequest.mockReturnValue(createMutation())
+    mocks.useRejectCorrespondentModificationRequest.mockReturnValue(createMutation())
     mocks.useCorrespondentTransaction.mockReturnValue({
       data: null,
       error: null,
@@ -138,8 +173,10 @@ describe('CorrespondentCollectionPage', () => {
     expect(html).toContain('Taux actuel : 82')
     expect(html).toContain('000 GNF / 5')
     expect(html).toContain('000 FCFA')
-    expect(html).toContain('Montant à payer au bénéficiaire')
-    expect(html).toContain('Montant reçu en GNF')
+    expect(html).toContain('Aperçu de conversion')
+    expect(html).toContain('Montant saisi')
+    expect(html).toContain('Montant saisi comme')
+    expect(html).toContain('Devise saisie')
     expect(html).not.toContain('Taux utilisé')
     expect(html).not.toContain('Base du taux')
     expect(html).not.toContain('Devise de paiement')
@@ -151,8 +188,8 @@ describe('CorrespondentCollectionPage', () => {
     expectInOrder(html, [
       'Nom bénéficiaire',
       'Téléphone bénéficiaire',
-      'Montant reçu en GNF',
-      'Montant à payer au bénéficiaire',
+      'Montant saisi',
+      'Aperçu de conversion',
       'Taux actuel',
       'Note',
       'PIN de transaction',
@@ -169,7 +206,7 @@ describe('CorrespondentCollectionPage', () => {
     expect(html).toContain('md:col-start-2 md:row-start-4')
   })
 
-  it('blocks FCFA correspondent transaction creation with the friendly message', () => {
+  it('allows FCFA correspondent transaction creation through the dual-currency controls', () => {
     mocks.useCorrespondents.mockReturnValue({
       data: [createCorrespondent({ currency: 'FCFA' })],
       error: null,
@@ -178,7 +215,11 @@ describe('CorrespondentCollectionPage', () => {
 
     const html = renderPage()
 
-    expect(html).toContain(
+    expect(html).toContain('Montant saisi comme')
+    expect(html).toContain('Devise compte')
+    expect(html).toContain('Devise entreprise')
+    expect(html).toContain('Devise saisie')
+    expect(html).not.toContain(
       'La création de transaction correspondant est disponible uniquement pour les correspondants en GNF pour le moment.',
     )
   })
@@ -297,7 +338,7 @@ describe('CorrespondentCollectionPage', () => {
     expect(html).toContain(
       'Retrait créé. Le montant est maintenant réservé chez le correspondant en attente de confirmation.',
     )
-    expect(html).toContain('Code retrait')
+    expect(html).toContain('Référence retrait')
     expect(html).toContain('CDL-260627-ABCD')
     expect(html).toContain('Correspondant')
     expect(html).toContain('Kalil Diallo')

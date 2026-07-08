@@ -32,13 +32,22 @@ export type RateSnapshot = {
   rateNote?: string | null
 }
 
+export type CorrespondentInputSide = 'account' | 'company'
+
+export type CorrespondentConversionDirection = 'GNF_TO_FCFA' | 'FCFA_TO_GNF'
+
 export type CorrespondentTransaction = RateSnapshot & {
   id: string
-  collectionCode: string
+  collectionCode?: string | null
+  referenceCode?: string | null
   amount: number
   currency: CorrespondentCurrency
   payoutAmount: number
   payoutCurrency: CorrespondentCurrency
+  inputAmount?: number | null
+  inputCurrency?: CorrespondentCurrency | null
+  inputSide?: CorrespondentInputSide | null
+  conversionDirection?: CorrespondentConversionDirection | null
   beneficiaryName: string
   beneficiaryPhone?: string | null
   status: CorrespondentTransactionStatus
@@ -55,7 +64,8 @@ export type CorrespondentTransaction = RateSnapshot & {
 
 export type CorrespondentWithdrawal = RateSnapshot & {
   id: string
-  deliveryCode: string
+  deliveryCode?: string | null
+  referenceCode?: string | null
   amount: number
   currency: CorrespondentCurrency
   beneficiaryName: string
@@ -94,8 +104,12 @@ export type CorrespondentListParams = {
 
 export type CreateCorrespondentTransactionPayload = {
   correspondentMembershipId?: string
-  amount: number
-  currency: CorrespondentCurrency
+  amount?: number
+  currency?: CorrespondentCurrency
+  inputAmount?: number
+  inputCurrency?: CorrespondentCurrency
+  inputSide?: CorrespondentInputSide
+  referenceCode?: string
   beneficiaryName: string
   beneficiaryPhone?: string
   note?: string
@@ -105,6 +119,43 @@ export type CreateCorrespondentTransactionPayload = {
 
 export type PayCorrespondentTransactionPayload = {
   transactionPin: string
+}
+
+export type CorrespondentModificationRequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+
+export type CorrespondentModificationTargetType = 'collection' | 'delivery'
+
+export type CorrespondentModificationRequest = {
+  id: string
+  targetType: CorrespondentModificationTargetType
+  targetId: string
+  oldValues: Record<string, unknown>
+  requestedValues: Record<string, unknown>
+  reason?: string | null
+  decisionReason?: string | null
+  initiatedBy?: string | null
+  initiatedByName?: string | null
+  initiatedByMembership?: string | null
+  approvedBy?: string | null
+  approvedByName?: string | null
+  approvedByMembership?: string | null
+  status: CorrespondentModificationRequestStatus
+  decidedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type CorrespondentModificationRequestPayload = {
+  requestedValues: Record<string, unknown>
+  reason?: string
+}
+
+export type CorrespondentModificationDecisionPayload = {
+  transactionPin: string
+  reason?: string
 }
 
 export type CancelCorrespondentTransactionPayload = {

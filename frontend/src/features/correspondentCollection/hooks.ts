@@ -4,21 +4,32 @@ import { invalidateCompanyDashboard } from '../dashboard/hooks.ts'
 import { useCompaniesStore } from '../companies/store.ts'
 import {
   cancelCorrespondentTransaction,
+  cancelCorrespondentTransactionById,
   cancelCorrespondentWithdrawal,
+  cancelCorrespondentWithdrawalById,
   confirmCorrespondentWithdrawal,
+  confirmCorrespondentWithdrawalById,
   createCorrespondentTransaction,
   createCorrespondentWithdrawal,
   getCorrespondentTransaction,
   getCorrespondentWithdrawal,
+  approveCorrespondentModificationRequest,
   listCorrespondentTransactions,
+  listCorrespondentModificationRequests,
   listCorrespondentWithdrawals,
   listCorrespondents,
   payCorrespondentTransactionByCode,
+  payCorrespondentTransactionById,
+  rejectCorrespondentModificationRequest,
+  requestCorrespondentTransactionModification,
+  requestCorrespondentWithdrawalModification,
 } from './api.ts'
 import type {
   CancelCorrespondentTransactionPayload,
   CancelCorrespondentWithdrawalPayload,
   ConfirmCorrespondentWithdrawalPayload,
+  CorrespondentModificationDecisionPayload,
+  CorrespondentModificationRequestPayload,
   CorrespondentListParams,
   CorrespondentSelectorParams,
   CreateCorrespondentTransactionPayload,
@@ -30,6 +41,11 @@ type ActiveCompanyId = string | null | undefined
 
 type CodeMutationVariables<TPayload> = {
   code: string
+  payload: TPayload
+}
+
+type IdMutationVariables<TPayload> = {
+  id: string
   payload: TPayload
 }
 
@@ -76,6 +92,15 @@ export const correspondentCollectionKeys = {
       ...correspondentCollectionKeys.withdrawals(activeCompanyId),
       'detail',
       code,
+    ] as const,
+  modificationRequests: (
+    activeCompanyId: ActiveCompanyId,
+    params?: CorrespondentListParams,
+  ) =>
+    [
+      ...correspondentCollectionKeys.all(activeCompanyId),
+      'modificationRequests',
+      params ?? {},
     ] as const,
 }
 
@@ -144,6 +169,22 @@ export function useCorrespondentWithdrawal(code?: string, enabled = true) {
   })
 }
 
+export function useCorrespondentModificationRequests(
+  params?: CorrespondentListParams,
+  enabled = true,
+) {
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useQuery({
+    queryKey: correspondentCollectionKeys.modificationRequests(
+      activeCompanyId,
+      params,
+    ),
+    queryFn: () => listCorrespondentModificationRequests(params),
+    enabled: Boolean(activeCompanyId && enabled),
+  })
+}
+
 export function useCreateCorrespondentTransaction() {
   const queryClient = useQueryClient()
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
@@ -169,6 +210,20 @@ export function usePayCorrespondentTransactionByCode() {
   })
 }
 
+export function usePayCorrespondentTransactionById() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<PayCorrespondentTransactionPayload>) =>
+      payCorrespondentTransactionById(id, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
 export function useCancelCorrespondentTransaction() {
   const queryClient = useQueryClient()
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
@@ -179,6 +234,20 @@ export function useCancelCorrespondentTransaction() {
       payload,
     }: CodeMutationVariables<CancelCorrespondentTransactionPayload>) =>
       cancelCorrespondentTransaction(code, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
+export function useCancelCorrespondentTransactionById() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<CancelCorrespondentTransactionPayload>) =>
+      cancelCorrespondentTransactionById(id, payload),
     onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
   })
 }
@@ -208,6 +277,20 @@ export function useConfirmCorrespondentWithdrawal() {
   })
 }
 
+export function useConfirmCorrespondentWithdrawalById() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<ConfirmCorrespondentWithdrawalPayload>) =>
+      confirmCorrespondentWithdrawalById(id, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
 export function useCancelCorrespondentWithdrawal() {
   const queryClient = useQueryClient()
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
@@ -218,6 +301,76 @@ export function useCancelCorrespondentWithdrawal() {
       payload,
     }: CodeMutationVariables<CancelCorrespondentWithdrawalPayload>) =>
       cancelCorrespondentWithdrawal(code, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
+export function useCancelCorrespondentWithdrawalById() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<CancelCorrespondentWithdrawalPayload>) =>
+      cancelCorrespondentWithdrawalById(id, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
+export function useRequestCorrespondentTransactionModification() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<CorrespondentModificationRequestPayload>) =>
+      requestCorrespondentTransactionModification(id, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
+export function useRequestCorrespondentWithdrawalModification() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<CorrespondentModificationRequestPayload>) =>
+      requestCorrespondentWithdrawalModification(id, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
+export function useApproveCorrespondentModificationRequest() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<CorrespondentModificationDecisionPayload>) =>
+      approveCorrespondentModificationRequest(id, payload),
+    onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
+  })
+}
+
+export function useRejectCorrespondentModificationRequest() {
+  const queryClient = useQueryClient()
+  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: IdMutationVariables<CorrespondentModificationDecisionPayload>) =>
+      rejectCorrespondentModificationRequest(id, payload),
     onSuccess: async () => invalidateCorrespondentState(queryClient, activeCompanyId),
   })
 }

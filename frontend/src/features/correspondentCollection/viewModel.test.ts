@@ -8,6 +8,7 @@ import {
   CORRESPONDENT_UI_TEXT,
   buildCorrespondentOverview,
   calculateCorrespondentPayoutPreview,
+  calculateCorrespondentTransactionPreview,
   formatCorrespondentAmount,
   formatCorrespondentRate,
   getAutoSelectedCorrespondentId,
@@ -34,11 +35,13 @@ describe('correspondent collection view model', () => {
       'Transactions',
       'Faire un retrait',
       'Retraits',
+      'Modifications',
     ])
     expect(CORRESPONDENT_PARTNER_TABS.map((tab) => tab.label)).toEqual([
       'Créer une transaction',
       'Mes transactions',
       'Mes retraits',
+      'Modifications',
     ])
     expect(resolveCorrespondentTab('manager', 'withdrawals')).toBe('withdrawals')
     expect(resolveCorrespondentTab('manager', 'my-transactions')).toBe('overview')
@@ -52,8 +55,8 @@ describe('correspondent collection view model', () => {
 
   it('maps backend statuses to transaction and withdrawal labels', () => {
     expect(getTransactionStatusLabel('pending')).toBe('En attente de paiement')
-    expect(getTransactionStatusLabel('paid')).toBe('Payée')
-    expect(getTransactionStatusLabel('confirmed')).toBe('Payée')
+    expect(getTransactionStatusLabel('paid')).toBe('Bénéficiaire payé')
+    expect(getTransactionStatusLabel('confirmed')).toBe('Bénéficiaire payé')
     expect(getTransactionStatusLabel('canceled')).toBe('Annulée')
     expect(getWithdrawalStatusLabel('pending')).toBe('Retrait en attente')
     expect(getWithdrawalStatusLabel('confirmed')).toBe('Retrait confirmé')
@@ -116,9 +119,42 @@ describe('correspondent collection view model', () => {
     ).toBe('Taux actuel : 82\u202f000 GNF / 5\u202f000 FCFA')
   })
 
+  it('calculates correspondent transaction previews in account and company currencies', () => {
+    expect(
+      calculateCorrespondentTransactionPreview({
+        inputAmount: 328000000,
+        inputCurrency: 'GNF',
+        inputSide: 'account',
+        rateValue: 82000,
+      }),
+    ).toEqual({
+      amount: 328000000,
+      currency: 'GNF',
+      payoutAmount: 20000000,
+      payoutCurrency: 'FCFA',
+      conversionDirection: 'GNF_TO_FCFA',
+      formula:
+        '328\u202f000\u202f000 GNF × 5\u202f000 / 82\u202f000 = 20\u202f000\u202f000 FCFA',
+    })
+    expect(
+      calculateCorrespondentTransactionPreview({
+        inputAmount: 20000000,
+        inputCurrency: 'FCFA',
+        inputSide: 'company',
+        rateValue: 82000,
+      }),
+    ).toMatchObject({
+      amount: 328000000,
+      currency: 'GNF',
+      payoutAmount: 20000000,
+      payoutCurrency: 'FCFA',
+      conversionDirection: 'FCFA_TO_GNF',
+    })
+  })
+
   it('uses the Phase 27C GNF-only correspondent transaction message', () => {
     expect(CORRESPONDENT_GNF_ONLY_MESSAGE).toBe(
-      'La création de transaction correspondant est disponible uniquement pour les correspondants en GNF pour le moment.',
+      'Choisissez la devise saisie pour calculer le montant correspondant.',
     )
   })
 

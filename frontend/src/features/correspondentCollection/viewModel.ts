@@ -1,6 +1,8 @@
 import type { AuthRole } from '../auth/types.ts'
 import type {
   CorrespondentCurrency,
+  CorrespondentConversionDirection,
+  CorrespondentInputSide,
   CorrespondentSummary,
   CorrespondentTransaction,
   CorrespondentTransactionStatus,
@@ -14,11 +16,13 @@ export type CorrespondentManagerTab =
   | 'transactions'
   | 'create-withdrawal'
   | 'withdrawals'
+  | 'modification-requests'
 
 export type CorrespondentPartnerTab =
   | 'create-transaction'
   | 'my-transactions'
   | 'my-withdrawals'
+  | 'modification-requests'
 
 export type CorrespondentTab = CorrespondentManagerTab | CorrespondentPartnerTab
 
@@ -51,7 +55,7 @@ export type CorrespondentOverview = {
 export const CORRESPONDENT_AMOUNT_INTEGER_MESSAGE =
   'Le montant doit être un nombre entier FCFA/GNF.'
 export const CORRESPONDENT_GNF_ONLY_MESSAGE =
-  'La création de transaction correspondant est disponible uniquement pour les correspondants en GNF pour le moment.'
+  'Choisissez la devise saisie pour calculer le montant correspondant.'
 export const CORRESPONDENT_RATE_MISSING_MESSAGE =
   'Aucun taux configuré. Contactez le manager avant de créer une transaction.'
 
@@ -61,12 +65,14 @@ export const CORRESPONDENT_MANAGER_TABS = [
   { label: 'Transactions', value: 'transactions' },
   { label: 'Faire un retrait', value: 'create-withdrawal' },
   { label: 'Retraits', value: 'withdrawals' },
+  { label: 'Modifications', value: 'modification-requests' },
 ] as const satisfies readonly CorrespondentTabDefinition<CorrespondentManagerTab>[]
 
 export const CORRESPONDENT_PARTNER_TABS = [
   { label: 'Créer une transaction', value: 'create-transaction' },
   { label: 'Mes transactions', value: 'my-transactions' },
   { label: 'Mes retraits', value: 'my-withdrawals' },
+  { label: 'Modifications', value: 'modification-requests' },
 ] as const satisfies readonly CorrespondentTabDefinition<CorrespondentPartnerTab>[]
 
 export const CORRESPONDENT_MANAGER_DEFAULT_TAB = 'overview'
@@ -93,8 +99,8 @@ export const CORRESPONDENT_UI_TEXT = {
 
 const TRANSACTION_STATUS_LABELS: Record<CorrespondentTransactionStatus, string> = {
   pending: 'En attente de paiement',
-  paid: 'Payée',
-  confirmed: 'Payée',
+  paid: 'Bénéficiaire payé',
+  confirmed: 'Bénéficiaire payé',
   canceled: 'Annulée',
 }
 
@@ -231,10 +237,14 @@ export function formatCorrespondentAmount(
   amount: number,
   currency: CorrespondentCurrency,
 ): string {
-  return `${new Intl.NumberFormat('fr-FR', {
+  return `${formatNumber(amount)} ${currency}`
+}
+
+function formatNumber(amount: number): string {
+  return new Intl.NumberFormat('fr-FR', {
     maximumFractionDigits: 0,
     minimumFractionDigits: 0,
-  }).format(amount)} ${currency}`
+  }).format(amount)
 }
 
 export function calculateCorrespondentPayoutPreview({
@@ -258,6 +268,93 @@ export function calculateCorrespondentPayoutPreview({
   const payoutAmount = Math.floor((receivedAmount * 5000) / rateValue)
 
   return payoutAmount > 0 ? payoutAmount : null
+}
+
+export type CorrespondentTransactionPreview = {
+  amount: number
+  currency: CorrespondentCurrency
+  payoutAmount: number
+  payoutCurrency: CorrespondentCurrency
+  conversionDirection: CorrespondentConversionDirection
+  formula: string
+}
+
+export function calculateCorrespondentTransactionPreview({
+  inputAmount,
+  inputCurrency,
+  inputSide,
+  rateValue,
+}: {
+  inputAmount: number | null | undefined
+  inputCurrency: CorrespondentCurrency | null | undefined
+  inputSide: CorrespondentInputSide
+  rateValue: number | null | undefined
+}): CorrespondentTransactionPreview | null {
+  if (
+    typeof inputAmount !== 'number' ||
+    !Number.isFinite(inputAmount) ||
+    inputAmount <= 0 ||
+    !inputCurrency ||
+    typeof rateValue !== 'number' ||
+    !Number.isFinite(rateValue) ||
+    rateValue <= 0
+  ) {
+    return null
+  }
+
+  if (inputCurrency === 'GNF') {
+    const converted = Math.floor((inputAmount * 5000) / rateValue)
+
+    if (converted <= 0) {
+      return null
+    }
+
+    if (inputSide === 'account') {
+      return {
+        amount: inputAmount,
+        currency: 'GNF',
+        payoutAmount: converted,
+        payoutCurrency: 'FCFA',
+        conversionDirection: 'GNF_TO_FCFA',
+        formula: `${formatCorrespondentAmount(inputAmount, 'GNF')} × 5\u202f000 / ${formatNumber(rateValue)} = ${formatCorrespondentAmount(converted, 'FCFA')}`,
+      }
+    }
+
+    return {
+      amount: converted,
+      currency: 'FCFA',
+      payoutAmount: inputAmount,
+      payoutCurrency: 'GNF',
+      conversionDirection: 'GNF_TO_FCFA',
+      formula: `${formatCorrespondentAmount(inputAmount, 'GNF')} × 5\u202f000 / ${formatNumber(rateValue)} = ${formatCorrespondentAmount(converted, 'FCFA')}`,
+    }
+  }
+
+  const converted = Math.floor((inputAmount / 5000) * rateValue)
+
+  if (converted <= 0) {
+    return null
+  }
+
+  if (inputSide === 'account') {
+    return {
+      amount: inputAmount,
+      currency: 'FCFA',
+      payoutAmount: converted,
+      payoutCurrency: 'GNF',
+      conversionDirection: 'FCFA_TO_GNF',
+      formula: `${formatCorrespondentAmount(inputAmount, 'FCFA')} / 5\u202f000 × ${formatNumber(rateValue)} = ${formatCorrespondentAmount(converted, 'GNF')}`,
+    }
+  }
+
+  return {
+    amount: converted,
+    currency: 'GNF',
+    payoutAmount: inputAmount,
+    payoutCurrency: 'FCFA',
+    conversionDirection: 'FCFA_TO_GNF',
+    formula: `${formatCorrespondentAmount(inputAmount, 'FCFA')} / 5\u202f000 × ${formatNumber(rateValue)} = ${formatCorrespondentAmount(converted, 'GNF')}`,
+  }
 }
 
 export function formatCorrespondentRate({

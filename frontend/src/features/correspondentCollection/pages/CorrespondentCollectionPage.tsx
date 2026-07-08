@@ -9,9 +9,13 @@ import { TransactionPinSetupCard } from '../../security/components/TransactionPi
 import { useTransactionPinStatus } from '../../security/hooks.ts'
 import { getTransactionPinRequiredContent } from '../../security/viewModel.ts'
 import {
+  useApproveCorrespondentModificationRequest,
   useCancelCorrespondentTransaction,
   useCancelCorrespondentWithdrawal,
+  useCancelCorrespondentWithdrawalById,
   useConfirmCorrespondentWithdrawal,
+  useConfirmCorrespondentWithdrawalById,
+  useCorrespondentModificationRequests,
   useCorrespondentTransaction,
   useCorrespondentTransactions,
   useCorrespondentWithdrawals,
@@ -19,8 +23,14 @@ import {
   useCreateCorrespondentTransaction,
   useCreateCorrespondentWithdrawal,
   usePayCorrespondentTransactionByCode,
+  usePayCorrespondentTransactionById,
+  useCancelCorrespondentTransactionById,
+  useRejectCorrespondentModificationRequest,
+  useRequestCorrespondentTransactionModification,
+  useRequestCorrespondentWithdrawalModification,
 } from '../hooks.ts'
 import type {
+  CorrespondentModificationRequest,
   CorrespondentSummary,
   CorrespondentTransaction,
   CorrespondentWithdrawal,
@@ -28,11 +38,12 @@ import type {
 import {
   CORRESPONDENT_MANAGER_TABS,
   CORRESPONDENT_PARTNER_TABS,
+  CORRESPONDENT_AMOUNT_INTEGER_MESSAGE,
   CORRESPONDENT_GNF_ONLY_MESSAGE,
   CORRESPONDENT_RATE_MISSING_MESSAGE,
   CORRESPONDENT_UI_TEXT,
   buildCorrespondentOverview,
-  calculateCorrespondentPayoutPreview,
+  calculateCorrespondentTransactionPreview,
   formatCorrespondentAmount,
   formatCorrespondentRate,
   getAutoSelectedCorrespondentId,
@@ -52,6 +63,7 @@ const LIST_PARAMS = { page: 1, limit: 50 } as const
 const EMPTY_CORRESPONDENTS: CorrespondentSummary[] = []
 const EMPTY_TRANSACTIONS: CorrespondentTransaction[] = []
 const EMPTY_WITHDRAWALS: CorrespondentWithdrawal[] = []
+const EMPTY_MODIFICATION_REQUESTS: CorrespondentModificationRequest[] = []
 
 export function CorrespondentCollectionPage() {
   const [isPinSetupOpen, setIsPinSetupOpen] = useState(false)
@@ -79,6 +91,10 @@ export function CorrespondentCollectionPage() {
     LIST_PARAMS,
     Boolean(isManager || isPartner),
   )
+  const modificationRequestsQuery = useCorrespondentModificationRequests(
+    LIST_PARAMS,
+    Boolean(isManager || isPartner),
+  )
   const transactionPinStatusQuery = useTransactionPinStatus(
     Boolean(isManager || isPartner),
   )
@@ -86,6 +102,8 @@ export function CorrespondentCollectionPage() {
   const correspondents = correspondentsQuery.data ?? EMPTY_CORRESPONDENTS
   const transactions = transactionsQuery.data?.data ?? EMPTY_TRANSACTIONS
   const withdrawals = withdrawalsQuery.data?.data ?? EMPTY_WITHDRAWALS
+  const modificationRequests =
+    modificationRequestsQuery.data?.data ?? EMPTY_MODIFICATION_REQUESTS
   const overview = useMemo(
     () =>
       buildCorrespondentOverview({
@@ -100,6 +118,7 @@ export function CorrespondentCollectionPage() {
     correspondentsQuery.isLoading ||
     transactionsQuery.isLoading ||
     withdrawalsQuery.isLoading ||
+    modificationRequestsQuery.isLoading ||
     transactionPinStatusQuery.isLoading
 
   const handleTabChange = (tab: CorrespondentTab) => {
@@ -145,6 +164,7 @@ export function CorrespondentCollectionPage() {
           correspondentsQuery.error,
           transactionsQuery.error,
           withdrawalsQuery.error,
+          modificationRequestsQuery.error,
           transactionPinStatusQuery.error,
         ]}
       />
@@ -164,6 +184,12 @@ export function CorrespondentCollectionPage() {
           correspondents={correspondents}
           isManager={isManager}
           withdrawals={withdrawals}
+        />
+      ) : null}
+      {isManager && activeTab === 'modification-requests' ? (
+        <ModificationRequestsSection
+          isManager={isManager}
+          requests={modificationRequests}
         />
       ) : null}
 
@@ -190,6 +216,12 @@ export function CorrespondentCollectionPage() {
           correspondents={correspondents}
           isManager={false}
           withdrawals={withdrawals}
+        />
+      ) : null}
+      {isPartner && activeTab === 'modification-requests' ? (
+        <ModificationRequestsSection
+          isManager={false}
+          requests={modificationRequests}
         />
       ) : null}
     </div>
@@ -248,6 +280,8 @@ function CreateTransactionSection({
     amount: '',
     beneficiaryName: '',
     beneficiaryPhone: '',
+    inputCurrency: 'GNF' as 'FCFA' | 'GNF',
+    inputSide: 'account' as 'account' | 'company',
     note: '',
     transactionPin: '',
   })
@@ -258,14 +292,15 @@ function CreateTransactionSection({
     selectedCorrespondentId: correspondents[0]?.membershipId,
   })
   const correspondent = getCorrespondentById(correspondents, selectedCorrespondentId)
-  const currency = correspondent?.currency ?? 'GNF'
+  const accountCurrency = correspondent?.currency ?? 'GNF'
   const parsedAmount = parseCorrespondentAmountInput(form.amount)
-  const payoutPreview = calculateCorrespondentPayoutPreview({
+  const transactionPreview = calculateCorrespondentTransactionPreview({
+    inputAmount: parsedAmount.amount,
+    inputCurrency: form.inputCurrency,
+    inputSide: form.inputSide,
     rateValue: exchangeRate?.rate,
-    receivedAmount: parsedAmount.amount,
   })
   const rateMissing = !isExchangeRateLoading && !exchangeRate
-  const isGnfCorrespondent = currency === 'GNF'
   const isSaving = createTransaction.isPending
   const pinRequiredContent = getTransactionPinRequiredContent()
 
@@ -273,11 +308,6 @@ function CreateTransactionSection({
     event.preventDefault()
     setFormError(null)
     createTransaction.reset()
-
-    if (!isGnfCorrespondent) {
-      setFormError(CORRESPONDENT_GNF_ONLY_MESSAGE)
-      return
-    }
 
     if (rateMissing) {
       setFormError(CORRESPONDENT_RATE_MISSING_MESSAGE)
@@ -295,7 +325,9 @@ function CreateTransactionSection({
         beneficiaryName: form.beneficiaryName.trim(),
         beneficiaryPhone: optionalString(form.beneficiaryPhone),
         correspondentMembershipId: selectedCorrespondentId || undefined,
-        currency,
+        inputAmount: parsedAmount.amount,
+        inputCurrency: form.inputCurrency,
+        inputSide: form.inputSide,
         idempotencyKey: createIdempotencyKey('correspondent-transaction'),
         note: optionalString(form.note),
         transactionPin: form.transactionPin,
@@ -305,6 +337,8 @@ function CreateTransactionSection({
         amount: '',
         beneficiaryName: '',
         beneficiaryPhone: '',
+        inputCurrency: accountCurrency,
+        inputSide: 'account',
         note: '',
         transactionPin: '',
       })
@@ -353,19 +387,41 @@ function CreateTransactionSection({
         <FieldSlot column="primary" desktopClassName="md:col-start-1 md:row-start-2">
           <TextField
             inputMode="numeric"
-            label={currency === 'GNF' ? 'Montant reçu en GNF' : 'Montant reçu par le correspondant'}
+            label="Montant saisi"
             onChange={(value) => setForm((current) => ({ ...current, amount: value }))}
             required
             value={form.amount}
           />
         </FieldSlot>
+        <FieldSlot column="secondary" desktopClassName="md:col-start-2 md:row-start-1">
+          <SegmentedChoice
+            label="Montant saisi comme"
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                inputSide: value as 'account' | 'company',
+              }))
+            }
+            options={[
+              { label: 'Devise compte', value: 'account' },
+              { label: 'Devise entreprise', value: 'company' },
+            ]}
+            value={form.inputSide}
+          />
+        </FieldSlot>
         <FieldSlot column="primary" desktopClassName="md:col-start-1 md:row-start-3">
           <ReadOnlyField
-            label="Montant à payer au bénéficiaire"
+            label="Aperçu de conversion"
             value={
-              payoutPreview
-                ? formatCorrespondentAmount(payoutPreview, 'FCFA')
-                : 'Saisissez le montant reçu en GNF'
+              transactionPreview
+                ? `${formatCorrespondentAmount(
+                    transactionPreview.amount,
+                    transactionPreview.currency,
+                  )} détenus · ${formatCorrespondentAmount(
+                    transactionPreview.payoutAmount,
+                    transactionPreview.payoutCurrency,
+                  )} à payer`
+                : CORRESPONDENT_GNF_ONLY_MESSAGE
             }
           />
         </FieldSlot>
@@ -374,7 +430,8 @@ function CreateTransactionSection({
             label="Taux actuel"
             value={
               exchangeRate
-                ? formatCorrespondentRate({ rateValue: exchangeRate.rate })
+                ? transactionPreview?.formula ??
+                  formatCorrespondentRate({ rateValue: exchangeRate.rate })
                 : isExchangeRateLoading
                   ? 'Chargement du taux'
                   : CORRESPONDENT_RATE_MISSING_MESSAGE
@@ -394,22 +451,31 @@ function CreateTransactionSection({
             value={form.transactionPin}
           />
         </FieldSlot>
-        <FieldSlot
-          column="secondary"
-          desktopClassName="hidden md:block md:col-start-2 md:row-start-1"
-        >
-          <ReadOnlyField label="Devise" value={currency} />
+        <FieldSlot column="secondary" desktopClassName="md:col-start-2 md:row-start-5">
+          <SegmentedChoice
+            label="Devise saisie"
+            onChange={(value) =>
+              setForm((current) => ({
+                ...current,
+                inputCurrency: value as 'FCFA' | 'GNF',
+              }))
+            }
+            options={[
+              { label: 'GNF', value: 'GNF' },
+              { label: 'FCFA', value: 'FCFA' },
+            ]}
+            value={form.inputCurrency}
+          />
         </FieldSlot>
         <FormFeedback
           error={
             formError ??
-            (!isGnfCorrespondent ? CORRESPONDENT_GNF_ONLY_MESSAGE : null) ??
             (rateMissing ? CORRESPONDENT_RATE_MISSING_MESSAGE : null) ??
             createTransaction.error
           }
           success={result ? CORRESPONDENT_UI_TEXT.transactionCreated : null}
         />
-        <SubmitButton disabled={isSaving || !isGnfCorrespondent || rateMissing}>
+        <SubmitButton disabled={isSaving || rateMissing}>
           {isSaving ? 'Création' : CORRESPONDENT_UI_TEXT.createTransaction}
         </SubmitButton>
       </form>
@@ -440,12 +506,17 @@ function PayByCodeSection() {
       return
     }
 
+    const referenceCode = transaction.collectionCode ?? transaction.referenceCode
+    if (!referenceCode) {
+      return
+    }
+
     payTransaction.reset()
     setSuccess(null)
 
     try {
       await payTransaction.mutateAsync({
-        code: transaction.collectionCode,
+        code: referenceCode,
         payload: { transactionPin },
       })
       setTransactionPin('')
@@ -473,7 +544,10 @@ function PayByCodeSection() {
       {transaction ? (
         <section className="rounded border border-slate-200 bg-white p-4 shadow-sm">
           <dl className="grid gap-3 text-sm md:grid-cols-2">
-            <Detail label={CORRESPONDENT_UI_TEXT.transactionCode} value={transaction.collectionCode} />
+            <Detail
+              label={CORRESPONDENT_UI_TEXT.transactionCode}
+              value={transaction.collectionCode ?? transaction.referenceCode ?? 'Sans référence'}
+            />
             <Detail label="Correspondant" value={transaction.correspondentName ?? transaction.correspondentEmail ?? 'Correspondant sans nom'} />
             <Detail label="Bénéficiaire" value={transaction.beneficiaryName} />
             <Detail label="Montant à payer" value={formatCorrespondentAmount(transaction.payoutAmount, transaction.payoutCurrency)} />
@@ -486,7 +560,7 @@ function PayByCodeSection() {
           <p className="mt-3 text-sm text-slate-600">
             {getTransactionStatusMessage(transaction.status)}
           </p>
-          {transaction.status === 'pending' ? (
+          {transaction.status === 'pending' && (transaction.collectionCode ?? transaction.referenceCode) ? (
             <form className="mt-4 flex max-w-xl flex-col gap-3 sm:flex-row" onSubmit={onPay}>
               <PinField onChange={setTransactionPin} value={transactionPin} />
               <SubmitButton disabled={payTransaction.isPending || !transactionPin}>
@@ -520,7 +594,7 @@ function TransactionsSection({
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-slate-950">
-                {transaction.collectionCode}
+                {getReferenceLabel(transaction.collectionCode ?? transaction.referenceCode)}
               </p>
               <p className="text-sm text-slate-600">
                 {transaction.beneficiaryName} ·{' '}
@@ -538,11 +612,53 @@ function TransactionsSection({
             </div>
           </div>
           {transaction.status === 'pending' ? (
-            <CancelTransactionForm transaction={transaction} />
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <PayTransactionForm transaction={transaction} />
+              <CancelTransactionForm transaction={transaction} />
+              <RequestTransactionModificationForm transaction={transaction} />
+            </div>
           ) : null}
         </article>
       ))}
     </section>
+  )
+}
+
+function PayTransactionForm({
+  transaction,
+}: {
+  transaction: CorrespondentTransaction
+}) {
+  const payById = usePayCorrespondentTransactionById()
+  const [transactionPin, setTransactionPin] = useState('')
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    payById.reset()
+    setSuccess(null)
+
+    try {
+      await payById.mutateAsync({
+        id: transaction.id,
+        payload: { transactionPin },
+      })
+      setTransactionPin('')
+      setSuccess('Bénéficiaire payé.')
+    } catch {
+      setTransactionPin('')
+    }
+  }
+
+  return (
+    <form className="grid gap-3 rounded border border-slate-100 bg-slate-50 p-3" onSubmit={onSubmit}>
+      <p className="text-sm font-semibold text-slate-900">Paiement transaction</p>
+      <PinField onChange={setTransactionPin} value={transactionPin} />
+      <SubmitButton disabled={payById.isPending || !transactionPin}>
+        Payer
+      </SubmitButton>
+      <FormFeedback error={payById.error} success={success} />
+    </form>
   )
 }
 
@@ -552,6 +668,7 @@ function CancelTransactionForm({
   transaction: CorrespondentTransaction
 }) {
   const cancelTransaction = useCancelCorrespondentTransaction()
+  const cancelTransactionById = useCancelCorrespondentTransactionById()
   const [reason, setReason] = useState('')
   const [transactionPin, setTransactionPin] = useState('')
   const [success, setSuccess] = useState<string | null>(null)
@@ -559,16 +676,25 @@ function CancelTransactionForm({
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     cancelTransaction.reset()
+    cancelTransactionById.reset()
     setSuccess(null)
 
     try {
-      await cancelTransaction.mutateAsync({
-        code: transaction.collectionCode,
-        payload: {
-          reason: optionalString(reason),
-          transactionPin,
-        },
-      })
+      const payload = {
+        reason: optionalString(reason),
+        transactionPin,
+      }
+      if (transaction.collectionCode) {
+        await cancelTransaction.mutateAsync({
+          code: transaction.collectionCode,
+          payload,
+        })
+      } else {
+        await cancelTransactionById.mutateAsync({
+          id: transaction.id,
+          payload,
+        })
+      }
       setReason('')
       setTransactionPin('')
       setSuccess('Transaction annulée.')
@@ -578,13 +704,72 @@ function CancelTransactionForm({
   }
 
   return (
-    <form className="mt-4 grid gap-3 md:grid-cols-3" onSubmit={onSubmit}>
+    <form className="grid gap-3 rounded border border-slate-100 bg-slate-50 p-3" onSubmit={onSubmit}>
+      <p className="text-sm font-semibold text-slate-900">Annulation transaction</p>
       <TextField label="Motif" onChange={setReason} value={reason} />
       <PinField onChange={setTransactionPin} value={transactionPin} />
-      <SubmitButton disabled={cancelTransaction.isPending || !transactionPin}>
+      <SubmitButton disabled={(cancelTransaction.isPending || cancelTransactionById.isPending) || !transactionPin}>
         Annuler
       </SubmitButton>
-      <FormFeedback error={cancelTransaction.error} success={success} />
+      <FormFeedback error={cancelTransaction.error ?? cancelTransactionById.error} success={success} />
+    </form>
+  )
+}
+
+function RequestTransactionModificationForm({
+  transaction,
+}: {
+  transaction: CorrespondentTransaction
+}) {
+  const requestModification = useRequestCorrespondentTransactionModification()
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [success, setSuccess] = useState<string | null>(null)
+  const parsedAmount = parseCorrespondentAmountInput(amount)
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    requestModification.reset()
+    setSuccess(null)
+
+    if (!parsedAmount.amount) {
+      return
+    }
+
+    try {
+      await requestModification.mutateAsync({
+        id: transaction.id,
+        payload: {
+          requestedValues: { payoutAmount: parsedAmount.amount },
+          reason: optionalString(reason),
+        },
+      })
+      setAmount('')
+      setReason('')
+      setSuccess('Demande de modification envoyée.')
+    } catch {
+      // Mutation feedback is rendered below.
+    }
+  }
+
+  return (
+    <form className="grid gap-3 rounded border border-slate-100 bg-slate-50 p-3" onSubmit={onSubmit}>
+      <p className="text-sm font-semibold text-slate-900">Demande de modification</p>
+      <TextField
+        error={amount && !parsedAmount.amount ? CORRESPONDENT_AMOUNT_INTEGER_MESSAGE : null}
+        inputMode="numeric"
+        label="Nouveau montant à payer"
+        onChange={setAmount}
+        required
+        value={amount}
+      />
+      <TextField label="Motif" onChange={setReason} required value={reason} />
+      <SubmitButton
+        disabled={requestModification.isPending || !parsedAmount.amount || !reason.trim()}
+      >
+        Demander
+      </SubmitButton>
+      <FormFeedback error={requestModification.error} success={success} />
     </form>
   )
 }
@@ -759,7 +944,7 @@ function WithdrawalsSection({
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="space-y-1">
               <p className="text-sm font-semibold text-slate-950">
-                {withdrawal.deliveryCode}
+                {getReferenceLabel(withdrawal.deliveryCode ?? withdrawal.referenceCode)}
               </p>
               <p className="text-sm text-slate-600">
                 {withdrawal.beneficiaryName} ·{' '}
@@ -787,6 +972,9 @@ function WithdrawalsSection({
               withdrawal={withdrawal}
             />
           ) : null}
+          {withdrawal.status === 'pending' ? (
+            <RequestWithdrawalModificationForm withdrawal={withdrawal} />
+          ) : null}
         </article>
       ))}
     </section>
@@ -801,19 +989,28 @@ function ConfirmWithdrawalForm({
   withdrawal: CorrespondentWithdrawal
 }) {
   const confirmWithdrawal = useConfirmCorrespondentWithdrawal()
+  const confirmWithdrawalById = useConfirmCorrespondentWithdrawalById()
   const [transactionPin, setTransactionPin] = useState('')
   const [success, setSuccess] = useState<string | null>(null)
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     confirmWithdrawal.reset()
+    confirmWithdrawalById.reset()
     setSuccess(null)
 
     try {
-      await confirmWithdrawal.mutateAsync({
-        code: withdrawal.deliveryCode,
-        payload: { transactionPin },
-      })
+      if (withdrawal.deliveryCode) {
+        await confirmWithdrawal.mutateAsync({
+          code: withdrawal.deliveryCode,
+          payload: { transactionPin },
+        })
+      } else {
+        await confirmWithdrawalById.mutateAsync({
+          id: withdrawal.id,
+          payload: { transactionPin },
+        })
+      }
       setTransactionPin('')
       setSuccess(CORRESPONDENT_UI_TEXT.withdrawalConfirmed)
     } catch {
@@ -830,10 +1027,19 @@ function ConfirmWithdrawalForm({
         />
       ) : null}
       <PinField onChange={setTransactionPin} value={transactionPin} />
-      <SubmitButton disabled={confirmWithdrawal.isPending || !transactionPin}>
+      <SubmitButton
+        disabled={
+          confirmWithdrawal.isPending ||
+          confirmWithdrawalById.isPending ||
+          !transactionPin
+        }
+      >
         {CORRESPONDENT_UI_TEXT.confirmWithdrawal}
       </SubmitButton>
-      <FormFeedback error={confirmWithdrawal.error} success={success} />
+      <FormFeedback
+        error={confirmWithdrawal.error ?? confirmWithdrawalById.error}
+        success={success}
+      />
     </form>
   )
 }
@@ -844,6 +1050,7 @@ function CancelWithdrawalForm({
   withdrawal: CorrespondentWithdrawal
 }) {
   const cancelWithdrawal = useCancelCorrespondentWithdrawal()
+  const cancelWithdrawalById = useCancelCorrespondentWithdrawalById()
   const [reason, setReason] = useState('')
   const [transactionPin, setTransactionPin] = useState('')
   const [success, setSuccess] = useState<string | null>(null)
@@ -851,16 +1058,25 @@ function CancelWithdrawalForm({
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     cancelWithdrawal.reset()
+    cancelWithdrawalById.reset()
     setSuccess(null)
 
     try {
-      await cancelWithdrawal.mutateAsync({
-        code: withdrawal.deliveryCode,
-        payload: {
-          reason: optionalString(reason),
-          transactionPin,
-        },
-      })
+      const payload = {
+        reason: optionalString(reason),
+        transactionPin,
+      }
+      if (withdrawal.deliveryCode) {
+        await cancelWithdrawal.mutateAsync({
+          code: withdrawal.deliveryCode,
+          payload,
+        })
+      } else {
+        await cancelWithdrawalById.mutateAsync({
+          id: withdrawal.id,
+          payload,
+        })
+      }
       setReason('')
       setTransactionPin('')
       setSuccess('Retrait annulé.')
@@ -873,11 +1089,206 @@ function CancelWithdrawalForm({
     <form className="mt-4 grid gap-3 md:grid-cols-3" onSubmit={onSubmit}>
       <TextField label="Motif" onChange={setReason} value={reason} />
       <PinField onChange={setTransactionPin} value={transactionPin} />
-      <SubmitButton disabled={cancelWithdrawal.isPending || !transactionPin}>
+      <SubmitButton
+        disabled={
+          cancelWithdrawal.isPending ||
+          cancelWithdrawalById.isPending ||
+          !transactionPin
+        }
+      >
         Annuler
       </SubmitButton>
-      <FormFeedback error={cancelWithdrawal.error} success={success} />
+      <FormFeedback
+        error={cancelWithdrawal.error ?? cancelWithdrawalById.error}
+        success={success}
+      />
     </form>
+  )
+}
+
+function RequestWithdrawalModificationForm({
+  withdrawal,
+}: {
+  withdrawal: CorrespondentWithdrawal
+}) {
+  const requestModification = useRequestCorrespondentWithdrawalModification()
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [success, setSuccess] = useState<string | null>(null)
+  const parsedAmount = parseCorrespondentAmountInput(amount)
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    requestModification.reset()
+    setSuccess(null)
+
+    if (!parsedAmount.amount) {
+      return
+    }
+
+    try {
+      await requestModification.mutateAsync({
+        id: withdrawal.id,
+        payload: {
+          requestedValues: { amount: parsedAmount.amount },
+          reason: optionalString(reason),
+        },
+      })
+      setAmount('')
+      setReason('')
+      setSuccess('Demande de modification envoyée.')
+    } catch {
+      // Mutation feedback is rendered below.
+    }
+  }
+
+  return (
+    <form className="mt-4 grid gap-3 rounded border border-slate-100 bg-slate-50 p-3 md:grid-cols-3" onSubmit={onSubmit}>
+      <p className="text-sm font-semibold text-slate-900 md:col-span-3">
+        Demande de modification
+      </p>
+      <TextField
+        error={amount && !parsedAmount.amount ? CORRESPONDENT_AMOUNT_INTEGER_MESSAGE : null}
+        inputMode="numeric"
+        label="Nouveau montant"
+        onChange={setAmount}
+        required
+        value={amount}
+      />
+      <TextField label="Motif" onChange={setReason} required value={reason} />
+      <SubmitButton
+        disabled={requestModification.isPending || !parsedAmount.amount || !reason.trim()}
+      >
+        Demander
+      </SubmitButton>
+      <FormFeedback error={requestModification.error} success={success} />
+    </form>
+  )
+}
+
+function ModificationRequestsSection({
+  isManager,
+  requests,
+}: {
+  isManager: boolean
+  requests: CorrespondentModificationRequest[]
+}) {
+  if (requests.length === 0) {
+    return (
+      <StateMessage title="Aucune modification">
+        Aucune demande de modification à afficher.
+      </StateMessage>
+    )
+  }
+
+  return (
+    <section className="grid gap-3">
+      {requests.map((request) => (
+        <article
+          className="rounded border border-slate-200 bg-white p-4 shadow-sm"
+          key={request.id}
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">
+                {request.targetType === 'collection' ? 'Transaction' : 'Retrait'} ·{' '}
+                {getModificationStatusLabel(request.status)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Demandé par {request.initiatedByName ?? 'Utilisateur'} le{' '}
+                {formatDateTime(request.createdAt)}
+              </p>
+            </div>
+            <StatusBadge>{getModificationStatusLabel(request.status)}</StatusBadge>
+          </div>
+          <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
+            <Detail
+              label="Anciennes valeurs"
+              value={formatModificationValues(request.oldValues)}
+            />
+            <Detail
+              label="Valeurs demandées"
+              value={formatModificationValues(request.requestedValues)}
+            />
+            <Detail label="Motif" value={request.reason ?? 'Non renseigné'} />
+            <Detail label="Cible" value={request.targetId} />
+            {request.decisionReason ? (
+              <Detail label="Décision" value={request.decisionReason} />
+            ) : null}
+          </dl>
+          {isManager && request.status === 'pending' ? (
+            <ModificationDecisionForm request={request} />
+          ) : null}
+        </article>
+      ))}
+    </section>
+  )
+}
+
+function ModificationDecisionForm({
+  request,
+}: {
+  request: CorrespondentModificationRequest
+}) {
+  const approveRequest = useApproveCorrespondentModificationRequest()
+  const rejectRequest = useRejectCorrespondentModificationRequest()
+  const [transactionPin, setTransactionPin] = useState('')
+  const [reason, setReason] = useState('')
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const decide = async (decision: 'approve' | 'reject') => {
+    const mutation = decision === 'approve' ? approveRequest : rejectRequest
+    approveRequest.reset()
+    rejectRequest.reset()
+    setSuccess(null)
+
+    try {
+      await mutation.mutateAsync({
+        id: request.id,
+        payload: {
+          transactionPin,
+          reason: optionalString(reason),
+        },
+      })
+      setTransactionPin('')
+      setReason('')
+      setSuccess(
+        decision === 'approve'
+          ? 'Modification approuvée.'
+          : 'Modification rejetée.',
+      )
+    } catch {
+      setTransactionPin('')
+    }
+  }
+
+  return (
+    <div className="mt-4 grid gap-3 rounded border border-slate-100 bg-slate-50 p-3 md:grid-cols-3">
+      <TextField label="Note décision" onChange={setReason} value={reason} />
+      <PinField onChange={setTransactionPin} value={transactionPin} />
+      <div className="flex flex-col gap-2 sm:flex-row md:self-end">
+        <button
+          className="h-10 rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={approveRequest.isPending || rejectRequest.isPending || !transactionPin}
+          onClick={() => void decide('approve')}
+          type="button"
+        >
+          Approuver
+        </button>
+        <button
+          className="h-10 rounded border border-red-200 px-4 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={approveRequest.isPending || rejectRequest.isPending || !transactionPin}
+          onClick={() => void decide('reject')}
+          type="button"
+        >
+          Rejeter
+        </button>
+      </div>
+      <FormFeedback
+        error={approveRequest.error ?? rejectRequest.error}
+        success={success}
+      />
+    </div>
   )
 }
 
@@ -894,7 +1305,10 @@ export function WithdrawalSuccessCard({
         Retrait créé. Le montant est maintenant réservé chez le correspondant en attente de confirmation.
       </p>
       <dl className="mt-3 grid gap-2 md:grid-cols-2">
-        <Detail label="Code retrait" value={withdrawal.deliveryCode} />
+        <Detail
+          label="Référence retrait"
+          value={withdrawal.deliveryCode ?? withdrawal.referenceCode ?? 'Sans référence'}
+        />
         <Detail
           label="Correspondant"
           value={
@@ -921,28 +1335,38 @@ function TransactionSuccessCard({
 }: {
   transaction: CorrespondentTransaction
 }) {
+  const referenceCode = transaction.collectionCode ?? transaction.referenceCode
   const copyCode = async () => {
-    await navigator.clipboard?.writeText(transaction.collectionCode)
+    if (!referenceCode) {
+      return
+    }
+
+    await navigator.clipboard?.writeText(referenceCode)
   }
 
   return (
     <section className="rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
       <p className="font-semibold">Transaction créée</p>
       <dl className="mt-3 grid gap-2 md:grid-cols-2">
-        <Detail label={CORRESPONDENT_UI_TEXT.transactionCode} value={transaction.collectionCode} />
+        <Detail
+          label={CORRESPONDENT_UI_TEXT.transactionCode}
+          value={referenceCode ?? 'Sans référence'}
+        />
         <Detail label="Bénéficiaire" value={transaction.beneficiaryName} />
         <Detail label="Montant à payer" value={formatCorrespondentAmount(transaction.payoutAmount, transaction.payoutCurrency)} />
         <Detail label="Fonds détenus" value={formatCorrespondentAmount(transaction.amount, transaction.currency)} />
         <Detail label="Statut" value={getTransactionStatusLabel(transaction.status)} />
       </dl>
       <p className="mt-3">{getTransactionStatusMessage(transaction.status)}</p>
-      <button
-        className="mt-3 h-9 rounded border border-emerald-300 px-3 text-sm font-medium text-emerald-900 transition hover:bg-emerald-100"
-        onClick={() => void copyCode()}
-        type="button"
-      >
-        Copier le code
-      </button>
+      {referenceCode ? (
+        <button
+          className="mt-3 h-9 rounded border border-emerald-300 px-3 text-sm font-medium text-emerald-900 transition hover:bg-emerald-100"
+          onClick={() => void copyCode()}
+          type="button"
+        >
+          Copier la référence
+        </button>
+      ) : null}
     </section>
   )
 }
@@ -1183,6 +1607,44 @@ function ReadOnlyField({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
+function SegmentedChoice({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string
+  onChange: (value: string) => void
+  options: Array<{ label: string; value: string }>
+  value: string
+}) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-slate-700">{label}</p>
+      <div className="mt-1 grid grid-cols-2 gap-1 rounded border border-slate-200 bg-slate-50 p-1">
+        {options.map((option) => {
+          const isSelected = option.value === value
+
+          return (
+            <button
+              className={
+                isSelected
+                  ? 'h-8 rounded bg-slate-950 px-2 text-xs font-medium text-white'
+                  : 'h-8 rounded px-2 text-xs font-medium text-slate-700 hover:bg-white'
+              }
+              key={option.value}
+              onClick={() => onChange(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function SubmitButton({
   children,
   disabled,
@@ -1272,10 +1734,69 @@ function StatusBadge({ children }: { children: ReactNode }) {
   )
 }
 
+function getModificationStatusLabel(status: CorrespondentModificationRequest['status']) {
+  if (status === 'approved') {
+    return 'Approuvée'
+  }
+
+  if (status === 'rejected') {
+    return 'Rejetée'
+  }
+
+  return 'En attente'
+}
+
+function formatModificationValues(values: Record<string, unknown>) {
+  const entries = Object.entries(values)
+
+  if (entries.length === 0) {
+    return 'Aucune valeur'
+  }
+
+  return entries
+    .map(([key, value]) => `${formatModificationKey(key)}: ${formatModificationValue(value)}`)
+    .join(' · ')
+}
+
+function formatModificationKey(key: string) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (firstLetter) => firstLetter.toUpperCase())
+}
+
+function formatModificationValue(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return 'Non renseigné'
+  }
+
+  if (typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+
+  return String(value)
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleString('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  })
+}
+
 function optionalString(value: string): string | undefined {
   const trimmed = value.trim()
 
   return trimmed || undefined
+}
+
+function getReferenceLabel(value: string | null | undefined): string {
+  return value?.trim() || 'Sans référence'
 }
 
 function getTransactionRateLabel(

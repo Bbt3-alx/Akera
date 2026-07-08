@@ -8,6 +8,9 @@ import type {
   CancelCorrespondentTransactionPayload,
   CancelCorrespondentWithdrawalPayload,
   ConfirmCorrespondentWithdrawalPayload,
+  CorrespondentModificationDecisionPayload,
+  CorrespondentModificationRequest,
+  CorrespondentModificationRequestPayload,
   CorrespondentListParams,
   CorrespondentListResponse,
   CorrespondentPagination,
@@ -102,6 +105,22 @@ export async function payCorrespondentTransactionByCode(
   return unwrapApiResponse(response)
 }
 
+export async function payCorrespondentTransactionById(
+  transactionId: string,
+  payload: PayCorrespondentTransactionPayload,
+): Promise<CorrespondentTransaction> {
+  const response = await http.post<
+    ApiResponse<CorrespondentTransaction>,
+    ApiResponse<CorrespondentTransaction>,
+    PayCorrespondentTransactionPayload
+  >(
+    `/correspondent-collections/id/${encodeURIComponent(transactionId)}/pay`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
 export async function cancelCorrespondentTransaction(
   transactionCode: string,
   payload: CancelCorrespondentTransactionPayload,
@@ -112,6 +131,40 @@ export async function cancelCorrespondentTransaction(
     CancelCorrespondentTransactionPayload
   >(
     `/correspondent-collections/${encodeURIComponent(transactionCode)}/cancel`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
+export async function cancelCorrespondentTransactionById(
+  transactionId: string,
+  payload: CancelCorrespondentTransactionPayload,
+): Promise<CorrespondentTransaction> {
+  const response = await http.post<
+    ApiResponse<CorrespondentTransaction>,
+    ApiResponse<CorrespondentTransaction>,
+    CancelCorrespondentTransactionPayload
+  >(
+    `/correspondent-collections/id/${encodeURIComponent(transactionId)}/cancel`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
+export async function requestCorrespondentTransactionModification(
+  transactionId: string,
+  payload: CorrespondentModificationRequestPayload,
+): Promise<CorrespondentModificationRequest> {
+  const response = await http.post<
+    ApiResponse<CorrespondentModificationRequest>,
+    ApiResponse<CorrespondentModificationRequest>,
+    CorrespondentModificationRequestPayload
+  >(
+    `/correspondent-collections/id/${encodeURIComponent(
+      transactionId,
+    )}/modification-requests`,
     payload,
   )
 
@@ -170,6 +223,22 @@ export async function confirmCorrespondentWithdrawal(
   return unwrapApiResponse(response)
 }
 
+export async function confirmCorrespondentWithdrawalById(
+  withdrawalId: string,
+  payload: ConfirmCorrespondentWithdrawalPayload,
+): Promise<CorrespondentWithdrawal> {
+  const response = await http.post<
+    ApiResponse<CorrespondentWithdrawal>,
+    ApiResponse<CorrespondentWithdrawal>,
+    ConfirmCorrespondentWithdrawalPayload
+  >(
+    `/correspondent-deliveries/id/${encodeURIComponent(withdrawalId)}/confirm`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
 export async function cancelCorrespondentWithdrawal(
   withdrawalCode: string,
   payload: CancelCorrespondentWithdrawalPayload,
@@ -180,6 +249,89 @@ export async function cancelCorrespondentWithdrawal(
     CancelCorrespondentWithdrawalPayload
   >(
     `/correspondent-deliveries/${encodeURIComponent(withdrawalCode)}/cancel`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
+export async function cancelCorrespondentWithdrawalById(
+  withdrawalId: string,
+  payload: CancelCorrespondentWithdrawalPayload,
+): Promise<CorrespondentWithdrawal> {
+  const response = await http.post<
+    ApiResponse<CorrespondentWithdrawal>,
+    ApiResponse<CorrespondentWithdrawal>,
+    CancelCorrespondentWithdrawalPayload
+  >(
+    `/correspondent-deliveries/id/${encodeURIComponent(withdrawalId)}/cancel`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
+export async function requestCorrespondentWithdrawalModification(
+  withdrawalId: string,
+  payload: CorrespondentModificationRequestPayload,
+): Promise<CorrespondentModificationRequest> {
+  const response = await http.post<
+    ApiResponse<CorrespondentModificationRequest>,
+    ApiResponse<CorrespondentModificationRequest>,
+    CorrespondentModificationRequestPayload
+  >(
+    `/correspondent-deliveries/id/${encodeURIComponent(
+      withdrawalId,
+    )}/modification-requests`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
+export async function listCorrespondentModificationRequests(
+  params?: CorrespondentListParams,
+): Promise<CorrespondentListResponse<CorrespondentModificationRequest>> {
+  const response = await http.get<
+    PaginatedApiResponse<CorrespondentModificationRequest>,
+    PaginatedApiResponse<CorrespondentModificationRequest>
+  >('/correspondent-modification-requests', {
+    params: normalizeCorrespondentListParams(params),
+  })
+
+  return normalizeCorrespondentListResponse(response)
+}
+
+export async function approveCorrespondentModificationRequest(
+  requestId: string,
+  payload: CorrespondentModificationDecisionPayload,
+): Promise<CorrespondentModificationRequest> {
+  const response = await http.post<
+    ApiResponse<CorrespondentModificationRequest>,
+    ApiResponse<CorrespondentModificationRequest>,
+    CorrespondentModificationDecisionPayload
+  >(
+    `/correspondent-modification-requests/${encodeURIComponent(
+      requestId,
+    )}/approve`,
+    payload,
+  )
+
+  return unwrapApiResponse(response)
+}
+
+export async function rejectCorrespondentModificationRequest(
+  requestId: string,
+  payload: CorrespondentModificationDecisionPayload,
+): Promise<CorrespondentModificationRequest> {
+  const response = await http.post<
+    ApiResponse<CorrespondentModificationRequest>,
+    ApiResponse<CorrespondentModificationRequest>,
+    CorrespondentModificationDecisionPayload
+  >(
+    `/correspondent-modification-requests/${encodeURIComponent(
+      requestId,
+    )}/reject`,
     payload,
   )
 
