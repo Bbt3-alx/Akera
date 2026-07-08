@@ -23,6 +23,7 @@ import {
   getRemoteAgentPayoutErrorMessage,
   getRemoteAgentPayoutPaidByLabel,
   getRemoteAgentOperationTypeLabel,
+  REMOTE_PAYOUT_PERMISSION_LABELS,
   resolveRemoteAgentTab,
   REMOTE_AGENT_OPERATION_COLUMNS,
   parseFcfaAmountInput,
@@ -56,6 +57,7 @@ describe('remote agent payout view model', () => {
       'groups',
       'create-payout',
       'payouts',
+      'activity',
     ])
     expect(model.groupRows).toEqual([
       expect.objectContaining({
@@ -70,6 +72,15 @@ describe('remote agent payout view model', () => {
         canceledPayoutCount: 1,
       }),
     )
+  })
+
+  it('uses action-oriented permission labels for manager clarity', () => {
+    expect(REMOTE_PAYOUT_PERMISSION_LABELS).toEqual({
+      'remote_payout:view': 'Voir l’historique',
+      'remote_payout:deposit': 'Enregistrer des dépôts',
+      'remote_payout:pay': 'Payer les bénéficiaires',
+      'remote_payout:manage_group': 'Gérer le groupe',
+    })
   })
 
   it('normalizes FCFA integer input with spaces and dot group separators', () => {

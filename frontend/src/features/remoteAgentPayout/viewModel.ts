@@ -16,6 +16,7 @@ export type RemoteAgentManagerSection =
   | 'groups'
   | 'create-payout'
   | 'payouts'
+  | 'activity'
 
 export type RemoteAgentEmployeeSection =
   | 'my-groups'
@@ -194,6 +195,7 @@ export const REMOTE_AGENT_MANAGER_TABS = [
   'groups',
   'create-payout',
   'payouts',
+  'activity',
 ] as const satisfies readonly RemoteAgentManagerSection[]
 
 export const REMOTE_AGENT_EMPLOYEE_TABS = [
@@ -210,10 +212,10 @@ export const REMOTE_PAYOUT_PERMISSION_LABELS: Record<
   RemotePayoutPermission,
   string
 > = {
-  'remote_payout:view': 'Voir',
-  'remote_payout:deposit': 'Dépôt',
-  'remote_payout:pay': 'Paiement',
-  'remote_payout:manage_group': 'Gestion groupe',
+  'remote_payout:view': 'Voir l’historique',
+  'remote_payout:deposit': 'Enregistrer des dépôts',
+  'remote_payout:pay': 'Payer les bénéficiaires',
+  'remote_payout:manage_group': 'Gérer le groupe',
 }
 
 const REMOTE_AGENT_ERROR_MESSAGES: Record<string, string> = {
@@ -275,7 +277,7 @@ export function buildRemoteAgentModuleModel({
     overview: buildOverview(groups, payouts),
     sections:
       role === 'manager'
-        ? ['overview', 'groups', 'create-payout', 'payouts']
+        ? ['overview', 'groups', 'create-payout', 'payouts', 'activity']
         : ['my-groups', 'record-deposit', 'pay-beneficiary', 'history'],
   }
 }

@@ -29,6 +29,7 @@ import {
   usePayRemoteAgentPayout,
   useRecordRemoteAgentGroupDeposit,
   useRemoteAgentGroups,
+  useRemoteAgentOperations,
   useRemoteAgentPayouts,
   useUpdateRemoteAgentGroup,
   useUpdateRemoteAgentGroupMember,
@@ -37,12 +38,14 @@ import type {
   RemoteEligibleAgent,
   RemoteAgentGroup,
   RemoteAgentGroupMember,
+  RemoteAgentOperation,
   RemoteAgentPayout,
   RemotePayoutPermission,
   RemotePayoutStatus,
 } from '../types.ts'
 import {
   buildRemoteAgentMemberNameMap,
+  buildRemoteAgentOperationDisplayRow,
   buildRemoteAgentMemberPayload,
   buildCreatePayoutResult,
   buildRemoteAgentModuleModel,
@@ -183,6 +186,10 @@ export function RemoteAgentPayoutPage() {
     LIST_PARAMS,
     Boolean(isManager || isEmployee),
   )
+  const operationsQuery = useRemoteAgentOperations(
+    LIST_PARAMS,
+    Boolean(isManager),
+  )
   const managerGroups = managerGroupsQuery.data?.data ?? EMPTY_GROUPS
   const agentGroups = myGroupsQuery.data?.data ?? EMPTY_GROUPS
   const groups = isManager ? managerGroups : agentGroups
@@ -279,6 +286,10 @@ export function RemoteAgentPayoutPage() {
           model={model}
           onRefreshGroups={() => void managerGroupsQuery.refetch()}
           onRefreshPayouts={() => void payoutsQuery.refetch()}
+          onRefreshOperations={() => void operationsQuery.refetch()}
+          operations={operationsQuery.data?.data ?? []}
+          operationsError={operationsQuery.error}
+          isOperationsLoading={operationsQuery.isLoading}
           onTabChange={handleTabChange}
           payouts={payouts}
           payoutsError={payoutsQuery.error}
@@ -350,11 +361,15 @@ type ManagerViewProps = {
   groups: RemoteAgentGroup[]
   groupsError: unknown
   isGroupsLoading: boolean
+  isOperationsLoading: boolean
   isPayoutsLoading: boolean
   model: ReturnType<typeof buildRemoteAgentModuleModel>
   onRefreshGroups: () => void
+  onRefreshOperations: () => void
   onRefreshPayouts: () => void
   onTabChange: (tab: RemoteAgentManagerSection) => void
+  operations: RemoteAgentOperation[]
+  operationsError: unknown
   payouts: RemoteAgentPayout[]
   payoutsError: unknown
 }
@@ -364,11 +379,15 @@ function ManagerView({
   groups,
   groupsError,
   isGroupsLoading,
+  isOperationsLoading,
   isPayoutsLoading,
   model,
   onRefreshGroups,
+  onRefreshOperations,
   onRefreshPayouts,
   onTabChange,
+  operations,
+  operationsError,
   payouts,
   payoutsError,
 }: ManagerViewProps) {
@@ -382,6 +401,7 @@ function ManagerView({
           { label: 'Groupes d’agents', value: 'groups' },
           { label: 'Créer un paiement', value: 'create-payout' },
           { label: 'Paiements', value: 'payouts' },
+          { label: 'Activité', value: 'activity' },
         ]}
       />
 
@@ -413,6 +433,15 @@ function ManagerView({
           managerMode
           onRefresh={onRefreshPayouts}
           payouts={payouts}
+        />
+      ) : null}
+
+      {activeTab === 'activity' ? (
+        <RemoteAgentActivitySection
+          error={operationsError}
+          isLoading={isOperationsLoading}
+          onRefresh={onRefreshOperations}
+          operations={operations}
         />
       ) : null}
     </div>
@@ -1557,7 +1586,55 @@ function PayoutsSection({
       ) : null}
 
       {!isLoading && !error && payouts.length > 0 ? (
-        <div className="overflow-x-auto">
+        <>
+        <div className="grid gap-3 lg:hidden">
+          {payouts.map((payout) => (
+            <article
+              className="rounded border border-slate-200 bg-white p-4 text-sm shadow-sm"
+              key={payout.id}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-slate-950">{payout.payoutCode}</p>
+                  <p className="text-slate-600">{payout.beneficiaryName}</p>
+                </div>
+                <StatusBadge status={payout.status} />
+              </div>
+              <dl className="mt-3 grid gap-2">
+                <Detail label="Montant" value={formatMoney(payout.amount, payout.currency)} />
+                <Detail
+                  label="Groupe"
+                  value={groupNames.get(payout.assignedAgentGroup) ?? 'Groupe non chargé'}
+                />
+                <Detail label="Code" value={`****${payout.beneficiaryCodeLast4}`} />
+                <Detail
+                  label="Payé par"
+                  value={getRemoteAgentPayoutPaidByLabel(payout, memberNames)}
+                />
+                <Detail label="Créé" value={formatDate(payout.createdAt)} />
+              </dl>
+              {managerMode && payout.status === 'pending' ? (
+                <div className="mt-3">
+                  {cancelingPayoutCode === payout.payoutCode ? (
+                    <CancelPayoutForm
+                      onCancel={() => setCancelingPayoutCode(null)}
+                      payoutCode={payout.payoutCode}
+                    />
+                  ) : (
+                    <button
+                      className="h-8 rounded border border-red-300 px-3 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                      onClick={() => setCancelingPayoutCode(payout.payoutCode)}
+                      type="button"
+                    >
+                      Annuler
+                    </button>
+                  )}
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto lg:block">
           <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
             <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
               <tr>
@@ -1632,6 +1709,82 @@ function PayoutsSection({
               ))}
             </tbody>
           </table>
+        </div>
+        </>
+      ) : null}
+    </Panel>
+  )
+}
+
+function RemoteAgentActivitySection({
+  error,
+  isLoading,
+  onRefresh,
+  operations,
+}: {
+  error: unknown
+  isLoading: boolean
+  onRefresh: () => void
+  operations: RemoteAgentOperation[]
+}) {
+  const rows = operations.map(buildRemoteAgentOperationDisplayRow)
+
+  return (
+    <Panel
+      action={
+        <button
+          className="h-9 rounded border border-slate-300 px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-60"
+          disabled={isLoading}
+          onClick={onRefresh}
+          type="button"
+        >
+          Actualiser
+        </button>
+      }
+      title="Activité"
+    >
+      <p className="mb-4 text-sm text-slate-600">
+        Historique des dépôts, créations, paiements et annulations liés aux
+        groupes agents.
+      </p>
+      {isLoading ? (
+        <InlineState title="Chargement">
+          Chargement de l’activité des groupes agents.
+        </InlineState>
+      ) : null}
+      {error ? (
+        <InlineState title="Activité indisponible">
+          {getErrorMessage(error)}
+        </InlineState>
+      ) : null}
+      {!isLoading && !error && rows.length === 0 ? (
+        <InlineState title="Aucune activité">
+          Les opérations auditées apparaîtront ici.
+        </InlineState>
+      ) : null}
+      {!isLoading && !error && rows.length > 0 ? (
+        <div className="grid gap-3">
+          {rows.map((row) => (
+            <article
+              className="rounded border border-slate-200 bg-white p-4 text-sm shadow-sm"
+              key={`${row.referenceLabel}-${row.dateLabel}-${row.typeLabel}`}
+            >
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="font-semibold text-slate-950">{row.typeLabel}</p>
+                  <p className="text-slate-600">{row.dateLabel}</p>
+                </div>
+                <p className="font-semibold text-slate-950">{row.amountLabel}</p>
+              </div>
+              <dl className="mt-3 grid gap-2 md:grid-cols-3">
+                <Detail label="Référence" value={row.referenceLabel} />
+                <Detail label="Groupe" value={row.groupLabel} />
+                <Detail label="Acteur" value={row.actorLabel} />
+                <Detail label="Bénéficiaire" value={row.beneficiaryLabel} />
+                <Detail label="Statut" value={row.statusLabel} />
+              </dl>
+            </article>
+          ))}
         </div>
       ) : null}
     </Panel>
