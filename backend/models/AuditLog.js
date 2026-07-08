@@ -52,5 +52,10 @@ const auditLogSchema = new Schema({
   Timestamp: { type: Date, default: Date.now },
 });
 
+auditLogSchema.index({ companyId: 1, Timestamp: -1 });
+auditLogSchema.index({ companyId: 1, action: 1, Timestamp: -1 });
+auditLogSchema.index({ companyId: 1, collectionName: 1, Timestamp: -1 });
+auditLogSchema.index({ companyId: 1, targetCode: 1 });
+
 const AuditLog = model("AuditLog", auditLogSchema);
 export default AuditLog;

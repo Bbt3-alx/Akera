@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RegisterPage } from '../features/auth/pages/RegisterPage.tsx'
 import { LoginPage } from '../features/auth/pages/LoginPage.tsx'
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
+import { AuditTimelinePage } from '../features/auditTimeline/pages/AuditTimelinePage.tsx'
 import { CompanyCashPage } from '../features/companyCash/pages/CompanyCashPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
@@ -208,6 +209,10 @@ export const router = createBrowserRouter([
       {
         path: 'reconciliation',
         element: <ReconciliationPage />,
+      },
+      {
+        path: 'audit-timeline',
+        element: <AuditTimelinePage />,
       },
       {
         path: 'gold/dashboard',

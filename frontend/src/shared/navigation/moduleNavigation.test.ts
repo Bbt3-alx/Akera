@@ -137,7 +137,7 @@ describe('module-aware navigation', () => {
     expect(flattenLabels(sections)).not.toContain('Collections')
   })
 
-  it('shows reconciliation only for managers', () => {
+  it('shows reconciliation and audit timeline only for managers', () => {
     const managerSections = buildNavigationSections({
       enabledModules: ['transfers', 'company_cash'],
       isManager: true,
@@ -152,7 +152,9 @@ describe('module-aware navigation', () => {
     })
 
     expect(flattenLabels(managerSections)).toContain('Reconciliation')
+    expect(flattenLabels(managerSections)).toContain('Audit timeline')
     expect(flattenLabels(employeeSections)).not.toContain('Reconciliation')
+    expect(flattenLabels(employeeSections)).not.toContain('Audit timeline')
   })
 })
 

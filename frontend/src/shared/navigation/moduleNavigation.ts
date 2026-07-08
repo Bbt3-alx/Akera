@@ -175,6 +175,8 @@ function getAdministrationItems({
 
   items.push({ label: 'Reconciliation', to: '/app/reconciliation' })
 
+  items.push({ label: 'Audit timeline', to: '/app/audit-timeline' })
+
   items.push({
     label: 'Transaction PIN',
     to: '/app/security/transaction-pin',
