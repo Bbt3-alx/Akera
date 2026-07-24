@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
@@ -80,6 +81,9 @@ describe("correspondent collection service", () => {
           correspondentMembership: ids.correspondentMembershipId,
           createdByMembership: ids.managerMembershipId,
           createdBy: ids.managerId,
+          transactionCode: expect.stringMatching(/^TX-\d{8}$/),
+          collectionCode: undefined,
+          referenceCode: undefined,
           amount: 25000,
           beneficiaryName: "Client Bamako",
           beneficiaryPhone: "+22370000000",
@@ -160,6 +164,61 @@ describe("correspondent collection service", () => {
     expect(collection.accountOperation).toBe(ids.operationId);
     expect(collection.save).toHaveBeenCalledWith({ session: expect.any(Object) });
     expect(companyUpdate).not.toHaveBeenCalled();
+  });
+
+  it("retries transaction code generation after a duplicate collision", async () => {
+    mockMongooseSession();
+    const ids = createIds();
+    const collection = createCollection(ids, {
+      transactionCode: "TX-22222222",
+    });
+    jest.spyOn(crypto, "randomInt")
+      .mockReturnValueOnce(11111111)
+      .mockReturnValueOnce(22222222);
+    jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createSessionLeanQuery(null));
+    jest
+      .spyOn(CompanyMembership, "findOne")
+      .mockReturnValue(createSessionQuery(createMembership(ids)));
+    const collectionCreate = jest
+      .spyOn(CorrespondentCollection, "create")
+      .mockRejectedValueOnce({
+        code: 11000,
+        keyPattern: { transactionCode: 1 },
+      })
+      .mockResolvedValueOnce([collection]);
+    jest.spyOn(CompanyMembership, "findOneAndUpdate").mockResolvedValue({
+      _id: ids.correspondentMembershipId,
+      balance: 125000,
+    });
+    jest.spyOn(AccountOperation, "create").mockResolvedValue([
+      createAccountOperation(ids, {
+        save: jest.fn().mockResolvedValue(undefined),
+      }),
+    ]);
+    jest.spyOn(LedgerEntry, "insertMany").mockResolvedValue([
+      { _id: ids.ledgerDebitId },
+      { _id: ids.ledgerCreditId },
+    ]);
+
+    await expect(
+      createCorrespondentCollection({
+        companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
+        userId: ids.managerId,
+        role: "manager",
+        payload: collectionPayload(ids),
+      }),
+    ).resolves.toBe(collection);
+
+    expect(collectionCreate).toHaveBeenCalledTimes(2);
+    expect(collectionCreate.mock.calls[0][0][0].transactionCode).toBe(
+      "TX-11111111",
+    );
+    expect(collectionCreate.mock.calls[1][0][0].transactionCode).toBe(
+      "TX-22222222",
+    );
   });
 
   it("manager creates a pending GNF collection with rate snapshot fields", async () => {
@@ -597,7 +656,8 @@ describe("correspondent collection service", () => {
       [
         expect.objectContaining({
           collectionCode: undefined,
-          referenceCode: null,
+          referenceCode: undefined,
+          transactionCode: expect.stringMatching(/^TX-\d{8}$/),
           amount: 328000000,
           currency: "GNF",
           payoutAmount: 20000000,
@@ -923,6 +983,35 @@ describe("correspondent collection service", () => {
     });
   });
 
+  it("lets managers filter one partner and search transaction code or beneficiary", async () => {
+    const ids = createIds();
+    const find = jest
+      .spyOn(CorrespondentCollection, "find")
+      .mockReturnValue(createFindManyQuery([]));
+    jest.spyOn(CorrespondentCollection, "countDocuments").mockResolvedValue(0);
+
+    await listCorrespondentCollections({
+      companyId: ids.companyId,
+      membershipId: ids.managerMembershipId,
+      role: "manager",
+      query: {
+        correspondentMembershipId: ids.correspondentMembershipId.toString(),
+        search: "TX-9921",
+      },
+    });
+
+    expect(find).toHaveBeenCalledWith({
+      company: ids.companyId,
+      correspondentMembership: ids.correspondentMembershipId,
+      $or: [
+        { transactionCode: /TX-9921/i },
+        { collectionCode: /TX-9921/i },
+        { beneficiaryName: /TX-9921/i },
+        { customerName: /TX-9921/i },
+      ],
+    });
+  });
+
   it("prevents partners from seeing another partner collection", async () => {
     const ids = createIds();
     const findOne = jest
@@ -931,7 +1020,7 @@ describe("correspondent collection service", () => {
 
     await expect(
       getCorrespondentCollectionByCode({
-        collectionCode: "CCL-260625-ABCD",
+        collectionCode: "TX-99210452",
         companyId: ids.companyId,
         membershipId: ids.otherPartnerMembershipId,
         role: "partner",
@@ -942,7 +1031,10 @@ describe("correspondent collection service", () => {
     });
     expect(findOne).toHaveBeenCalledWith({
       company: ids.companyId,
-      collectionCode: "CCL-260625-ABCD",
+      $or: [
+        { transactionCode: "TX-99210452" },
+        { collectionCode: "TX-99210452" },
+      ],
       correspondentMembership: ids.otherPartnerMembershipId,
     });
   });
@@ -950,6 +1042,32 @@ describe("correspondent collection service", () => {
   it("manager can get any collection by code", async () => {
     const ids = createIds();
     const collection = createCollection(ids);
+    const findOne = jest
+      .spyOn(CorrespondentCollection, "findOne")
+      .mockReturnValue(createFindOneLeanQuery(collection));
+
+    await expect(
+      getCorrespondentCollectionByCode({
+        collectionCode: "TX-99210452",
+        companyId: ids.companyId,
+        membershipId: ids.managerMembershipId,
+        role: "manager",
+      }),
+    ).resolves.toBe(collection);
+    expect(findOne).toHaveBeenCalledWith({
+      company: ids.companyId,
+      $or: [
+        { transactionCode: "TX-99210452" },
+        { collectionCode: "TX-99210452" },
+      ],
+    });
+  });
+
+  it("reads legacy records by collection code during migration", async () => {
+    const ids = createIds();
+    const collection = createCollection(ids, {
+      transactionCode: undefined,
+    });
     const findOne = jest
       .spyOn(CorrespondentCollection, "findOne")
       .mockReturnValue(createFindOneLeanQuery(collection));
@@ -964,7 +1082,10 @@ describe("correspondent collection service", () => {
     ).resolves.toBe(collection);
     expect(findOne).toHaveBeenCalledWith({
       company: ids.companyId,
-      collectionCode: "CCL-260625-ABCD",
+      $or: [
+        { transactionCode: "CCL-260625-ABCD" },
+        { collectionCode: "CCL-260625-ABCD" },
+      ],
     });
   });
 
@@ -1657,6 +1778,7 @@ function createCollection(
     correspondentMembership: correspondentMembershipId,
     createdByMembership: managerMembershipId,
     createdBy: managerId,
+    transactionCode: "TX-99210452",
     collectionCode: "CCL-260625-ABCD",
     amount: 25000,
     beneficiaryName: "Client Bamako",

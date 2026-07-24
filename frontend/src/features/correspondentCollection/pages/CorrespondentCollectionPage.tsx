@@ -24,7 +24,6 @@ import {
   useCreateCorrespondentWithdrawal,
   usePayCorrespondentTransactionByCode,
   usePayCorrespondentTransactionById,
-  useCancelCorrespondentTransactionById,
   useRejectCorrespondentModificationRequest,
   useRequestCorrespondentTransactionModification,
   useRequestCorrespondentWithdrawalModification,
@@ -33,6 +32,7 @@ import type {
   CorrespondentModificationRequest,
   CorrespondentSummary,
   CorrespondentTransaction,
+  CorrespondentTransactionStatus,
   CorrespondentWithdrawal,
 } from '../types.ts'
 import {
@@ -65,8 +65,19 @@ const EMPTY_TRANSACTIONS: CorrespondentTransaction[] = []
 const EMPTY_WITHDRAWALS: CorrespondentWithdrawal[] = []
 const EMPTY_MODIFICATION_REQUESTS: CorrespondentModificationRequest[] = []
 
+type TransactionFilters = {
+  correspondentMembershipId: string
+  search: string
+  status: '' | CorrespondentTransactionStatus
+}
+
 export function CorrespondentCollectionPage() {
   const [isPinSetupOpen, setIsPinSetupOpen] = useState(false)
+  const [transactionFilters, setTransactionFilters] = useState<{
+    correspondentMembershipId: string
+    search: string
+    status: '' | CorrespondentTransactionStatus
+  }>({ correspondentMembershipId: '', search: '', status: '' })
   const [searchParams, setSearchParams] = useSearchParams()
   const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
   const meQuery = useMe()
@@ -84,7 +95,15 @@ export function CorrespondentCollectionPage() {
     Boolean(isManager || isPartner),
   )
   const transactionsQuery = useCorrespondentTransactions(
-    LIST_PARAMS,
+    {
+      ...LIST_PARAMS,
+      correspondentMembershipId:
+        isManager && transactionFilters.correspondentMembershipId
+          ? transactionFilters.correspondentMembershipId
+          : undefined,
+      search: transactionFilters.search || undefined,
+      status: transactionFilters.status || undefined,
+    },
     Boolean(isManager || isPartner),
   )
   const withdrawalsQuery = useCorrespondentWithdrawals(
@@ -174,7 +193,13 @@ export function CorrespondentCollectionPage() {
       ) : null}
       {isManager && activeTab === 'pay-by-code' ? <PayByCodeSection /> : null}
       {isManager && activeTab === 'transactions' ? (
-        <TransactionsSection transactions={transactions} />
+        <TransactionsSection
+          correspondents={correspondents}
+          filters={transactionFilters}
+          isManager
+          onFiltersChange={setTransactionFilters}
+          transactions={transactions}
+        />
       ) : null}
       {isManager && activeTab === 'create-withdrawal' ? (
         <CreateWithdrawalSection correspondents={correspondents} />
@@ -209,7 +234,13 @@ export function CorrespondentCollectionPage() {
         />
       ) : null}
       {isPartner && activeTab === 'my-transactions' ? (
-        <TransactionsSection transactions={transactions} />
+        <TransactionsSection
+          correspondents={correspondents}
+          filters={transactionFilters}
+          isManager={false}
+          onFiltersChange={setTransactionFilters}
+          transactions={transactions}
+        />
       ) : null}
       {isPartner && activeTab === 'my-withdrawals' ? (
         <WithdrawalsSection
@@ -506,17 +537,12 @@ function PayByCodeSection() {
       return
     }
 
-    const referenceCode = transaction.collectionCode ?? transaction.referenceCode
-    if (!referenceCode) {
-      return
-    }
-
     payTransaction.reset()
     setSuccess(null)
 
     try {
       await payTransaction.mutateAsync({
-        code: referenceCode,
+        code: transaction.transactionCode,
         payload: { transactionPin },
       })
       setTransactionPin('')
@@ -546,7 +572,7 @@ function PayByCodeSection() {
           <dl className="grid gap-3 text-sm md:grid-cols-2">
             <Detail
               label={CORRESPONDENT_UI_TEXT.transactionCode}
-              value={transaction.collectionCode ?? transaction.referenceCode ?? 'Sans référence'}
+              value={transaction.transactionCode}
             />
             <Detail label="Correspondant" value={transaction.correspondentName ?? transaction.correspondentEmail ?? 'Correspondant sans nom'} />
             <Detail label="Bénéficiaire" value={transaction.beneficiaryName} />
@@ -560,7 +586,7 @@ function PayByCodeSection() {
           <p className="mt-3 text-sm text-slate-600">
             {getTransactionStatusMessage(transaction.status)}
           </p>
-          {transaction.status === 'pending' && (transaction.collectionCode ?? transaction.referenceCode) ? (
+          {transaction.status === 'pending' ? (
             <form className="mt-4 flex max-w-xl flex-col gap-3 sm:flex-row" onSubmit={onPay}>
               <PinField onChange={setTransactionPin} value={transactionPin} />
               <SubmitButton disabled={payTransaction.isPending || !transactionPin}>
@@ -575,52 +601,265 @@ function PayByCodeSection() {
   )
 }
 
-function TransactionsSection({
+export function TransactionsSection({
+  correspondents,
+  filters,
+  isManager,
+  onFiltersChange,
   transactions,
 }: {
+  correspondents: CorrespondentSummary[]
+  filters: TransactionFilters
+  isManager: boolean
+  onFiltersChange: (filters: TransactionFilters) => void
   transactions: CorrespondentTransaction[]
 }) {
-  if (transactions.length === 0) {
-    return <StateMessage title="Aucune transaction">Aucun élément à afficher.</StateMessage>
-  }
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(
+    transactions[0]?.id ?? null,
+  )
+  const selectedTransaction =
+    transactions.find((transaction) => transaction.id === selectedTransactionId) ??
+    transactions[0] ??
+    null
 
   return (
-    <section className="grid gap-3">
-      {transactions.map((transaction) => (
-        <article
-          className="rounded border border-slate-200 bg-white p-4 shadow-sm"
-          key={transaction.id}
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <TextField
+          label="Rechercher par code ou bénéficiaire"
+          onChange={(search) => onFiltersChange({ ...filters, search })}
+          value={filters.search}
+        />
+        <TransactionStatusSelect
+          onChange={(status) => onFiltersChange({ ...filters, status })}
+          value={filters.status}
+        />
+        {isManager ? (
+          <TransactionCorrespondentFilter
+            correspondents={correspondents}
+            onChange={(correspondentMembershipId) =>
+              onFiltersChange({ ...filters, correspondentMembershipId })
+            }
+            value={filters.correspondentMembershipId}
+          />
+        ) : null}
+      </div>
+
+      {transactions.length === 0 ? (
+        <StateMessage title="Aucune transaction">Aucun élément à afficher.</StateMessage>
+      ) : (
+        <div
+          className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]"
+          data-transaction-list="true"
         >
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-slate-950">
-                {getReferenceLabel(transaction.collectionCode ?? transaction.referenceCode)}
-              </p>
-              <p className="text-sm text-slate-600">
-                {transaction.beneficiaryName} ·{' '}
-                {transaction.correspondentName ??
-                  transaction.correspondentEmail ??
-                  'Correspondant sans nom'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {getTransactionStatusMessage(transaction.status)}
-              </p>
-            </div>
-            <div className="text-left md:text-right">
-              <TransactionAmountSummary transaction={transaction} align="end" />
-              <StatusBadge>{getTransactionStatusLabel(transaction.status)}</StatusBadge>
-            </div>
+          <div className="self-start overflow-hidden rounded border border-slate-200 bg-white">
+            {transactions.map((transaction) => {
+              const isSelected = transaction.id === selectedTransaction?.id
+
+              return (
+                <article
+                  className={`border-b border-slate-100 last:border-b-0 ${
+                    isSelected ? 'bg-slate-50' : 'bg-white'
+                  }`}
+                  data-transaction-card="true"
+                  key={transaction.id}
+                >
+                  <div className="flex items-stretch gap-2 p-3 sm:p-4">
+                    <button
+                      aria-pressed={isSelected}
+                      className="grid min-w-0 flex-1 gap-3 text-left sm:grid-cols-[105px_minmax(0,1fr)_auto] sm:items-center"
+                      onClick={() => setSelectedTransactionId(transaction.id)}
+                      type="button"
+                    >
+                      <span className="text-xs text-slate-500">
+                        {formatDateTime(transaction.createdAt)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-slate-950">
+                          {transaction.beneficiaryName}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">
+                          {transaction.transactionCode} ·{' '}
+                          {transaction.correspondentName ??
+                            transaction.correspondentEmail ??
+                            'Correspondant sans nom'}
+                        </span>
+                      </span>
+                      <span className="sm:text-right">
+                        <span className="block text-sm font-semibold text-slate-950">
+                          {formatCorrespondentAmount(
+                            transaction.payoutAmount,
+                            transaction.payoutCurrency,
+                          )}
+                        </span>
+                        <span className="mt-1 inline-flex">
+                          <StatusBadge>
+                            {getTransactionStatusLabel(transaction.status)}
+                          </StatusBadge>
+                        </span>
+                      </span>
+                    </button>
+                    {isManager && transaction.status === 'pending' ? (
+                      <button
+                        className="self-center rounded border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                        onClick={() => setSelectedTransactionId(transaction.id)}
+                        type="button"
+                      >
+                        Payer
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              )
+            })}
           </div>
-          {transaction.status === 'pending' ? (
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <PayTransactionForm transaction={transaction} />
-              <CancelTransactionForm transaction={transaction} />
-              <RequestTransactionModificationForm transaction={transaction} />
-            </div>
+
+          {selectedTransaction ? (
+            <TransactionDetailPanel
+              isManager={isManager}
+              transaction={selectedTransaction}
+            />
           ) : null}
-        </article>
-      ))}
+        </div>
+      )}
     </section>
+  )
+}
+
+function TransactionStatusSelect({
+  onChange,
+  value,
+}: {
+  onChange: (value: TransactionFilters['status']) => void
+  value: TransactionFilters['status']
+}) {
+  return (
+    <label className="block text-sm font-medium text-slate-700">
+      Statut
+      <select
+        className="mt-1 h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm text-slate-900"
+        onChange={(event) =>
+          onChange(event.target.value as TransactionFilters['status'])
+        }
+        value={value}
+      >
+        <option value="">Tous les statuts</option>
+        <option value="pending">En attente de paiement</option>
+        <option value="paid">Bénéficiaire payé</option>
+        <option value="canceled">Annulée</option>
+      </select>
+    </label>
+  )
+}
+
+function TransactionCorrespondentFilter({
+  correspondents,
+  onChange,
+  value,
+}: {
+  correspondents: CorrespondentSummary[]
+  onChange: (value: string) => void
+  value: string
+}) {
+  return (
+    <label className="block text-sm font-medium text-slate-700">
+      Filtrer par correspondant
+      <select
+        className="mt-1 h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm text-slate-900"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        <option value="">Tous les correspondants</option>
+        {correspondents.map((correspondent) => (
+          <option key={correspondent.membershipId} value={correspondent.membershipId}>
+            {getCorrespondentVisibleIdentity(correspondent).primary}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function TransactionDetailPanel({
+  isManager,
+  transaction,
+}: {
+  isManager: boolean
+  transaction: CorrespondentTransaction
+}) {
+  return (
+    <aside
+      className="space-y-5 border-t border-slate-200 pt-5 xl:sticky xl:top-4 xl:self-start xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"
+      data-transaction-detail="true"
+    >
+      <div>
+        <p className="text-xs font-semibold uppercase text-slate-500">
+          Détails de la transaction
+        </p>
+        <h2 className="mt-1 text-lg font-semibold text-slate-950">
+          {transaction.transactionCode}
+        </h2>
+        <div className="mt-2">
+          <StatusBadge>{getTransactionStatusLabel(transaction.status)}</StatusBadge>
+        </div>
+      </div>
+
+      <dl className="grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-1">
+        <Detail label="Bénéficiaire" value={transaction.beneficiaryName} />
+        <Detail
+          label="Correspondant"
+          value={
+            transaction.correspondentName ??
+            transaction.correspondentEmail ??
+            'Correspondant sans nom'
+          }
+        />
+        <Detail
+          label="Montant à payer"
+          value={formatCorrespondentAmount(
+            transaction.payoutAmount,
+            transaction.payoutCurrency,
+          )}
+        />
+        <Detail
+          label="Fonds détenus"
+          value={formatCorrespondentAmount(transaction.amount, transaction.currency)}
+        />
+        <Detail
+          label="Taux appliqué"
+          value={getTransactionRateLabel(transaction) ?? 'Non renseigné'}
+        />
+        <Detail label="Créée le" value={formatDateTime(transaction.createdAt)} />
+        {transaction.createdByName ? (
+          <Detail label="Créée par" value={transaction.createdByName} />
+        ) : null}
+        {transaction.paidAt ? (
+          <Detail label="Payée le" value={formatDateTime(transaction.paidAt)} />
+        ) : null}
+        {transaction.paidByName ? (
+          <Detail label="Payée par" value={transaction.paidByName} />
+        ) : null}
+        {transaction.canceledAt ? (
+          <Detail label="Annulée le" value={formatDateTime(transaction.canceledAt)} />
+        ) : null}
+        {transaction.note ? <Detail label="Note" value={transaction.note} /> : null}
+        {transaction.cancelReason ? (
+          <Detail label="Motif d’annulation" value={transaction.cancelReason} />
+        ) : null}
+      </dl>
+
+      <p className="text-sm text-slate-600">
+        {getTransactionStatusMessage(transaction.status)}
+      </p>
+
+      {transaction.status === 'pending' ? (
+        <div className="grid gap-3">
+          {isManager ? <PayTransactionForm transaction={transaction} /> : null}
+          <CancelTransactionForm transaction={transaction} />
+          <RequestTransactionModificationForm transaction={transaction} />
+        </div>
+      ) : null}
+    </aside>
   )
 }
 
@@ -668,7 +907,6 @@ function CancelTransactionForm({
   transaction: CorrespondentTransaction
 }) {
   const cancelTransaction = useCancelCorrespondentTransaction()
-  const cancelTransactionById = useCancelCorrespondentTransactionById()
   const [reason, setReason] = useState('')
   const [transactionPin, setTransactionPin] = useState('')
   const [success, setSuccess] = useState<string | null>(null)
@@ -676,7 +914,6 @@ function CancelTransactionForm({
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     cancelTransaction.reset()
-    cancelTransactionById.reset()
     setSuccess(null)
 
     try {
@@ -684,17 +921,10 @@ function CancelTransactionForm({
         reason: optionalString(reason),
         transactionPin,
       }
-      if (transaction.collectionCode) {
-        await cancelTransaction.mutateAsync({
-          code: transaction.collectionCode,
-          payload,
-        })
-      } else {
-        await cancelTransactionById.mutateAsync({
-          id: transaction.id,
-          payload,
-        })
-      }
+      await cancelTransaction.mutateAsync({
+        code: transaction.transactionCode,
+        payload,
+      })
       setReason('')
       setTransactionPin('')
       setSuccess('Transaction annulée.')
@@ -708,10 +938,10 @@ function CancelTransactionForm({
       <p className="text-sm font-semibold text-slate-900">Annulation transaction</p>
       <TextField label="Motif" onChange={setReason} value={reason} />
       <PinField onChange={setTransactionPin} value={transactionPin} />
-      <SubmitButton disabled={(cancelTransaction.isPending || cancelTransactionById.isPending) || !transactionPin}>
+      <SubmitButton disabled={cancelTransaction.isPending || !transactionPin}>
         Annuler
       </SubmitButton>
-      <FormFeedback error={cancelTransaction.error ?? cancelTransactionById.error} success={success} />
+      <FormFeedback error={cancelTransaction.error} success={success} />
     </form>
   )
 }
@@ -1335,13 +1565,8 @@ function TransactionSuccessCard({
 }: {
   transaction: CorrespondentTransaction
 }) {
-  const referenceCode = transaction.collectionCode ?? transaction.referenceCode
   const copyCode = async () => {
-    if (!referenceCode) {
-      return
-    }
-
-    await navigator.clipboard?.writeText(referenceCode)
+    await navigator.clipboard?.writeText(transaction.transactionCode)
   }
 
   return (
@@ -1350,7 +1575,7 @@ function TransactionSuccessCard({
       <dl className="mt-3 grid gap-2 md:grid-cols-2">
         <Detail
           label={CORRESPONDENT_UI_TEXT.transactionCode}
-          value={referenceCode ?? 'Sans référence'}
+          value={transaction.transactionCode}
         />
         <Detail label="Bénéficiaire" value={transaction.beneficiaryName} />
         <Detail label="Montant à payer" value={formatCorrespondentAmount(transaction.payoutAmount, transaction.payoutCurrency)} />
@@ -1358,15 +1583,13 @@ function TransactionSuccessCard({
         <Detail label="Statut" value={getTransactionStatusLabel(transaction.status)} />
       </dl>
       <p className="mt-3">{getTransactionStatusMessage(transaction.status)}</p>
-      {referenceCode ? (
-        <button
-          className="mt-3 h-9 rounded border border-emerald-300 px-3 text-sm font-medium text-emerald-900 transition hover:bg-emerald-100"
-          onClick={() => void copyCode()}
-          type="button"
-        >
-          Copier la référence
-        </button>
-      ) : null}
+      <button
+        className="mt-3 h-9 rounded border border-emerald-300 px-3 text-sm font-medium text-emerald-900 transition hover:bg-emerald-100"
+        onClick={() => void copyCode()}
+        type="button"
+      >
+        Copier le code
+      </button>
     </section>
   )
 }
@@ -1492,40 +1715,6 @@ function FieldSlot({
     >
       {children}
     </div>
-  )
-}
-
-function TransactionAmountSummary({
-  align = 'start',
-  transaction,
-}: {
-  align?: 'start' | 'end'
-  transaction: CorrespondentTransaction
-}) {
-  const alignmentClass = align === 'end' ? 'md:items-end md:text-right' : ''
-
-  return (
-    <dl className={`space-y-2 text-sm ${alignmentClass}`}>
-      <div>
-        <dt className="text-xs font-medium uppercase text-slate-500">
-          Montant à payer
-        </dt>
-        <dd className="mt-1 font-semibold text-slate-950">
-          {formatCorrespondentAmount(
-            transaction.payoutAmount,
-            transaction.payoutCurrency,
-          )}
-        </dd>
-      </div>
-      <div>
-        <dt className="text-xs font-medium uppercase text-slate-500">
-          Fonds détenus
-        </dt>
-        <dd className="mt-1 text-slate-600">
-          {formatCorrespondentAmount(transaction.amount, transaction.currency)}
-        </dd>
-      </div>
-    </dl>
   )
 }
 

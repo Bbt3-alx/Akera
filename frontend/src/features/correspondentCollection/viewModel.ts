@@ -79,8 +79,8 @@ export const CORRESPONDENT_MANAGER_DEFAULT_TAB = 'overview'
 export const CORRESPONDENT_PARTNER_DEFAULT_TAB = 'create-transaction'
 
 export const CORRESPONDENT_UI_TEXT = {
-  navLabel: 'Correspondants',
-  pageTitle: 'Transactions correspondants',
+  navLabel: 'Transactions',
+  pageTitle: 'Transactions correspondantes',
   transactionCode: 'Code transaction',
   createTransaction: 'Créer une transaction',
   myTransactions: 'Mes transactions',

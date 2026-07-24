@@ -144,3 +144,5 @@ docs
 !backend/__tests__/docs/
 !backend/__tests__/docs/**
 prevFrontend
+DESIGN
+stitch*

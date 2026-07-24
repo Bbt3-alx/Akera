@@ -78,7 +78,7 @@ describe('correspondent collection API helpers', () => {
       transactionPin: '123456',
       idempotencyKey: 'transaction-create-1',
     })
-    await payCorrespondentTransactionByCode('CCL-260627-ABCD', {
+    await payCorrespondentTransactionByCode('TX-99210452', {
       transactionPin: '123456',
     })
 
@@ -96,7 +96,7 @@ describe('correspondent collection API helpers', () => {
     )
     expect(post).toHaveBeenNthCalledWith(
       2,
-      '/correspondent-collections/CCL-260627-ABCD/pay',
+      '/correspondent-collections/TX-99210452/pay',
       { transactionPin: '123456' },
     )
   })
@@ -215,15 +215,15 @@ describe('correspondent collection API helpers', () => {
       data: createTransaction({ status: 'canceled' }),
     })
 
-    await getCorrespondentTransaction('CCL/260627')
-    await cancelCorrespondentTransaction('CCL/260627', {
+    await getCorrespondentTransaction('TX/99210452')
+    await cancelCorrespondentTransaction('TX/99210452', {
       transactionPin: '123456',
       reason: 'Erreur',
     })
 
-    expect(get).toHaveBeenCalledWith('/correspondent-collections/CCL%2F260627')
+    expect(get).toHaveBeenCalledWith('/correspondent-collections/TX%2F99210452')
     expect(post).toHaveBeenCalledWith(
-      '/correspondent-collections/CCL%2F260627/cancel',
+      '/correspondent-collections/TX%2F99210452/cancel',
       { transactionPin: '123456', reason: 'Erreur' },
     )
   })
@@ -271,7 +271,7 @@ function createTransaction(
 ): CorrespondentTransaction {
   return {
     id: 'tx-1',
-    collectionCode: 'CCL-260627-ABCD',
+    transactionCode: 'TX-99210452',
     amount: 328000000,
     currency: 'GNF',
     payoutAmount: 20000000,

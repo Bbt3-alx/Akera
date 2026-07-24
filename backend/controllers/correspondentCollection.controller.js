@@ -25,10 +25,9 @@ export const createCollection = async (req, res) => {
 
   res.locals.audit = {
     targetId: collection._id,
-    targetCode: collection.collectionCode,
+    targetCode: auditTransactionCode(collection),
     metadata: {
-      collectionCode: collection.collectionCode,
-      referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
+      transactionCode: auditTransactionCode(collection),
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,
@@ -100,9 +99,9 @@ async function payCollectionByCode(req, res) {
 
   res.locals.audit = {
     targetId: collection._id,
-    targetCode: collection.collectionCode,
+    targetCode: auditTransactionCode(collection),
     metadata: {
-      collectionCode: collection.collectionCode,
+      transactionCode: auditTransactionCode(collection),
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,
@@ -136,10 +135,9 @@ export const payCollectionById = async (req, res) => {
 
   res.locals.audit = {
     targetId: collection._id,
-    targetCode: collection.referenceCode ?? collection.collectionCode,
+    targetCode: auditTransactionCode(collection),
     metadata: {
-      collectionCode: collection.collectionCode,
-      referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
+      transactionCode: auditTransactionCode(collection),
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,
@@ -171,9 +169,9 @@ export const cancelCollection = async (req, res) => {
 
   res.locals.audit = {
     targetId: collection._id,
-    targetCode: collection.collectionCode,
+    targetCode: auditTransactionCode(collection),
     metadata: {
-      collectionCode: collection.collectionCode,
+      transactionCode: auditTransactionCode(collection),
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,
@@ -205,10 +203,9 @@ export const cancelCollectionById = async (req, res) => {
 
   res.locals.audit = {
     targetId: collection._id,
-    targetCode: collection.referenceCode ?? collection.collectionCode,
+    targetCode: auditTransactionCode(collection),
     metadata: {
-      collectionCode: collection.collectionCode,
-      referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
+      transactionCode: auditTransactionCode(collection),
       amount: collection.amount,
       currency: collection.currency,
       payoutAmount: collection.payoutAmount,
@@ -234,4 +231,8 @@ function auditId(value) {
   }
 
   return value;
+}
+
+function auditTransactionCode(collection) {
+  return collection.transactionCode ?? collection.collectionCode ?? null;
 }

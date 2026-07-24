@@ -16,6 +16,7 @@ const VALID_CURRENCIES = new Set(["FCFA", "GNF"]);
 const CORRESPONDENT_RATE_BASE_AMOUNT = 5000;
 const CORRESPONDENT_RATE_BASE_CURRENCY = "FCFA";
 const CORRESPONDENT_RATE_QUOTE_CURRENCY = "GNF";
+const MAX_TRANSACTION_CODE_ATTEMPTS = 5;
 const PARTNER_FORBIDDEN_RATE_FIELDS = [
   "payoutAmount",
   "payoutCurrency",
@@ -69,6 +70,44 @@ export async function createCorrespondentCollection({
     role,
   });
 
+  for (let attempt = 0; attempt < MAX_TRANSACTION_CODE_ATTEMPTS; attempt += 1) {
+    try {
+      return await createCollectionTransaction({
+        companyId,
+        membershipId,
+        normalized,
+        transactionCode: generateTransactionCode(),
+        userId,
+      });
+    } catch (error) {
+      if (!isTransactionCodeDuplicate(error)) {
+        throw error;
+      }
+
+      if (attempt === MAX_TRANSACTION_CODE_ATTEMPTS - 1) {
+        throw new ApiError(
+          409,
+          "Unable to generate a unique transaction code",
+          "CORRESPONDENT_TRANSACTION_CODE_COLLISION",
+        );
+      }
+    }
+  }
+
+  throw new ApiError(
+    409,
+    "Unable to generate a unique transaction code",
+    "CORRESPONDENT_TRANSACTION_CODE_COLLISION",
+  );
+}
+
+async function createCollectionTransaction({
+  companyId,
+  membershipId,
+  normalized,
+  transactionCode,
+  userId,
+}) {
   return runTransaction(async (session) => {
     const existing = await CorrespondentCollection.findOne({
       company: companyId,
@@ -106,8 +145,9 @@ export async function createCorrespondentCollection({
           correspondentMembership: normalized.correspondentMembershipId,
           createdByMembership: membershipId,
           createdBy: userId,
-          collectionCode: normalized.referenceCode ?? undefined,
-          referenceCode: normalized.referenceCode,
+          transactionCode,
+          collectionCode: undefined,
+          referenceCode: undefined,
           amount: normalized.amount,
           beneficiaryName: normalized.beneficiaryName,
           beneficiaryPhone: normalized.beneficiaryPhone,
@@ -284,7 +324,10 @@ export async function getCorrespondentCollectionByCode({
 
   const filter = {
     company: companyId,
-    collectionCode,
+    $or: [
+      { transactionCode: collectionCode },
+      { collectionCode },
+    ],
     ...(role === "partner" && { correspondentMembership: membershipId }),
   };
 
@@ -415,11 +458,9 @@ export async function cancelCorrespondentCollectionById({
   });
 }
 
-export function generateCollectionCode() {
-  const date = new Date().toISOString().slice(2, 10).replace(/-/g, "");
-  const random = crypto.randomBytes(2).toString("hex").toUpperCase();
-
-  return `CCL-${date}-${random}`;
+export function generateTransactionCode() {
+  const numericCode = crypto.randomInt(0, 100000000).toString().padStart(8, "0");
+  return `TX-${numericCode}`;
 }
 
 function applyCollectionPopulate(query) {
@@ -432,7 +473,10 @@ function applyCollectionPopulate(query) {
 async function findCollectionByCode({ collectionCode, companyId, session }) {
   const collection = await CorrespondentCollection.findOne({
     company: companyId,
-    collectionCode,
+    $or: [
+      { transactionCode: collectionCode },
+      { collectionCode },
+    ],
   }).session(session);
 
   if (!collection) {
@@ -725,6 +769,23 @@ function buildListFilter({ companyId, membershipId, query, role }) {
     );
   }
 
+  const search = normalizeOptionalString({
+    errorCode: "INVALID_CORRESPONDENT_TRANSACTION_SEARCH",
+    label: "Search",
+    maxLength: 100,
+    value: query.search,
+  });
+
+  if (search) {
+    const searchPattern = new RegExp(escapeRegExp(search), "i");
+    filter.$or = [
+      { transactionCode: searchPattern },
+      { collectionCode: searchPattern },
+      { beneficiaryName: searchPattern },
+      { customerName: searchPattern },
+    ];
+  }
+
   return filter;
 }
 
@@ -759,12 +820,6 @@ async function normalizeCreatePayload(payload, { companyId, membershipId, role }
     "Idempotency key is required",
     "IDEMPOTENCY_KEY_REQUIRED",
   );
-  const referenceCode = normalizeOptionalString({
-    errorCode: "INVALID_COLLECTION_REFERENCE_CODE",
-    label: "Reference code",
-    maxLength: 80,
-    value: payload.referenceCode ?? payload.collectionCode,
-  }) ?? null;
   const payoutAndRateWithSource =
     amountInput.source === "computed"
       ? amountInput
@@ -793,7 +848,6 @@ async function normalizeCreatePayload(payload, { companyId, membershipId, role }
     inputCurrency: amountInput.inputCurrency,
     inputSide: amountInput.inputSide,
     note,
-    referenceCode,
     ...payoutAndRate,
     idempotencyPayload: compactObject({
       amount: amountInput.amount,
@@ -805,10 +859,23 @@ async function normalizeCreatePayload(payload, { companyId, membershipId, role }
       inputCurrency: amountInput.inputCurrency,
       inputSide: amountInput.inputSide,
       note,
-      ...(referenceCode ? { referenceCode } : {}),
       ...payoutAndRate,
     }),
   };
+}
+
+function isTransactionCodeDuplicate(error) {
+  if (error?.code !== 11000) {
+    return false;
+  }
+
+  return Boolean(
+    error.keyPattern?.transactionCode || error.keyValue?.transactionCode,
+  );
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function normalizeCollectionAmountInput(payload, { companyId, role }) {

@@ -237,12 +237,12 @@ describe('CorrespondentCollectionPage', () => {
           createTransaction({ status: 'pending' }),
           createTransaction({
             id: 'tx-2',
-            collectionCode: 'CCL-PAID',
+            transactionCode: 'TX-99210453',
             status: 'paid',
           }),
           createTransaction({
             id: 'tx-3',
-            collectionCode: 'CCL-CANCELED',
+            transactionCode: 'TX-99210454',
             status: 'canceled',
           }),
         ],
@@ -268,13 +268,45 @@ describe('CorrespondentCollectionPage', () => {
     expect(html).toContain(
       'Fonds reçus par le correspondant, bénéficiaire pas encore payé.',
     )
-    expect(html).toContain(
-      'Bénéficiaire payé. Le solde du correspondant n’a pas été modifié à nouveau.',
-    )
-    expect(html).toContain(
-      'Transaction annulée. L’effet sur le solde correspondant a été reversé.',
-    )
+    expect(html).toContain('Bénéficiaire payé')
+    expect(html).toContain('Annulée')
     expect(html).not.toMatch(/payoutAmount|payoutCurrency|amount|currency/)
+  })
+
+  it('renders a compact manager transaction list with partner filters and detail panel', () => {
+    mocks.useMe.mockReturnValue({
+      data: { memberships: [createMembership('manager')] },
+      isLoading: false,
+    })
+    mocks.useCorrespondentTransactions.mockReturnValue({
+      data: { data: [createTransaction()] },
+      error: null,
+      isLoading: false,
+    })
+
+    const html = renderPage('/app/correspondent-collections?tab=transactions')
+
+    expect(html).toContain('data-transaction-list="true"')
+    expect(html).toContain('data-transaction-card="true"')
+    expect(html).toContain('data-transaction-detail="true"')
+    expect(html).toContain('TX-99210452')
+    expect(html).toContain('Filtrer par correspondant')
+    expect(html).toContain('Détails de la transaction')
+    expect(html).toContain('Créée le')
+    expect(html).toContain('Taux appliqué')
+  })
+
+  it('keeps partner transaction filters scoped without a partner selector', () => {
+    mocks.useCorrespondentTransactions.mockReturnValue({
+      data: { data: [createTransaction()] },
+      error: null,
+      isLoading: false,
+    })
+
+    const html = renderPage('/app/correspondent-collections?tab=my-transactions')
+
+    expect(html).toContain('Rechercher par code ou bénéficiaire')
+    expect(html).not.toContain('Filtrer par correspondant')
   })
 
   it('shows payout amount first and contextual status message in pay-by-code', () => {
@@ -408,7 +440,7 @@ function createCorrespondent(override = {}) {
 function createTransaction(override = {}) {
   return {
     id: 'tx-1',
-    collectionCode: 'CCL-260627-ABCD',
+    transactionCode: 'TX-99210452',
     amount: 328000000,
     currency: 'GNF' as const,
     payoutAmount: 20000000,

@@ -19,6 +19,7 @@
   },
   "scripts": {
     "test": "jest --runInBand && npm run test --prefix frontend -- --run",
+    "backfill:correspondent-transaction-codes": "node backend/scripts/backfillCorrespondentTransactionCodes.js",
     "dev": "nodemon backend/index.js",
     "start": "VITE_NODE_ENV=production node backend/index.js",
     "build": "npm install && npm install --prefix frontend && npm run build --prefix frontend"

@@ -39,16 +39,16 @@ describe("correspondent collection controller", () => {
     expect(res.json.mock.calls[0][0].data).toEqual(
       expect.objectContaining({
         id: ids.collectionId.toHexString(),
-        collectionCode: "CCL-260625-ABCD",
+        transactionCode: "TX-99210452",
         status: "pending",
         correspondentName: "Awa Traore",
       }),
     );
     expect(res.locals.audit).toEqual({
       targetId: ids.collectionId,
-      targetCode: "CCL-260625-ABCD",
+      targetCode: "TX-99210452",
       metadata: {
-        collectionCode: "CCL-260625-ABCD",
+        transactionCode: "TX-99210452",
         amount: 25000,
         currency: "FCFA",
         payoutAmount: 20000000,
@@ -91,7 +91,7 @@ describe("correspondent collection controller", () => {
       success: true,
       code: 200,
       pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
-      data: [expect.objectContaining({ collectionCode: "CCL-260625-ABCD" })],
+      data: [expect.objectContaining({ transactionCode: "TX-99210452" })],
     });
   });
 
@@ -168,14 +168,14 @@ describe("correspondent collection controller", () => {
           membershipId: ids.correspondentMembershipId,
           role: "partner",
         },
-        params: { collectionCode: "CCL-260625-ABCD" },
+        params: { collectionCode: "TX-99210452" },
       }),
       res,
     );
 
     expect(correspondentCollectionService.getCorrespondentCollectionByCode)
       .toHaveBeenCalledWith({
-        collectionCode: "CCL-260625-ABCD",
+        collectionCode: "TX-99210452",
         companyId: ids.companyId,
         membershipId: ids.correspondentMembershipId,
         role: "partner",
@@ -199,14 +199,14 @@ describe("correspondent collection controller", () => {
 
     await payCollection(
       createRequest(ids, {
-        params: { collectionCode: "CCL-260625-ABCD" },
+        params: { collectionCode: "TX-99210452" },
       }),
       res,
     );
 
     expect(correspondentCollectionService.confirmCorrespondentCollection)
       .toHaveBeenCalledWith({
-        collectionCode: "CCL-260625-ABCD",
+        collectionCode: "TX-99210452",
         companyId: ids.companyId,
         membershipId: ids.managerMembershipId,
         userId: ids.managerId,
@@ -218,7 +218,7 @@ describe("correspondent collection controller", () => {
       "collection-create-1",
     );
     expect(res.locals.audit.metadata).toEqual({
-      collectionCode: "CCL-260625-ABCD",
+      transactionCode: "TX-99210452",
       amount: 25000,
       currency: "FCFA",
       payoutAmount: 20000000,
@@ -247,7 +247,7 @@ describe("correspondent collection controller", () => {
 
     await confirmCollection(
       createRequest(ids, {
-        params: { collectionCode: "CCL-260625-ABCD" },
+        params: { collectionCode: "TX-99210452" },
       }),
       res,
     );
@@ -274,14 +274,14 @@ describe("correspondent collection controller", () => {
     await cancelCollection(
       createRequest(ids, {
         body: { reason: "Customer reversed", transactionPin: "123456" },
-        params: { collectionCode: "CCL-260625-ABCD" },
+        params: { collectionCode: "TX-99210452" },
       }),
       res,
     );
 
     expect(correspondentCollectionService.cancelCorrespondentCollection)
       .toHaveBeenCalledWith({
-        collectionCode: "CCL-260625-ABCD",
+        collectionCode: "TX-99210452",
         companyId: ids.companyId,
         membershipId: ids.managerMembershipId,
         userId: ids.managerId,
@@ -290,7 +290,7 @@ describe("correspondent collection controller", () => {
       });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.locals.audit.metadata).toEqual({
-      collectionCode: "CCL-260625-ABCD",
+      transactionCode: "TX-99210452",
       amount: 25000,
       currency: "FCFA",
       payoutAmount: 20000000,
@@ -343,7 +343,7 @@ function createCollectionRecord(
     },
     createdByMembership: managerMembershipId,
     createdBy: managerId,
-    collectionCode: "CCL-260625-ABCD",
+    transactionCode: "TX-99210452",
     amount: 25000,
     beneficiaryName: "Client Bamako",
     beneficiaryPhone: "+22370000000",

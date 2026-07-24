@@ -129,7 +129,7 @@ describe('DashboardPage API error state', () => {
           createCorrespondentTransaction({ status: 'pending' }),
           createCorrespondentTransaction({
             id: 'tx-2',
-            collectionCode: 'CCL-2',
+            transactionCode: 'TX-99210453',
             status: 'paid',
           }),
         ],
@@ -230,7 +230,7 @@ function createCorrespondentMembership(role: Membership['role']): Membership {
 function createCorrespondentTransaction(override = {}) {
   return {
     id: 'tx-1',
-    collectionCode: 'CCL-1',
+    transactionCode: 'TX-99210452',
     amount: 328000000,
     currency: 'GNF',
     payoutAmount: 20000000,

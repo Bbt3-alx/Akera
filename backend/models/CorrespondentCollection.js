@@ -49,6 +49,11 @@ const correspondentCollectionSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
     },
+    transactionCode: {
+      type: String,
+      trim: true,
+      match: /^TX-\d{8}$/,
+    },
     collectionCode: {
       type: String,
       trim: true,
@@ -221,13 +226,20 @@ const correspondentCollectionSchema = new Schema(
 correspondentCollectionSchema.index(
   {
     company: 1,
-    collectionCode: 1,
+    transactionCode: 1,
   },
   {
     unique: true,
     partialFilterExpression: {
-      collectionCode: { $type: "string" },
+      transactionCode: { $type: "string" },
     },
+  },
+);
+
+correspondentCollectionSchema.index(
+  {
+    company: 1,
+    collectionCode: 1,
   },
 );
 

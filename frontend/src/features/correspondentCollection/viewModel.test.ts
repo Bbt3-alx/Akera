@@ -81,7 +81,7 @@ describe('correspondent collection view model', () => {
   it('keeps user-facing terminology free of backend collection and delivery wording', () => {
     const visibleText = Object.values(CORRESPONDENT_UI_TEXT).join(' ')
 
-    expect(visibleText).toContain('Transactions correspondants')
+    expect(visibleText).toContain('Transactions correspondantes')
     expect(visibleText).toContain('Confirmer le retrait')
     expect(visibleText).not.toMatch(/collecte|livraison|collection|delivery/i)
   })
@@ -193,7 +193,7 @@ describe('correspondent collection view model', () => {
       ],
       transactions: [
         createTransaction({ status: 'pending' }),
-        createTransaction({ id: 'tx-2', collectionCode: 'CCL-2', status: 'paid' }),
+        createTransaction({ id: 'tx-2', transactionCode: 'TX-99210453', status: 'paid' }),
       ],
       withdrawals: [
         createWithdrawal({ status: 'pending' }),
@@ -353,7 +353,7 @@ function createTransaction(
 ): CorrespondentTransaction {
   return {
     id: 'tx-1',
-    collectionCode: 'CCL-260627-ABCD',
+    transactionCode: 'TX-99210452',
     amount: 328000000,
     currency: 'GNF',
     payoutAmount: 20000000,

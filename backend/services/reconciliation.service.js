@@ -259,7 +259,7 @@ function detectCorrespondentCollectionIssues(collections, detectedAt) {
         severity: "warning",
         collectionName: "CorrespondentCollection",
         documentId: collection._id,
-        referenceCode: collection.collectionCode,
+        referenceCode: collection.transactionCode ?? collection.collectionCode,
         expectedAmount: collection.amount,
         actualAmount: 0,
         currency: collection.currency,

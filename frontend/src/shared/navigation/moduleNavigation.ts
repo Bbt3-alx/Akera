@@ -94,7 +94,9 @@ function getTransferItems(
     hasCorrespondentCollectionWorkflow
   ) {
     items.push({
-      label: 'Correspondants',
+      label: hasLegacyTransferWorkflow
+        ? 'Correspondent transactions'
+        : 'Transactions',
       to: '/app/correspondent-collections',
     })
   }

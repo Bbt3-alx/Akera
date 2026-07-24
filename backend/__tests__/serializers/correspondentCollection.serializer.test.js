@@ -37,6 +37,7 @@ describe("correspondent collection serializer", () => {
       },
       canceledByMembership: undefined,
       canceledBy: undefined,
+      transactionCode: "TX-99210452",
       collectionCode: "CCL-260625-ABCD",
       referenceCode: "CLIENT-REF-42",
       amount: 25000,
@@ -80,8 +81,7 @@ describe("correspondent collection serializer", () => {
 
     expect(result).toEqual({
       id: "collection-1",
-      collectionCode: "CCL-260625-ABCD",
-      referenceCode: "CLIENT-REF-42",
+      transactionCode: "TX-99210452",
       amount: 25000,
       beneficiaryName: "Kadidia",
       beneficiaryPhone: "+22371000000",
@@ -128,5 +128,19 @@ describe("correspondent collection serializer", () => {
     expect(JSON.stringify(result)).not.toContain("123456");
     expect(JSON.stringify(result)).not.toContain("ipAddress");
     expect(JSON.stringify(result)).not.toContain("internal");
+    expect(result).not.toHaveProperty("collectionCode");
+    expect(result).not.toHaveProperty("referenceCode");
+  });
+
+  it("uses a legacy collection code as the transaction code fallback", () => {
+    expect(
+      serializeCorrespondentCollection({
+        _id: "legacy-collection-1",
+        collectionCode: "CCL-260625-ABCD",
+      }),
+    ).toMatchObject({
+      id: "legacy-collection-1",
+      transactionCode: "CCL-260625-ABCD",
+    });
   });
 });

@@ -125,7 +125,7 @@ describe("reconciliation service", () => {
       {
         _id: ids.collectionId,
         company: ids.companyId,
-        collectionCode: "COL-001",
+        transactionCode: "TX-99210452",
         status: "paid",
         amount: 5000,
         currency: "FCFA",
@@ -163,7 +163,7 @@ describe("reconciliation service", () => {
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         issueType: "correspondent_collection_missing_account_operation",
-        referenceCode: "COL-001",
+        referenceCode: "TX-99210452",
       }),
     );
     expect(create).toHaveBeenCalledWith(

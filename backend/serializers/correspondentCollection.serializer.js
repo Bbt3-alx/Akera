@@ -12,8 +12,7 @@ export function serializeCorrespondentCollection(collection) {
 
   return {
     id: serializeId(collection._id ?? collection.id),
-    collectionCode: collection.collectionCode,
-    referenceCode: collection.referenceCode ?? collection.collectionCode ?? null,
+    transactionCode: collection.transactionCode ?? collection.collectionCode ?? null,
     amount: collection.amount,
     beneficiaryName: collection.beneficiaryName ?? collection.customerName,
     beneficiaryPhone: collection.beneficiaryPhone ?? collection.customerPhone,

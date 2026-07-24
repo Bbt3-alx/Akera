@@ -46,13 +46,13 @@ describe('module-aware navigation', () => {
     expect(flattenLabels(sections)).toEqual(
       expect.arrayContaining([
         'Dashboard',
-        'Correspondants',
+        'Transactions',
         'Account Operations / Withdrawals',
         'Exchange Rate',
         'Company Cash',
       ]),
     )
-    expect(flattenLabels(sections)).not.toContain('Transactions')
+    expect(flattenLabels(sections)).not.toContain('Correspondent transactions')
     expect(flattenLabels(sections)).not.toContain('Buy Operations')
   })
 
@@ -80,9 +80,9 @@ describe('module-aware navigation', () => {
       'Administration',
     ])
     expect(flattenLabels(sections)).toEqual(
-      expect.arrayContaining(['Correspondants', 'Buy Operations', 'Company Cash']),
+      expect.arrayContaining(['Transactions', 'Buy Operations', 'Company Cash']),
     )
-    expect(flattenLabels(sections)).not.toContain('Transactions')
+    expect(flattenLabels(sections)).not.toContain('Correspondent transactions')
   })
 
   it('shows operations instead of legacy transactions for remote-agent-only companies', () => {
@@ -125,6 +125,23 @@ describe('module-aware navigation', () => {
     )
   })
 
+  it('distinguishes correspondent transactions when legacy transactions are visible', () => {
+    const sections = buildNavigationSections({
+      enabledModules: [
+        'transfers',
+        'correspondent_collections',
+        'remote_agent_payout',
+      ],
+      isManager: true,
+      pendingInvitationCount: 0,
+      transferWorkflows: ['correspondent_collection', 'remote_agent_payout'],
+    })
+
+    expect(flattenLabels(sections)).toEqual(
+      expect.arrayContaining(['Transactions', 'Correspondent transactions']),
+    )
+  })
+
   it('does not expose the legacy Collections label for correspondent companies', () => {
     const sections = buildNavigationSections({
       enabledModules: ['transfers', 'correspondent_collections'],
@@ -133,7 +150,7 @@ describe('module-aware navigation', () => {
       transferWorkflows: ['correspondent_collection'],
     })
 
-    expect(flattenLabels(sections)).toContain('Correspondants')
+    expect(flattenLabels(sections)).toContain('Transactions')
     expect(flattenLabels(sections)).not.toContain('Collections')
   })
 

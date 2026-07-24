@@ -19,7 +19,8 @@ describe("correspondent collection domain docs", () => {
       "One CompanyMembership has one currency balance.",
     );
     expect(docs).toContain("Company.balance is not mutated");
-    expect(docs).toContain("collectionCode is the manager pay-by-code handle");
+    expect(docs).toContain("transactionCode is the manager pay-by-code handle");
+    expect(docs).toContain("TX-########");
     expect(docs).toContain(
       "A pending collection increases the correspondent balance immediately at creation",
     );

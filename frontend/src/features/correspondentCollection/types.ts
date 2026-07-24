@@ -38,8 +38,7 @@ export type CorrespondentConversionDirection = 'GNF_TO_FCFA' | 'FCFA_TO_GNF'
 
 export type CorrespondentTransaction = RateSnapshot & {
   id: string
-  collectionCode?: string | null
-  referenceCode?: string | null
+  transactionCode: string
   amount: number
   currency: CorrespondentCurrency
   payoutAmount: number
@@ -55,7 +54,16 @@ export type CorrespondentTransaction = RateSnapshot & {
   correspondentName?: string | null
   correspondentEmail?: string | null
   note?: string | null
+  createdBy?: string | null
+  createdByName?: string | null
+  confirmedBy?: string | null
+  confirmedByName?: string | null
+  confirmedAt?: string | null
+  paidBy?: string | null
+  paidByName?: string | null
   paidAt?: string | null
+  canceledBy?: string | null
+  canceledByName?: string | null
   canceledAt?: string | null
   cancelReason?: string | null
   createdAt: string
@@ -109,7 +117,6 @@ export type CreateCorrespondentTransactionPayload = {
   inputAmount?: number
   inputCurrency?: CorrespondentCurrency
   inputSide?: CorrespondentInputSide
-  referenceCode?: string
   beneficiaryName: string
   beneficiaryPhone?: string
   note?: string

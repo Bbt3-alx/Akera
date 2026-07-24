@@ -134,6 +134,26 @@ describe("CorrespondentCollection model", () => {
     ]);
   });
 
+  it("validates generated transaction code format", async () => {
+    const collection = new CorrespondentCollection({
+      company: new mongoose.Types.ObjectId(),
+      correspondentMembership: new mongoose.Types.ObjectId(),
+      createdByMembership: new mongoose.Types.ObjectId(),
+      createdBy: new mongoose.Types.ObjectId(),
+      transactionCode: "BAD-99210452",
+      amount: 25000,
+      currency: "FCFA",
+      customerName: "Awa Traore",
+      idempotencyKey: "collection-create-1",
+      idempotencyPayload: {},
+    });
+
+    await expect(collection.validate()).rejects.toThrow();
+
+    collection.transactionCode = "TX-99210452";
+    await expect(collection.validate()).resolves.toBeUndefined();
+  });
+
   it("tracks paid audit fields and cancellation reversal operation", () => {
     expect(CorrespondentCollection.schema.path("paidByMembership").options.ref)
       .toBe("CompanyMembership");
@@ -150,14 +170,21 @@ describe("CorrespondentCollection model", () => {
         [
           {
             company: 1,
-            collectionCode: 1,
+            transactionCode: 1,
           },
           {
             unique: true,
             partialFilterExpression: {
-              collectionCode: { $type: "string" },
+              transactionCode: { $type: "string" },
             },
           },
+        ],
+        [
+          {
+            company: 1,
+            collectionCode: 1,
+          },
+          {},
         ],
         [
           {
