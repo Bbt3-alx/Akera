@@ -4,22 +4,22 @@ export const VERIFICATION_EMAIL_TEMPLATE = `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verify Your Email</title>
+  <title>Vérifiez votre adresse e-mail</title>
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
   <div style="background: linear-gradient(to right, #4CAF50, #45a049); padding: 20px; text-align: center;">
-    <h1 style="color: white; margin: 0;">Verify Your Email</h1>
+    <h1 style="color: white; margin: 0;">Vérifiez votre adresse e-mail</h1>
   </div>
   <div style="background-color: #f9f9f9; padding: 20px; border-radius: 0 0 5px 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-    <p>Hello,</p>
-    <p>Thank you for signing up! Your verification code is:</p>
+    <p>Bonjour,</p>
+    <p>Merci pour votre inscription. Votre code de vérification est :</p>
     <div style="text-align: center; margin: 30px 0;">
       <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #4CAF50;">{verificationCode}</span>
     </div>
-    <p>Enter this code on the verification page to complete your registration.</p>
-    <p>This code will expire in 15 minutes for security reasons.</p>
-    <p>If you didn't create an account with us, please ignore this email.</p>
-    <p>Best regards,<br>Akera Team</p>
+    <p>Saisissez ce code dans Akera pour terminer votre inscription.</p>
+    <p>Pour votre sécurité, ce code expire dans 15 minutes.</p>
+    <p>Si vous n’avez pas créé de compte, ignorez ce message.</p>
+    <p>L’équipe Akera</p>
   </div>
   <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.8em;">
     <p>This is an automated message, please do not reply to this email.</p>
@@ -89,6 +89,27 @@ export const PASSWORD_RESET_REQUEST_TEMPLATE = `
   </div>
   <div style="text-align: center; margin-top: 20px; color: #888; font-size: 0.8em;">
     <p>This is an automated message, please do not reply to this email.</p>
+  </div>
+</body>
+</html>
+`;
+
+export const COMPANY_INVITATION_TEMPLATE = `
+<!DOCTYPE html>
+<html lang="fr">
+<body style="font-family:Arial,sans-serif;color:#24272d;max-width:600px;margin:0 auto;padding:24px">
+  <div style="background:#050505;color:#fff;padding:28px;text-align:center">
+    <h1 style="margin:0">Akera Financial</h1>
+    <p style="margin:10px 0 0">Invitation à rejoindre une équipe</p>
+  </div>
+  <div style="border:1px solid #d7dce1;padding:28px">
+    <p>Vous avez été invité(e) à rejoindre <strong>{companyName}</strong>.</p>
+    <p>Votre code d’invitation :</p>
+    <p style="font-size:26px;font-weight:bold;letter-spacing:4px;text-align:center">{invitationCode}</p>
+    <p style="text-align:center;margin:28px 0">
+      <a href="{invitationUrl}" style="background:#050505;color:#fff;padding:14px 22px;text-decoration:none">Consulter l’invitation</a>
+    </p>
+    <p style="color:#667085;font-size:13px">Ce lien est personnel. Ne le transférez pas.</p>
   </div>
 </body>
 </html>

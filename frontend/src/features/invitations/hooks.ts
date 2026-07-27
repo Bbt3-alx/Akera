@@ -15,6 +15,7 @@ import {
   listCompanyInvitations,
   listMyInvitations,
   rejectInvitation,
+  resolveInvitation,
   revokeInvitation,
 } from './api.ts'
 import type {
@@ -34,6 +35,8 @@ export const invitationKeys = {
     status?: InvitationStatus,
   ) => [...invitationKeys.companyLists(activeCompanyId), status ?? 'all'] as const,
   myAll: ['myInvitations'] as const,
+  resolved: (credential: string) =>
+    ['myInvitations', 'resolved', credential] as const,
 }
 
 export function useCompanyInvitations(
@@ -56,6 +59,15 @@ export function useMyInvitations() {
     queryKey: invitationKeys.myAll,
     queryFn: listMyInvitations,
     enabled: Boolean(accessToken),
+  })
+}
+
+export function useResolvedInvitation(credential: string, enabled = true) {
+  return useQuery({
+    queryKey: invitationKeys.resolved(credential),
+    queryFn: () => resolveInvitation(credential),
+    enabled: Boolean(credential && enabled),
+    retry: false,
   })
 }
 

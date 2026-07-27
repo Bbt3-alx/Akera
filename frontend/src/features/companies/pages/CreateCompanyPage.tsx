@@ -1,332 +1,200 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router-dom'
-import {
-  useForm,
-  useWatch,
-  type UseFormRegisterReturn,
-} from 'react-hook-form'
+import { Building2, Gem, Network, UsersRound, X } from 'lucide-react'
+import { useForm, useWatch } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { z } from 'zod'
+import { useQueryClient } from '@tanstack/react-query'
 
+import {
+  AuthField,
+  AuthNotice,
+  AuthPage,
+  PrimaryButton,
+} from '../../../shared/components/AuthUI.tsx'
+import { getFrenchErrorMessage } from '../../../shared/utils/frenchError.ts'
 import { AUTH_ME_QUERY_KEY } from '../../auth/hooks.ts'
-import { AppApiError } from '../../../shared/api/types.ts'
+import { useCreateCompany } from '../hooks.ts'
 import { toCreateCompanyPayload } from '../onboarding.ts'
 import { useCompaniesStore } from '../store.ts'
-import { useCreateCompany } from '../hooks.ts'
-import type { TransferWorkflowSelection } from '../types.ts'
 
-const createCompanySchema = z.object({
-  name: z.string().min(1, 'Company name is required'),
-  address: z.string().min(1, 'Address is required'),
-  contact: z.string().min(1, 'Contact is required'),
+const schema = z.object({
+  name: z.string().min(1, 'Le nom de l’entreprise est requis.'),
+  address: z.string().min(1, 'L’adresse est requise.'),
+  contact: z.string().min(1, 'Le contact est requis.'),
   baseCurrency: z.enum(['FCFA', 'GNF']),
-  businessType: z.enum(['transfer', 'gold_trading', 'mixed']),
-  transferWorkflowSelection: z.enum([
-    'correspondent_collection',
-    'remote_agent_payout',
-    'both',
-  ]),
+  activity: z.enum(['correspondents', 'agents', 'gold', 'mixed']),
+  mixedWorkflow: z.enum(['correspondent_collection', 'remote_agent_payout', 'both']),
 })
+type Values = z.infer<typeof schema>
 
-type CreateCompanyFormValues = z.infer<typeof createCompanySchema>
-
-type CreateCompanyPageProps = {
-  variant?: 'standalone' | 'embedded'
-}
+const activities = [
+  {
+    value: 'correspondents',
+    title: 'Correspondants / transferts',
+    description: 'Gestion des flux financiers',
+    icon: UsersRound,
+  },
+  {
+    value: 'agents',
+    title: 'Agents distants',
+    description: 'Réseau de distribution',
+    icon: Network,
+  },
+  {
+    value: 'gold',
+    title: 'Or / Gold',
+    description: 'Négoce de métaux précieux',
+    icon: Gem,
+  },
+  {
+    value: 'mixed',
+    title: 'Mixte',
+    description: 'Activités combinées',
+    icon: Building2,
+  },
+] as const
 
 export function CreateCompanyPage({
   variant = 'standalone',
-}: CreateCompanyPageProps) {
+}: {
+  variant?: 'standalone' | 'embedded'
+}) {
+  const embedded = variant === 'embedded'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const createCompanyMutation = useCreateCompany()
-  const activeCompanyId = useCompaniesStore((state) => state.activeCompanyId)
-  const setActiveCompanyId = useCompaniesStore(
-    (state) => state.setActiveCompanyId,
-  )
+  const mutation = useCreateCompany()
+  const setCompany = useCompaniesStore((state) => state.setActiveCompanyId)
   const {
     control,
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
-  } = useForm<CreateCompanyFormValues>({
-    resolver: zodResolver(createCompanySchema),
+  } = useForm<Values>({
+    resolver: zodResolver(schema),
     defaultValues: {
       name: '',
       address: '',
       contact: '',
       baseCurrency: 'FCFA',
-      businessType: 'transfer',
-      transferWorkflowSelection: 'correspondent_collection',
+      activity: 'correspondents',
+      mixedWorkflow: 'both',
     },
   })
-  const selectedBusinessType = useWatch({
-    control,
-    name: 'businessType',
-  })
-  const errorMessage = getErrorMessage(createCompanyMutation.error)
-  const isEmbedded = variant === 'embedded'
-  const backLinkTo =
-    isEmbedded && activeCompanyId ? '/app/dashboard' : '/select-company'
-  const backLinkLabel =
-    isEmbedded && activeCompanyId
-      ? 'Back to dashboard'
-      : 'Back to company access'
+  const activity = useWatch({ control, name: 'activity' })
 
-  const onSubmit = handleSubmit(async (values) => {
-    const response = await createCompanyMutation.mutateAsync(
-      toCreateCompanyPayload(values),
+  const submit = handleSubmit(async (values) => {
+    const businessType =
+      values.activity === 'gold'
+        ? 'gold_trading'
+        : values.activity === 'mixed'
+          ? 'mixed'
+          : 'transfer'
+    const transferWorkflowSelection =
+      values.activity === 'agents'
+        ? 'remote_agent_payout'
+        : values.activity === 'mixed'
+          ? values.mixedWorkflow
+          : 'correspondent_collection'
+    const response = await mutation.mutateAsync(
+      toCreateCompanyPayload({
+        name: values.name.trim(),
+        address: values.address.trim(),
+        contact: values.contact.trim(),
+        baseCurrency: values.baseCurrency,
+        businessType,
+        transferWorkflowSelection,
+      }),
     )
-
-    setActiveCompanyId(response.membership.companyId)
+    setCompany(response.membership.companyId)
     await queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY })
-    navigate('/app/dashboard', { replace: true })
+    navigate(embedded ? '/app/dashboard' : '/onboarding/ready', {
+      replace: true,
+    })
   })
 
   const content = (
-    <section className="w-full max-w-lg rounded border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 className="text-2xl font-semibold">Create company</h1>
-      <p className="mt-2 text-sm text-slate-600">
-        {isEmbedded
-          ? 'Create another company workspace from your account.'
-          : 'Set up your company workspace to start using Akera.'}
-      </p>
-
-      <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-        <FormField
-          error={errors.name?.message}
-          label="Company name"
-          registration={register('name')}
-        />
-        <FormField
-          error={errors.address?.message}
-          label="Address"
-          registration={register('address')}
-        />
-        <FormField
-          error={errors.contact?.message}
-          label="Contact"
-          registration={register('contact')}
-        />
-
+    <section className={embedded ? 'w-full max-w-3xl' : ''}>
+      <div className="mb-7 flex items-start justify-between border-b border-slate-200 pb-5">
         <div>
-          <label
-            className="block text-sm font-medium text-slate-700"
-            htmlFor="baseCurrency"
-          >
-            Base currency
-          </label>
-          <select
-            className="mt-1 w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-            id="baseCurrency"
-            {...register('baseCurrency')}
-          >
+          <h1 className="text-4xl font-bold tracking-tight">Créer une entreprise</h1>
+          <p className="mt-3 text-slate-600">Configurez le profil de la nouvelle entité.</p>
+        </div>
+        {!embedded ? (
+          <button aria-label="Fermer" className="p-2" onClick={() => navigate('/welcome')} type="button">
+            <X size={25} />
+          </button>
+        ) : null}
+      </div>
+      <form className="auth-form" onSubmit={submit}>
+        <AuthField
+          error={errors.name?.message}
+          id="company-name"
+          label="Nom de l’entreprise"
+          placeholder="Ex. Akera Holding"
+          {...register('name')}
+        />
+        <div className="auth-form-row">
+          <AuthField
+            error={errors.address?.message}
+            id="company-address"
+            label="Adresse"
+            placeholder="Bamako, Mali"
+            {...register('address')}
+          />
+          <AuthField
+            error={errors.contact?.message}
+            id="company-contact"
+            label="Contact"
+            placeholder="+223 70 00 00 00"
+            {...register('contact')}
+          />
+        </div>
+        <div>
+          <label className="auth-label" htmlFor="base-currency">Devise principale</label>
+          <select className="auth-select" id="base-currency" {...register('baseCurrency')}>
             <option value="FCFA">FCFA</option>
             <option value="GNF">GNF</option>
           </select>
-          {errors.baseCurrency ? (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.baseCurrency.message}
-            </p>
-          ) : null}
         </div>
-
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-slate-700">
-            What do you want to manage with Akera?
-          </legend>
-          <BusinessTypeOption
-            description="Transfers, correspondent collections, account operations, exchange rate, and cash."
-            label="Transfers and correspondents"
-            registration={register('businessType')}
-            value="transfer"
-          />
-          <BusinessTypeOption
-            description="Buy, sell, shipping, gold payments, and company cash."
-            label="Gold trading"
-            registration={register('businessType')}
-            value="gold_trading"
-          />
-          <BusinessTypeOption
-            description="Both transfer/correspondent workflows and gold trading workflows."
-            label="Both"
-            registration={register('businessType')}
-            value="mixed"
-          />
-          {errors.businessType ? (
-            <p className="mt-1 text-sm text-red-600">
-              {errors.businessType.message}
-            </p>
-          ) : null}
+        <fieldset>
+          <legend className="auth-label mb-3">Type d’activité</legend>
+          <div className="auth-choice-grid">
+            {activities.map(({ description, icon: Icon, title, value }) => (
+              <label className="auth-choice" key={value}>
+                <input type="radio" value={value} {...register('activity')} />
+                <Icon className="shrink-0" size={22} />
+                <span>
+                  <strong>{title}</strong>
+                  <span>{description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </fieldset>
-
-        {selectedBusinessType === 'transfer' ? (
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-slate-700">
-              Which transfer workflow applies?
-            </legend>
-            <TransferWorkflowOption
-              description="Correspondents collect money and initiate transactions. Example: Kalil collects GNF, Abdoulaye pays FCFA."
-              label="Correspondent collection"
-              registration={register('transferWorkflowSelection')}
-              value="correspondent_collection"
-            />
-            <TransferWorkflowOption
-              description="Managers initiate transactions and remote agents or employees pay beneficiaries. Example: Adama initiates in Guinea, Bamako agents pay in FCFA."
-              label="Remote agent payout"
-              registration={register('transferWorkflowSelection')}
-              value="remote_agent_payout"
-            />
-            <TransferWorkflowOption
-              description="Enable correspondent collection and remote agent payout workflows."
-              label="Both"
-              registration={register('transferWorkflowSelection')}
-              value="both"
-            />
-            {errors.transferWorkflowSelection ? (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.transferWorkflowSelection.message}
-              </p>
-            ) : null}
-          </fieldset>
+        {activity === 'mixed' ? (
+          <div>
+            <label className="auth-label" htmlFor="mixed-workflow">Flux de transfert</label>
+            <select className="auth-select" id="mixed-workflow" {...register('mixedWorkflow')}>
+              <option value="both">Correspondants et agents distants</option>
+              <option value="correspondent_collection">Correspondants uniquement</option>
+              <option value="remote_agent_payout">Agents distants uniquement</option>
+            </select>
+          </div>
         ) : null}
-
-        {errorMessage ? (
-          <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {errorMessage}
-          </p>
+        {mutation.error ? (
+          <AuthNotice>{getFrenchErrorMessage(mutation.error)}</AuthNotice>
         ) : null}
-
-        <button
-          className="w-full rounded bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-          disabled={isSubmitting || createCompanyMutation.isPending}
-          type="submit"
-        >
-          {isSubmitting || createCompanyMutation.isPending
-            ? 'Creating...'
-            : 'Create company'}
-        </button>
+        <div className="auth-actions">
+          <button className="auth-ghost" onClick={() => navigate(embedded ? '/app/dashboard' : '/welcome')} type="button">
+            Annuler
+          </button>
+          <PrimaryButton disabled={isSubmitting || mutation.isPending}>
+            {mutation.isPending ? 'Création…' : 'Créer l’entreprise'}
+          </PrimaryButton>
+        </div>
       </form>
-
-      <Link
-        className="mt-6 inline-flex text-sm font-medium text-slate-700 hover:text-slate-950 hover:underline"
-        to={backLinkTo}
-      >
-        {backLinkLabel}
-      </Link>
     </section>
   )
 
-  if (isEmbedded) {
-    return content
-  }
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
-      {content}
-    </main>
-  )
-}
-
-type TransferWorkflowOptionProps = {
-  description: string
-  label: string
-  registration: UseFormRegisterReturn
-  value: TransferWorkflowSelection
-}
-
-function TransferWorkflowOption({
-  description,
-  label,
-  registration,
-  value,
-}: TransferWorkflowOptionProps) {
-  return (
-    <label className="flex cursor-pointer gap-3 rounded border border-slate-200 p-3 transition hover:border-slate-300 hover:bg-slate-50">
-      <input
-        className="mt-1"
-        type="radio"
-        value={value}
-        {...registration}
-      />
-      <span>
-        <span className="block text-sm font-medium text-slate-900">
-          {label}
-        </span>
-        <span className="mt-1 block text-sm text-slate-600">
-          {description}
-        </span>
-      </span>
-    </label>
-  )
-}
-
-type BusinessTypeOptionProps = {
-  description: string
-  label: string
-  registration: UseFormRegisterReturn
-  value: CreateCompanyFormValues['businessType']
-}
-
-function BusinessTypeOption({
-  description,
-  label,
-  registration,
-  value,
-}: BusinessTypeOptionProps) {
-  return (
-    <label className="flex cursor-pointer gap-3 rounded border border-slate-200 p-3 transition hover:border-slate-300 hover:bg-slate-50">
-      <input
-        className="mt-1"
-        type="radio"
-        value={value}
-        {...registration}
-      />
-      <span>
-        <span className="block text-sm font-medium text-slate-900">
-          {label}
-        </span>
-        <span className="mt-1 block text-sm text-slate-600">
-          {description}
-        </span>
-      </span>
-    </label>
-  )
-}
-
-type FormFieldProps = {
-  error?: string
-  label: string
-  registration: UseFormRegisterReturn
-}
-
-function FormField({ error, label, registration }: FormFieldProps) {
-  const id = registration.name
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700" htmlFor={id}>
-        {label}
-      </label>
-      <input
-        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-        id={id}
-        type="text"
-        {...registration}
-      />
-      {error ? <p className="mt-1 text-sm text-red-600">{error}</p> : null}
-    </div>
-  )
-}
-
-function getErrorMessage(error: unknown): string | null {
-  if (!error) {
-    return null
-  }
-
-  if (error instanceof AppApiError || error instanceof Error) {
-    return error.message
-  }
-
-  return 'Unable to create company. Please try again.'
+  return embedded ? content : <AuthPage wide>{content}</AuthPage>
 }

@@ -1,186 +1,136 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { LockKeyhole, Mail, UserRound } from 'lucide-react'
+import { useForm } from 'react-hook-form'
 import { Link, useNavigate } from 'react-router-dom'
-import { useForm, type UseFormRegisterReturn } from 'react-hook-form'
 import { z } from 'zod'
 
-import { AppApiError } from '../../../shared/api/types.ts'
+import {
+  AuthField,
+  AuthNotice,
+  AuthPage,
+  AuthHeader,
+  BrandMark,
+  PrimaryButton,
+} from '../../../shared/components/AuthUI.tsx'
+import { getFrenchErrorMessage } from '../../../shared/utils/frenchError.ts'
 import { useRegister } from '../hooks.ts'
 
-const registerSchema = z
+const schema = z
   .object({
-    firstName: z.string().min(1, 'First name is required'),
-    lastName: z.string().min(1, 'Last name is required'),
-    email: z.string().email('Enter a valid email address'),
-    phone: z.string().optional(),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
-    confirmPassword: z.string().min(1, 'Confirm your password'),
+    firstName: z.string().min(1, 'Le prénom est requis.'),
+    lastName: z.string().min(1, 'Le nom est requis.'),
+    email: z.string().email('Saisissez une adresse e-mail valide.'),
+    password: z.string().min(8, 'Utilisez au moins 8 caractères.'),
+    confirm: z.string().min(1, 'Confirmez votre mot de passe.'),
   })
-  .refine((values) => values.password === values.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
+  .refine((value) => value.password === value.confirm, {
+    path: ['confirm'],
+    message: 'Les mots de passe ne correspondent pas.',
   })
-
-type RegisterFormValues = z.infer<typeof registerSchema>
+type Values = z.infer<typeof schema>
 
 export function RegisterPage() {
   const navigate = useNavigate()
-  const registerMutation = useRegister()
+  const mutation = useRegister()
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
-  } = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
+  } = useForm<Values>({
+    resolver: zodResolver(schema),
     defaultValues: {
       firstName: '',
       lastName: '',
       email: '',
-      phone: '',
       password: '',
-      confirmPassword: '',
+      confirm: '',
     },
   })
-  const errorMessage = getErrorMessage(registerMutation.error)
 
-  const onSubmit = handleSubmit(async (values) => {
+  const submit = handleSubmit(async (values) => {
     const email = values.email.trim()
-
-    await registerMutation.mutateAsync({
+    await mutation.mutateAsync({
       firstName: values.firstName.trim(),
       lastName: values.lastName.trim(),
       email,
       password: values.password,
-      phone: values.phone?.trim() || undefined,
     })
-
     navigate(`/verify-email?email=${encodeURIComponent(email)}`, {
       replace: true,
     })
   })
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
-      <section className="w-full max-w-sm rounded border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold">Register</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Create your Akera account.
-        </p>
-
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              autoComplete="given-name"
-              error={errors.firstName?.message}
-              label="First name"
-              registration={register('firstName')}
-            />
-            <FormField
-              autoComplete="family-name"
-              error={errors.lastName?.message}
-              label="Last name"
-              registration={register('lastName')}
-            />
-          </div>
-
-          <FormField
-            autoComplete="email"
-            error={errors.email?.message}
-            label="Email"
-            registration={register('email')}
-            type="email"
-          />
-          <FormField
-            autoComplete="tel"
-            error={errors.phone?.message}
-            label="Phone"
-            registration={register('phone')}
-            type="tel"
-          />
-          <FormField
-            autoComplete="new-password"
-            error={errors.password?.message}
-            label="Password"
-            registration={register('password')}
-            type="password"
-          />
-          <FormField
-            autoComplete="new-password"
-            error={errors.confirmPassword?.message}
-            label="Confirm password"
-            registration={register('confirmPassword')}
-            type="password"
-          />
-
-          {errorMessage ? (
-            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {errorMessage}
-            </p>
-          ) : null}
-
-          <button
-            className="w-full rounded bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            disabled={isSubmitting || registerMutation.isPending}
-            type="submit"
-          >
-            {isSubmitting || registerMutation.isPending
-              ? 'Creating account...'
-              : 'Create account'}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already have an account?{' '}
-          <Link className="font-medium text-slate-950 hover:underline" to="/login">
-            Sign in
-          </Link>
-        </p>
-      </section>
-    </main>
-  )
-}
-
-type FormFieldProps = {
-  autoComplete?: string
-  error?: string
-  label: string
-  registration: UseFormRegisterReturn
-  type?: string
-}
-
-function FormField({
-  autoComplete,
-  error,
-  label,
-  registration,
-  type = 'text',
-}: FormFieldProps) {
-  const id = registration.name
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700" htmlFor={id}>
-        {label}
-      </label>
-      <input
-        autoComplete={autoComplete}
-        className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-        id={id}
-        type={type}
-        {...registration}
+    <AuthPage>
+      <BrandMark label="Akera Financial" showLabel={false} />
+      <AuthHeader
+        subtitle="Rejoignez Akera Financial pour gérer vos opérations d’entreprise."
+        title="Créer un compte"
       />
-      {error ? <p className="mt-1 text-sm text-red-600">{error}</p> : null}
-    </div>
+      <form className="auth-form" onSubmit={submit}>
+        <div className="auth-form-row">
+          <AuthField
+            error={errors.firstName?.message}
+            icon={UserRound}
+            id="firstName"
+            label="Prénom"
+            {...register('firstName')}
+          />
+          <AuthField
+            error={errors.lastName?.message}
+            icon={UserRound}
+            id="lastName"
+            label="Nom"
+            {...register('lastName')}
+          />
+        </div>
+        <AuthField
+          error={errors.email?.message}
+          icon={Mail}
+          id="register-email"
+          label="Adresse e-mail"
+          type="email"
+          {...register('email')}
+        />
+        <AuthField
+          error={errors.password?.message}
+          icon={LockKeyhole}
+          id="register-password"
+          label="Mot de passe"
+          type="password"
+          {...register('password')}
+        />
+        <AuthField
+          error={errors.confirm?.message}
+          icon={LockKeyhole}
+          id="confirm-password"
+          label="Confirmer le mot de passe"
+          type="password"
+          {...register('confirm')}
+        />
+        {mutation.error ? (
+          <AuthNotice>{getFrenchErrorMessage(mutation.error)}</AuthNotice>
+        ) : null}
+        <PrimaryButton disabled={isSubmitting || mutation.isPending}>
+          {mutation.isPending ? 'Création…' : 'Créer mon compte'}
+        </PrimaryButton>
+      </form>
+      <p className="auth-footer">
+        <Link className="text-xl font-semibold text-black" to="/login">
+          J’ai déjà un compte
+        </Link>
+      </p>
+      <p className="auth-footer text-xs leading-5">
+        En créant un compte, vous acceptez nos{' '}
+        <Link className="auth-secondary-link" to="/terms">
+          Conditions d’utilisation
+        </Link>{' '}
+        et notre{' '}
+        <Link className="auth-secondary-link" to="/privacy">
+          Politique de confidentialité
+        </Link>
+        .
+      </p>
+    </AuthPage>
   )
-}
-
-function getErrorMessage(error: unknown): string | null {
-  if (!error) {
-    return null
-  }
-
-  if (error instanceof AppApiError || error instanceof Error) {
-    return error.message
-  }
-
-  return 'Unable to create your account. Please try again.'
 }

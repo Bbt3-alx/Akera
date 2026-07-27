@@ -4,6 +4,7 @@ import {
   listCompanyInvitations,
   listMyInvitations,
   rejectCompanyInvitation,
+  resolveCompanyInvitation,
   revokeCompanyInvitation,
 } from "../services/companyInvitation.service.js";
 import {
@@ -47,6 +48,18 @@ export const listMine = async (req, res) => {
   res.status(200).json({
     success: true,
     data: serializeCompanyInvitations(invitations),
+  });
+};
+
+export const resolveInvitation = async (req, res) => {
+  const invitation = await resolveCompanyInvitation({
+    credential: req.params.credential,
+    userEmail: req.user.email,
+  });
+
+  res.status(200).json({
+    success: true,
+    data: serializeCompanyInvitation(invitation),
   });
 };
 

@@ -69,6 +69,14 @@ const validateSignupPayload = (email, password, profile) => {
   if (!isValidEmail(email)) {
     throw new ApiError(422, "Invalid email format", "VALIDATION_ERROR");
   }
+
+  if (password.length < 8) {
+    throw new ApiError(
+      422,
+      "Password must be at least 8 characters",
+      "VALIDATION_ERROR",
+    );
+  }
 };
 
 export async function signupUser(payload = {}) {

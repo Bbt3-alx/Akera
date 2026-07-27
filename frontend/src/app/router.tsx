@@ -3,15 +3,22 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { RegisterPage } from '../features/auth/pages/RegisterPage.tsx'
 import { LoginPage } from '../features/auth/pages/LoginPage.tsx'
 import { VerifyEmailPage } from '../features/auth/pages/VerifyEmailPage.tsx'
+import { ForgotPasswordPage } from '../features/auth/pages/ForgotPasswordPage.tsx'
+import { ResetPasswordPage } from '../features/auth/pages/ResetPasswordPage.tsx'
+import { DocumentationPage, PrivacyPage, TermsPage } from '../features/auth/pages/InformationPages.tsx'
 import { AuditTimelinePage } from '../features/auditTimeline/pages/AuditTimelinePage.tsx'
 import { CompanyCashPage } from '../features/companyCash/pages/CompanyCashPage.tsx'
 import { CreateCompanyPage } from '../features/companies/pages/CreateCompanyPage.tsx'
 import { CompanySelectPage } from '../features/companies/pages/CompanySelectPage.tsx'
+import { WelcomePage } from '../features/companies/pages/WelcomePage.tsx'
+import { OnboardingReadyPage } from '../features/companies/pages/OnboardingReadyPage.tsx'
 import { CorrespondentCollectionPage } from '../features/correspondentCollection/pages/CorrespondentCollectionPage.tsx'
 import { DashboardPage } from '../features/dashboard/pages/DashboardPage.tsx'
 import { CompanyExchangeRatePage } from '../features/exchangeRates/pages/CompanyExchangeRatePage.tsx'
 import { CompanyInvitationsPage } from '../features/invitations/pages/CompanyInvitationsPage.tsx'
 import { MyInvitationsPage } from '../features/invitations/pages/MyInvitationsPage.tsx'
+import { JoinCompanyPage } from '../features/invitations/pages/JoinCompanyPage.tsx'
+import { InvitationDetailPage } from '../features/invitations/pages/InvitationDetailPage.tsx'
 import { OperationsPage } from '../features/remoteAgentPayout/pages/OperationsPage.tsx'
 import { RemoteAgentPayoutPage } from '../features/remoteAgentPayout/pages/RemoteAgentPayoutPage.tsx'
 import { ReconciliationPage } from '../features/reconciliation/pages/ReconciliationPage.tsx'
@@ -55,6 +62,67 @@ export const router = createBrowserRouter([
       <PublicAuthRoute>
         <VerifyEmailPage />
       </PublicAuthRoute>
+    ),
+  },
+  {
+    path: '/forgot-password',
+    errorElement: routeErrorElement,
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/reset-password/:token',
+    errorElement: routeErrorElement,
+    element: <ResetPasswordPage />,
+  },
+  {
+    path: '/terms',
+    errorElement: routeErrorElement,
+    element: <TermsPage />,
+  },
+  {
+    path: '/privacy',
+    errorElement: routeErrorElement,
+    element: <PrivacyPage />,
+  },
+  {
+    path: '/docs',
+    errorElement: routeErrorElement,
+    element: <DocumentationPage />,
+  },
+  {
+    path: '/welcome',
+    errorElement: routeErrorElement,
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <WelcomePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/join-company',
+    errorElement: routeErrorElement,
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <JoinCompanyPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/invitations/:credential',
+    errorElement: routeErrorElement,
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <InvitationDetailPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/onboarding/ready',
+    errorElement: routeErrorElement,
+    element: (
+      <ProtectedRoute requireCompany={false}>
+        <OnboardingReadyPage />
+      </ProtectedRoute>
     ),
   },
   {

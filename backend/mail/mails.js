@@ -3,6 +3,7 @@ import {
   VERIFICATION_EMAIL_TEMPLATE,
   PASSWORD_RESET_SUCCESS_TEMPLATE,
   PASSWORD_RESET_REQUEST_TEMPLATE,
+  COMPANY_INVITATION_TEMPLATE,
 } from "./emailTemplates.js";
 import {ApiError} from "../middlewares/errorHandler.js";
 
@@ -18,7 +19,7 @@ export const sendVerificationEmail = async (email, verificationToken) => {
     const response = await mailtrapClient.send({
       from: sender,
       to: recipient,
-      subject: "Verify your email",
+      subject: "Vérifiez votre adresse e-mail",
       html: VERIFICATION_EMAIL_TEMPLATE.replace(
         "{verificationCode}",
         verificationToken
@@ -75,7 +76,7 @@ export const sendResetPasswordEmail = async (email, resetUrl) => {
     const response = await mailtrapClient.send({
       from: sender,
       to: recipient,
-      subject: "Reset your password",
+      subject: "Réinitialisez votre mot de passe",
       html: PASSWORD_RESET_REQUEST_TEMPLATE.replace("{resetURL}", resetUrl),
       category: "Reset password",
     });
@@ -98,7 +99,7 @@ export const sendResetSuccessEmail = async (email) => {
     const response = mailtrapClient.send({
       from: sender,
       to: recipient,
-      subject: "Password Reset Successfully",
+      subject: "Mot de passe réinitialisé",
       html: PASSWORD_RESET_SUCCESS_TEMPLATE,
       category: "Security Alert",
     });
@@ -107,4 +108,31 @@ export const sendResetSuccessEmail = async (email) => {
     console.log(`Error sending password update confirmation email`);
     throw new ApiError(500, "Error sending password reset confirmation email", "EMAIL_SEND_ERROR");
   }
+};
+
+export const sendCompanyInvitationEmail = async ({
+  email,
+  companyName,
+  invitationCode,
+  invitationUrl,
+}) => {
+  if (process.env.EMAIL_DELIVERY_MODE === "console") {
+    console.log(
+      `[DEV EMAIL] Invitation for ${email}: ${invitationCode} ${invitationUrl}`,
+    );
+    return;
+  }
+
+  const html = COMPANY_INVITATION_TEMPLATE
+    .replace("{companyName}", companyName)
+    .replace("{invitationCode}", invitationCode)
+    .replace("{invitationUrl}", invitationUrl);
+
+  await mailtrapClient.send({
+    from: sender,
+    to: [{ email }],
+    subject: `Invitation à rejoindre ${companyName} sur Akera`,
+    html,
+    category: "Company invitation",
+  });
 };

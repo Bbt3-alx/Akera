@@ -70,3 +70,16 @@ export type ResendVerificationPayload = {
 export type ResendVerificationResponse = {
   message: string
 }
+
+export type MessageResponse = {
+  message: string
+}
+
+export type ForgotPasswordPayload = {
+  email: string
+}
+
+export type ResetPasswordPayload = {
+  token: string
+  password: string
+}

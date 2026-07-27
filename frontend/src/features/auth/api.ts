@@ -6,10 +6,13 @@ import {
 import { http } from '../../shared/api/http.ts'
 import type {
   AuthPayload,
+  ForgotPasswordPayload,
   LoginPayload,
+  MessageResponse,
   RegisterPayload,
   ResendVerificationPayload,
   ResendVerificationResponse,
+  ResetPasswordPayload,
   SignupResponse,
   VerifyEmailPayload,
 } from './types.ts'
@@ -75,7 +78,7 @@ export async function resendVerification(
   >('/auth/resend-verification', payload)
 
   if (response.success) {
-    return { message: response.message }
+    return { message: response.message ?? 'Demande enregistrée.' }
   }
 
   throw new AppApiError({
@@ -83,6 +86,47 @@ export async function resendVerification(
     statusCode: response.code ?? 0,
     errorCode: response.errorCode,
     details: response.details,
+  })
+}
+
+export async function forgotPassword(
+  payload: ForgotPasswordPayload,
+): Promise<MessageResponse> {
+  const response = await http.post<
+    ApiResponse<unknown>,
+    ApiResponse<unknown>,
+    ForgotPasswordPayload
+  >('/auth/forgot-password', payload)
+
+  if (response.success) {
+    return { message: response.message ?? 'Demande enregistrée.' }
+  }
+
+  throw new AppApiError({
+    message: response.message,
+    statusCode: response.code ?? 0,
+    errorCode: response.errorCode,
+  })
+}
+
+export async function resetPassword({
+  token,
+  password,
+}: ResetPasswordPayload): Promise<MessageResponse> {
+  const response = await http.post<
+    ApiResponse<unknown>,
+    ApiResponse<unknown>,
+    { password: string }
+  >(`/auth/reset-password/${encodeURIComponent(token)}`, { password })
+
+  if (response.success) {
+    return { message: response.message ?? 'Mot de passe mis à jour.' }
+  }
+
+  throw new AppApiError({
+    message: response.message,
+    statusCode: response.code ?? 0,
+    errorCode: response.errorCode,
   })
 }
 

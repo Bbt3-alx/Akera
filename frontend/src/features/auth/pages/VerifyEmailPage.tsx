@@ -1,175 +1,105 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { MailCheck } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 
-import { AppApiError } from '../../../shared/api/types.ts'
-import { useCompaniesStore } from '../../companies/store.ts'
+import {
+  AuthField,
+  AuthHeader,
+  AuthNotice,
+  AuthPage,
+  PrimaryButton,
+} from '../../../shared/components/AuthUI.tsx'
+import { getFrenchErrorMessage } from '../../../shared/utils/frenchError.ts'
 import { useResendVerification, useVerifyEmail } from '../hooks.ts'
 
-const verifyEmailSchema = z.object({
-  code: z
-    .string()
-    .regex(/^\d{6}$/, 'Enter the 6-digit verification code'),
+const schema = z.object({
+  code: z.string().regex(/^\d{6}$/, 'Saisissez le code à 6 chiffres.'),
 })
-
-type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>
 
 export function VerifyEmailPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const email = searchParams.get('email')?.trim() || ''
-  const [resendMessage, setResendMessage] = useState<string | null>(null)
-  const verifyEmailMutation = useVerifyEmail()
-  const resendVerificationMutation = useResendVerification()
-  const setActiveCompanyId = useCompaniesStore(
-    (state) => state.setActiveCompanyId,
-  )
-  const clearActiveCompanyId = useCompaniesStore(
-    (state) => state.clearActiveCompanyId,
-  )
+  const [params] = useSearchParams()
+  const email = params.get('email')?.trim() ?? ''
+  const [sent, setSent] = useState(false)
+  const verify = useVerifyEmail()
+  const resend = useResendVerification()
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
-  } = useForm<VerifyEmailFormValues>({
-    resolver: zodResolver(verifyEmailSchema),
-    defaultValues: {
-      code: '',
-    },
-  })
-  const errorMessage = getErrorMessage(verifyEmailMutation.error)
-  const resendErrorMessage = getErrorMessage(resendVerificationMutation.error)
-
-  const onSubmit = handleSubmit(async (values) => {
-    const authPayload = await verifyEmailMutation.mutateAsync({
-      code: values.code,
-    })
-    const [membership] = authPayload.memberships
-
-    if (authPayload.memberships.length === 1 && membership) {
-      setActiveCompanyId(membership.companyId)
-      navigate('/app', { replace: true })
-      return
-    }
-
-    clearActiveCompanyId()
-    navigate('/select-company', { replace: true })
+  } = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { code: '' },
   })
 
-  async function handleResendCode() {
-    if (!email) {
-      return
-    }
+  const submit = handleSubmit(async ({ code }) => {
+    await verify.mutateAsync({ code })
+    navigate('/welcome', { replace: true })
+  })
 
-    try {
-      setResendMessage(null)
-      const response = await resendVerificationMutation.mutateAsync({ email })
-      setResendMessage(response.message)
-    } catch {
-      // The mutation state renders the normalized backend error.
-    }
+  async function handleResend() {
+    if (!email) return
+    await resend.mutateAsync({ email })
+    setSent(true)
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
-      <section className="w-full max-w-sm rounded border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold">Verify email</h1>
-        <p className="mt-2 text-sm text-slate-500">
-          Enter the 6-digit code sent to {email || 'your email'}.
-        </p>
-        {!email ? (
-          <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Open this page from your registration or login flow to resend a
-            verification code.
-          </p>
+    <AuthPage>
+      <AuthHeader
+        icon={MailCheck}
+        subtitle={
+          <>
+            Nous avons envoyé un code de confirmation à{' '}
+            <strong>{email || 'votre adresse'}</strong>. Il expire dans 15
+            minutes.
+          </>
+        }
+        title="Vérifiez votre adresse e-mail"
+      />
+      <form className="auth-form" onSubmit={submit}>
+        <AuthField
+          autoComplete="one-time-code"
+          error={errors.code?.message}
+          id="verification-code"
+          inputMode="numeric"
+          label="Code de vérification"
+          maxLength={6}
+          placeholder="000000"
+          {...register('code')}
+        />
+        {verify.error ? (
+          <AuthNotice>{getFrenchErrorMessage(verify.error)}</AuthNotice>
         ) : null}
-
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <div>
-            <label
-              className="block text-sm font-medium text-slate-700"
-              htmlFor="code"
-            >
-              Verification code
-            </label>
-            <input
-              autoComplete="one-time-code"
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm tracking-widest outline-none transition focus:border-slate-950 focus:ring-2 focus:ring-slate-950/10"
-              id="code"
-              inputMode="numeric"
-              maxLength={6}
-              {...register('code')}
-            />
-            {errors.code ? (
-              <p className="mt-1 text-sm text-red-600">
-                {errors.code.message}
-              </p>
-            ) : null}
-          </div>
-
-          {errorMessage ? (
-            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {errorMessage}
-            </p>
-          ) : null}
-
-          <button
-            className="w-full rounded bg-slate-950 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-            disabled={isSubmitting || verifyEmailMutation.isPending}
-            type="submit"
-          >
-            {isSubmitting || verifyEmailMutation.isPending
-              ? 'Verifying...'
-              : 'Verify email'}
-          </button>
-        </form>
-
-        <div className="mt-4 space-y-3">
-          <button
-            className="w-full rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-            disabled={!email || resendVerificationMutation.isPending}
-            onClick={handleResendCode}
-            type="button"
-          >
-            {resendVerificationMutation.isPending
-              ? 'Sending...'
-              : 'Resend code'}
-          </button>
-
-          {resendMessage ? (
-            <p className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              {resendMessage}
-            </p>
-          ) : null}
-
-          {resendErrorMessage ? (
-            <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {resendErrorMessage}
-            </p>
-          ) : null}
-        </div>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Already verified?{' '}
-          <Link className="font-medium text-slate-950 hover:underline" to="/login">
-            Sign in
-          </Link>
-        </p>
-      </section>
-    </main>
+        {sent ? (
+          <AuthNotice tone="success">Un nouveau code a été envoyé.</AuthNotice>
+        ) : null}
+        {resend.error ? (
+          <AuthNotice>{getFrenchErrorMessage(resend.error)}</AuthNotice>
+        ) : null}
+        <PrimaryButton disabled={isSubmitting || verify.isPending}>
+          {verify.isPending ? 'Vérification…' : 'Vérifier mon adresse'}
+        </PrimaryButton>
+        <button
+          className="auth-ghost"
+          disabled={!email || resend.isPending}
+          onClick={() => void handleResend()}
+          type="button"
+        >
+          {resend.isPending ? 'Envoi…' : 'Renvoyer le code'}
+        </button>
+      </form>
+      <p className="auth-footer">
+        <Link className="auth-secondary-link" to="/login">
+          Retour à la connexion
+        </Link>
+      </p>
+      <div className="auth-divider" />
+      <p className="text-center text-xs font-semibold tracking-[.13em]">
+        AKERA FINANCIAL
+      </p>
+    </AuthPage>
   )
-}
-
-function getErrorMessage(error: unknown): string | null {
-  if (!error) {
-    return null
-  }
-
-  if (error instanceof AppApiError || error instanceof Error) {
-    return error.message
-  }
-
-  return 'Unable to verify your email. Please try again.'
 }

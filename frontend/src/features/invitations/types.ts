@@ -32,6 +32,7 @@ export type CompanyInvitation = {
   company: InvitationCompany
   role: InvitationRole
   status: InvitationStatus
+  invitationCode?: string
   currency?: InvitationCurrency
   startingBalance?: number
   invitedBy?: InvitationUserReference

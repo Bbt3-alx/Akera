@@ -1,6 +1,11 @@
 import mongoose from "mongoose";
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
+jest.mock("../../mail/mails.js", () => ({
+  sendCompanyInvitationEmail: jest.fn(),
+}));
+
+import { sendCompanyInvitationEmail } from "../../mail/mails.js";
 import Company from "../../models/Company.js";
 import CompanyInvitation from "../../models/CompanyInvitation.js";
 import CompanyMembership from "../../models/CompanyMembership.js";
@@ -11,12 +16,14 @@ import {
   listCompanyInvitations,
   listMyInvitations,
   rejectCompanyInvitation,
+  resolveCompanyInvitation,
   revokeCompanyInvitation,
 } from "../../services/companyInvitation.service.js";
 
 describe("company invitation service", () => {
   afterEach(() => {
     jest.restoreAllMocks();
+    sendCompanyInvitationEmail.mockReset();
   });
 
   it("lets a manager invite a partner with currency and startingBalance", async () => {
@@ -52,6 +59,12 @@ describe("company invitation service", () => {
     });
 
     expect(result).toBe(invitation);
+    expect(sendCompanyInvitationEmail).toHaveBeenCalledWith({
+      email: "partner@example.com",
+      companyName: "Akera Gold",
+      invitationCode: invitation.invitationCode,
+      invitationUrl: expect.stringContaining("/invitations/"),
+    });
     expect(invitationCreate).toHaveBeenCalledWith(
       [
         expect.objectContaining({
@@ -249,6 +262,68 @@ describe("company invitation service", () => {
       expiresAt: { $gt: expect.any(Date) },
     });
     expect(result).toBe(invitations);
+  });
+
+  it("resolves a normalized short code only for the matching invitee", async () => {
+    const ids = createIds();
+    const invitation = createInvitation({
+      ...ids,
+      email: "partner@example.com",
+      invitationCode: "ABCD234567",
+    });
+    const findOne = jest
+      .spyOn(CompanyInvitation, "findOne")
+      .mockReturnValue(createPopulateQuery(invitation));
+
+    const result = await resolveCompanyInvitation({
+      credential: " abcd-234-567 ",
+      userEmail: " PARTNER@EXAMPLE.COM ",
+    });
+
+    expect(findOne).toHaveBeenCalledWith({
+      email: "partner@example.com",
+      invitationCode: "ABCD234567",
+      status: "pending",
+      expiresAt: { $gt: expect.any(Date) },
+    });
+    expect(result).toBe(invitation);
+  });
+
+  it("resolves a legacy long token without changing its case", async () => {
+    const ids = createIds();
+    const invitation = createInvitation(ids);
+    const findOne = jest
+      .spyOn(CompanyInvitation, "findOne")
+      .mockReturnValue(createPopulateQuery(invitation));
+    const token = "AbCd".repeat(16);
+
+    await resolveCompanyInvitation({
+      credential: token,
+      userEmail: "invitee@example.com",
+    });
+
+    expect(findOne).toHaveBeenCalledWith({
+      email: "invitee@example.com",
+      token,
+      status: "pending",
+      expiresAt: { $gt: expect.any(Date) },
+    });
+  });
+
+  it("does not disclose an invitation to a different email", async () => {
+    jest
+      .spyOn(CompanyInvitation, "findOne")
+      .mockReturnValue(createPopulateQuery(null));
+
+    await expect(
+      resolveCompanyInvitation({
+        credential: "ABCD234567",
+        userEmail: "other@example.com",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+      errorCode: "INVITATION_NOT_FOUND",
+    });
   });
 
   it("accepts a matching pending invitation and creates an active membership", async () => {
@@ -464,6 +539,13 @@ function createListQuery(result) {
   };
 }
 
+function createPopulateQuery(result) {
+  return {
+    populate: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue(result),
+  };
+}
+
 function createIds() {
   return {
     companyId: new mongoose.Types.ObjectId(),
@@ -494,6 +576,7 @@ function createInvitation({
   role = "partner",
   currency = "FCFA",
   startingBalance = 0,
+  invitationCode = "ABCD234567",
 }) {
   return {
     _id: invitationId,
@@ -503,6 +586,7 @@ function createInvitation({
     status: "pending",
     currency,
     startingBalance,
+    invitationCode,
     invitedBy: managerId,
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     save: jest.fn().mockResolvedValue(undefined),

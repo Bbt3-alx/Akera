@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 
 import { useMe } from '../../features/auth/hooks.ts'
 import { useAuthStore } from '../../features/auth/store.ts'
@@ -15,6 +15,7 @@ export function ProtectedRoute({
   children,
   requireCompany = true,
 }: ProtectedRouteProps) {
+  const location = useLocation()
   const accessToken = useAuthStore((state) => state.accessToken)
   const hydrateAccessToken = useAuthStore((state) => state.hydrateAccessToken)
   const clearAccessToken = useAuthStore((state) => state.clearAccessToken)
@@ -63,7 +64,13 @@ export function ProtectedRoute({
   }
 
   if (!accessToken || isUnauthorized) {
-    return <Navigate to="/login" replace />
+    const returnTo = `${location.pathname}${location.search}`
+    return (
+      <Navigate
+        to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
+        replace
+      />
+    )
   }
 
   if (unverifiedEmail) {

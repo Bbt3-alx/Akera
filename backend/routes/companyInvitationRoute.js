@@ -6,12 +6,14 @@ import {
   listInvitations,
   listMine,
   rejectInvitation,
+  resolveInvitation,
   revokeInvitation,
 } from "../controllers/companyInvitation.controller.js";
 import { catchAsync, ApiError } from "../middlewares/errorHandler.js";
 import { requireVerifiedUser } from "../middlewares/requireVerifiedUser.js";
 import resolveCompanyContext from "../middlewares/resolveCompanyContext.js";
 import verifyToken from "../middlewares/verifyToken.js";
+import { invitationLookupLimiter } from "../middlewares/invitationLookupRateLimit.js";
 
 const router = express.Router();
 
@@ -41,6 +43,12 @@ const inviteeAccess = [verifyToken, requireVerifiedUser];
 router.post("/", managerAccess, catchAsync(createInvitation));
 router.get("/", managerAccess, catchAsync(listInvitations));
 router.get("/mine", inviteeAccess, catchAsync(listMine));
+router.get(
+  "/resolve/:credential",
+  invitationLookupLimiter,
+  ...inviteeAccess,
+  catchAsync(resolveInvitation),
+);
 router.post("/:id/accept", inviteeAccess, catchAsync(acceptInvitation));
 router.post("/:id/reject", inviteeAccess, catchAsync(rejectInvitation));
 router.post("/:id/revoke", managerAccess, catchAsync(revokeInvitation));

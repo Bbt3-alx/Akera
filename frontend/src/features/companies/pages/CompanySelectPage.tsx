@@ -106,13 +106,13 @@ export function CompanySelectPage() {
   }
 
   if (meQuery.isLoading) {
-    return <CompanySelectShell>Loading...</CompanySelectShell>
+    return <CompanySelectShell>Chargement…</CompanySelectShell>
   }
 
   if (meQuery.isError) {
     return (
       <CompanySelectShell>
-        Unable to load your company access. Please try again.
+        Impossible de charger vos accès. Veuillez réessayer.
       </CompanySelectShell>
     )
   }
@@ -123,13 +123,13 @@ export function CompanySelectPage() {
         <div className="w-full">
           <h1 className="text-2xl font-semibold">
             {hasPendingInvitations
-              ? 'Pending invitations'
-              : 'No company access yet'}
+              ? 'Invitations en attente'
+              : 'Aucun espace accessible'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-600">
             {hasPendingInvitations
-              ? 'Accept an invitation below or create your own company workspace.'
-              : 'Create your company to start using Akera, or wait for an invitation from an existing company.'}
+              ? 'Acceptez une invitation ci-dessous ou créez votre propre espace.'
+              : 'Créez votre entreprise pour commencer, ou attendez une invitation.'}
           </p>
 
           <InvitationList
@@ -157,14 +157,14 @@ export function CompanySelectPage() {
               onClick={() => navigate('/create-company')}
               type="button"
             >
-              Create company
+              Créer une entreprise
             </button>
             <button
               className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               onClick={handleLogout}
               type="button"
             >
-              Log out
+              Se déconnecter
             </button>
           </div>
         </div>
@@ -173,19 +173,19 @@ export function CompanySelectPage() {
   }
 
   if (memberships.length === 1 && !hasPendingInvitations) {
-    return <CompanySelectShell>Redirecting...</CompanySelectShell>
+    return <CompanySelectShell>Redirection…</CompanySelectShell>
   }
 
   return (
     <CompanySelectShell>
       <div className="w-full">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-2xl font-semibold">Select company</h1>
+          <h1 className="text-3xl font-bold">Sélecteur d’entreprise</h1>
           <Link
             className="inline-flex h-10 items-center justify-center rounded bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800"
             to="/create-company"
           >
-            Create company
+            Créer une entreprise
           </Link>
         </div>
 
@@ -223,9 +223,9 @@ export function CompanySelectPage() {
                 {membership.companyName}
               </div>
               <div className="mt-2 flex flex-wrap gap-2 text-sm text-slate-600">
-                <span>{membership.role}</span>
+                <span>{formatRole(membership.role)}</span>
                 <span aria-hidden="true">-</span>
-                <span>{membership.status}</span>
+                <span>{formatStatus(membership.status)}</span>
               </div>
             </button>
           ))}
@@ -259,7 +259,7 @@ function InvitationList({
   if (isLoading) {
     return (
       <p className="mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-        Loading invitations...
+        Chargement des invitations…
       </p>
     )
   }
@@ -323,7 +323,7 @@ function InvitationList({
                 onClick={() => onAccept(invitation)}
                 type="button"
               >
-                {isAccepting ? 'Accepting...' : 'Accept'}
+                {isAccepting ? 'Acceptation…' : 'Accepter'}
               </button>
               <button
                 className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -331,7 +331,7 @@ function InvitationList({
                 onClick={() => onReject(invitation)}
                 type="button"
               >
-                {isRejecting ? 'Rejecting...' : 'Reject'}
+                {isRejecting ? 'Refus…' : 'Refuser'}
               </button>
             </div>
           </article>
@@ -362,7 +362,7 @@ type CompanySelectShellProps = {
 function CompanySelectShell({ children }: CompanySelectShellProps) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-950">
-      <section className="w-full max-w-2xl rounded border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="w-full max-w-3xl border border-slate-300 bg-white p-8 shadow-sm sm:p-10">
         {children}
       </section>
     </main>
@@ -378,7 +378,7 @@ function getCompanyId(company?: InvitationCompany | null): string | null {
 }
 
 function getCompanyName(company: InvitationCompany): string {
-  return typeof company === 'string' ? 'Company invitation' : company.name
+  return typeof company === 'string' ? 'Invitation d’entreprise' : company.name
 }
 
 function formatAmount(amount: number, currency?: string) {
@@ -402,6 +402,26 @@ function formatDate(value: string) {
   }).format(date)
 }
 
+function formatRole(value: string) {
+  return (
+    {
+      manager: 'Gestionnaire',
+      employee: 'Employé',
+      partner: 'Partenaire',
+    }[value] ?? value
+  )
+}
+
+function formatStatus(value: string) {
+  return (
+    {
+      active: 'Actif',
+      invited: 'Invité',
+      suspended: 'Suspendu',
+    }[value] ?? value
+  )
+}
+
 function getErrorMessage(error: unknown): string | null {
   if (!error) {
     return null
@@ -411,7 +431,7 @@ function getErrorMessage(error: unknown): string | null {
     return error.message
   }
 
-  return 'Please try again.'
+  return 'Veuillez réessayer.'
 }
 
 function isUnauthorizedError(error: unknown): boolean {

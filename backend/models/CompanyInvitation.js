@@ -1,6 +1,16 @@
 import crypto from "node:crypto";
 import { Schema, model } from "mongoose";
 
+const INVITATION_CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+function generateInvitationCode() {
+  const bytes = crypto.randomBytes(10);
+
+  return Array.from(bytes, (byte) =>
+    INVITATION_CODE_ALPHABET[byte % INVITATION_CODE_ALPHABET.length]
+  ).join("");
+}
+
 const companyInvitationSchema = new Schema(
   {
     email: {
@@ -42,6 +52,14 @@ const companyInvitationSchema = new Schema(
       unique: true,
       index: true,
     },
+    invitationCode: {
+      type: String,
+      uppercase: true,
+      trim: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
     invitedBy: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -66,6 +84,10 @@ const companyInvitationSchema = new Schema(
 companyInvitationSchema.pre("validate", function () {
   if (!this.token) {
     this.token = crypto.randomBytes(32).toString("hex");
+  }
+
+  if (!this.invitationCode) {
+    this.invitationCode = generateInvitationCode();
   }
 });
 

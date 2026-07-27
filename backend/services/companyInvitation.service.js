@@ -4,6 +4,7 @@ import CompanyMembership from "../models/CompanyMembership.js";
 import User from "../models/User.js";
 import { ApiError } from "../middlewares/errorHandler.js";
 import { runTransaction } from "../utils/dbTransaction.js";
+import { sendCompanyInvitationEmail } from "../mail/mails.js";
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const VALID_INVITATION_ROLES = new Set(["partner", "employee"]);
@@ -30,7 +31,7 @@ export async function createCompanyInvitation({
   validatePartnerCurrency(payload.role, payload.currency);
   const startingBalance = normalizeStartingBalance(payload.startingBalance);
 
-  return runTransaction(async (session) => {
+  const result = await runTransaction(async (session) => {
     const company = await Company.findById(companyId).session(session);
 
     if (!company) {
@@ -88,8 +89,22 @@ export async function createCompanyInvitation({
       { session },
     );
 
-    return invitation;
+    return { invitation, company };
   });
+
+  const invitationUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/invitations/${result.invitation.token}`;
+  try {
+    await sendCompanyInvitationEmail({
+      email,
+      companyName: result.company.name,
+      invitationCode: result.invitation.invitationCode,
+      invitationUrl,
+    });
+  } catch (error) {
+    console.warn("Company invitation email delivery failed", error);
+  }
+
+  return result.invitation;
 }
 
 export async function listCompanyInvitations({
@@ -125,6 +140,54 @@ export async function listMyInvitations({ email }) {
     .populate("company", "name code baseCurrency")
     .populate("invitedBy", "firstName lastName name email")
     .lean();
+}
+
+export async function resolveCompanyInvitation({
+  credential,
+  userEmail,
+}) {
+  const email = normalizeEmail(userEmail);
+  validateEmail(email);
+
+  const normalizedCredential =
+    typeof credential === "string" ? credential.trim() : "";
+
+  if (!normalizedCredential) {
+    throw new ApiError(
+      422,
+      "Invitation code or link is required",
+      "INVITATION_CREDENTIAL_REQUIRED",
+    );
+  }
+
+  const isLongToken = /^[a-fA-F0-9]{64}$/.test(normalizedCredential);
+  const credentialFilter = isLongToken
+    ? { token: normalizedCredential }
+    : {
+        invitationCode: normalizedCredential
+          .replace(/[\s-]/g, "")
+          .toUpperCase(),
+      };
+
+  const invitation = await CompanyInvitation.findOne({
+    email,
+    ...credentialFilter,
+    status: "pending",
+    expiresAt: { $gt: new Date() },
+  })
+    .populate("company", "name code baseCurrency")
+    .populate("invitedBy", "firstName lastName name email")
+    .lean();
+
+  if (!invitation) {
+    throw new ApiError(
+      404,
+      "Invitation not found",
+      "INVITATION_NOT_FOUND",
+    );
+  }
+
+  return invitation;
 }
 
 export async function acceptCompanyInvitation({

@@ -9,6 +9,7 @@ export function serializeCompanyInvitation(invitation) {
     company: serializeCompany(invitation.company),
     role: invitation.role,
     status: invitation.status,
+    invitationCode: invitation.invitationCode,
     currency: invitation.currency,
     startingBalance: invitation.startingBalance,
     invitedBy: serializeUserReference(invitation.invitedBy),

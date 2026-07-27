@@ -66,6 +66,18 @@ describe("auth service email verification", () => {
     );
   });
 
+  it("rejects registration passwords shorter than eight characters", async () => {
+    await expect(
+      signupUser({
+        ...createSignupPayload(),
+        password: "short7",
+      }),
+    ).rejects.toMatchObject({
+      statusCode: 422,
+      errorCode: "VALIDATION_ERROR",
+    });
+  });
+
   it("resend still sends a verification email", async () => {
     const now = new Date("2026-06-14T10:00:00.000Z").getTime();
     jest.spyOn(Date, "now").mockReturnValue(now);

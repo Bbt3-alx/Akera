@@ -44,6 +44,17 @@ export async function listMyInvitations(): Promise<CompanyInvitation[]> {
   return unwrapApiResponse(response)
 }
 
+export async function resolveInvitation(
+  credential: string,
+): Promise<CompanyInvitation> {
+  const response = await http.get<
+    ApiResponse<CompanyInvitation>,
+    ApiResponse<CompanyInvitation>
+  >(`/company-invitations/resolve/${encodeURIComponent(credential)}`)
+
+  return unwrapApiResponse(response)
+}
+
 export async function acceptInvitation(
   id: string,
 ): Promise<AcceptInvitationResponse> {
